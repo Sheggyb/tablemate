@@ -2,7 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import PlannerClient from "./PlannerClient";
 
-export default async function WeddingPlannerPage({ params }: { params: { id: string } }) {
+export default async function WeddingPlannerPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
@@ -10,7 +11,7 @@ export default async function WeddingPlannerPage({ params }: { params: { id: str
   const { data: wedding } = await supabase
     .from("weddings")
     .select("*")
-    .eq("id", params.id)
+    .eq("id", id)
     .eq("user_id", user.id)
     .single();
 
@@ -18,13 +19,13 @@ export default async function WeddingPlannerPage({ params }: { params: { id: str
 
   // Preload all data
   const [venuesRes, guestsRes, tablesRes, groupsRes, rulesRes, profileRes] = await Promise.all([
-    supabase.from("venues").select("*").eq("wedding_id", params.id),
-    supabase.from("guests").select("*").eq("wedding_id", params.id).order("last_name"),
+    supabase.from("venues").select("*").eq("wedding_id", id),
+    supabase.from("guests").select("*").eq("wedding_id", id).order("last_name"),
     supabase.from("tables").select("*").in("venue_id",
-      (await supabase.from("venues").select("id").eq("wedding_id", params.id)).data?.map(v => v.id) ?? []
+      (await supabase.from("venues").select("id").eq("wedding_id", id)).data?.map(v => v.id) ?? []
     ),
-    supabase.from("groups").select("*").eq("wedding_id", params.id),
-    supabase.from("rules").select("*").eq("wedding_id", params.id),
+    supabase.from("groups").select("*").eq("wedding_id", id),
+    supabase.from("rules").select("*").eq("wedding_id", id),
     supabase.from("profiles").select("plan").eq("id", user.id).single(),
   ]);
 
