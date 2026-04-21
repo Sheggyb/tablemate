@@ -23,17 +23,21 @@ export async function proxy(request: NextRequest) {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Protect /app/* routes — redirect to /login if not authenticated
-  if (!user && request.nextUrl.pathname.startsWith('/app')) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/login'
-    url.searchParams.set('redirectTo', request.nextUrl.pathname)
-    return NextResponse.redirect(url)
+  const { pathname } = request.nextUrl
+
+  // Protect /app routes
+  if (pathname.startsWith('/app') && !user) {
+    return NextResponse.redirect(new URL('/login', request.url))
+  }
+
+  // Redirect logged-in users away from login/signup
+  if ((pathname === '/login' || pathname === '/signup') && user) {
+    return NextResponse.redirect(new URL('/app', request.url))
   }
 
   return supabaseResponse
 }
 
 export const config = {
-  matcher: ['/app/:path*', '/api/stripe/:path*'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
 }
