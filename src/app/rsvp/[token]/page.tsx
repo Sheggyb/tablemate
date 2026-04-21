@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 const MEALS = [
@@ -13,7 +14,8 @@ const MEALS = [
   { value: "children",     label: "Children's",       icon: "🧒" },
 ];
 
-export default function RsvpPage({ params }: { params: { token: string } }) {
+export default function RsvpPage() {
+  const params = useParams();
   const [guest, setGuest]       = useState<any>(null);
   const [wedding, setWedding]   = useState<any>(null);
   const [loading, setLoading]   = useState(true);
