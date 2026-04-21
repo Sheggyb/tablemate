@@ -41,7 +41,7 @@ export default function LandingPage() {
           <Link href="/signup" className="px-8 py-4 bg-[#C9956E] hover:bg-[#B8845D] text-white font-semibold rounded-xl text-lg transition-colors shadow-lg shadow-[#C9956E]/20">
             Start Planning Free
           </Link>
-          <Link href="/app/demo" className="px-8 py-4 border border-[#DDD7D0] hover:border-[#C9956E] text-[#2A2328] font-semibold rounded-xl text-lg transition-colors">
+          <Link href="/demo" className="px-8 py-4 border border-[#DDD7D0] hover:border-[#C9956E] text-[#2A2328] font-semibold rounded-xl text-lg transition-colors">
             Try the Demo →
           </Link>
         </div>
