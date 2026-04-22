@@ -1,27 +1,58 @@
 "use client";
 
 import { useState } from "react";
-import type { Guest, Rule } from "@/lib/types";
+import type { Guest, Rule, Table } from "@/lib/types";
 
 interface Props {
-  rules:       Rule[];
-  guests:      Guest[];
-  onAddRule:   (g1: string, g2: string, type: "must_sit_with" | "must_not_sit_with") => void;
+  rules:        Rule[];
+  guests:       Guest[];
+  tables:       Table[];
+  violations:   Rule[];
+  darkMode:     boolean;
+  onAddRule:    (g1: string, g2: string, type: "must_sit_with" | "must_not_sit_with") => void;
   onDeleteRule: (id: string) => void;
 }
 
-export default function RulesPanel({ rules, guests, onAddRule, onDeleteRule }: Props) {
+export default function RulesPanel({ rules, guests, tables, violations, darkMode, onAddRule, onDeleteRule }: Props) {
   const [g1, setG1]     = useState("");
   const [g2, setG2]     = useState("");
   const [type, setType] = useState<"must_sit_with" | "must_not_sit_with">("must_sit_with");
+
+  const cs = {
+    bg:         "var(--bg)",
+    surface:    "var(--surface)",
+    surface2:   "var(--surface2)",
+    border:     "var(--border)",
+    borderSoft: "var(--border-soft)",
+    text:       "var(--text)",
+    textMid:    "var(--text-mid)",
+    textSoft:   "var(--text-soft)",
+    textMuted:  "var(--text-muted)",
+    accent:     "var(--accent)",
+    accentBg:   "var(--accent-bg)",
+  };
+
+  const inputStyle = { background: cs.surface, borderColor: cs.borderSoft, color: cs.text };
 
   const guestName = (id: string) => {
     const g = guests.find(g => g.id === id);
     return g ? `${g.first_name} ${g.last_name}` : "Unknown";
   };
 
+  const tableName = (guestId: string) => {
+    const g = guests.find(g => g.id === guestId);
+    if (!g?.table_id) return null;
+    return tables.find(t => t.id === g.table_id)?.name ?? null;
+  };
+
   const handleAdd = () => {
     if (!g1 || !g2 || g1 === g2) return;
+    // prevent duplicate rules
+    const exists = rules.some(r =>
+      r.type === type &&
+      ((r.guest1_id === g1 && r.guest2_id === g2) || (r.guest1_id === g2 && r.guest2_id === g1))
+    );
+    if (exists) return;
     onAddRule(g1, g2, type);
     setG1(""); setG2("");
   };
@@ -30,56 +61,104 @@ export default function RulesPanel({ rules, guests, onAddRule, onDeleteRule }: P
   const mustNot = rules.filter(r => r.type === "must_not_sit_with");
 
   return (
-    <div className="max-w-2xl mx-auto px-6 py-8">
-      <h2 className="font-playfair text-2xl font-bold text-[#2A2328] mb-2">Seating Rules</h2>
-      <p className="text-sm text-[#6B6068] mb-8">
-        Rules are respected by the AI seating optimizer and help you manually place guests correctly.
-      </p>
+    <div className="h-full overflow-y-auto" style={{ background: cs.bg }}>
+      <div className="max-w-2xl mx-auto px-6 py-8">
 
-      {/* Add rule */}
-      <div className="bg-white border border-[#EDE8E0] rounded-2xl p-6 mb-8">
-        <h3 className="font-semibold text-[#2A2328] text-sm mb-4">Add a rule</h3>
-        <div className="flex flex-wrap gap-3 items-center">
-          <GuestSelect value={g1} onChange={setG1} guests={guests} placeholder="Guest 1" exclude={g2}/>
-          <select value={type} onChange={e => setType(e.target.value as any)}
-            className="px-3 py-2 border border-[#DDD7D0] rounded-lg text-sm focus:outline-none focus:border-[#C9956E] text-[#4A4348]">
-            <option value="must_sit_with">must sit with</option>
-            <option value="must_not_sit_with">must NOT sit with</option>
-          </select>
-          <GuestSelect value={g2} onChange={setG2} guests={guests} placeholder="Guest 2" exclude={g1}/>
-          <button onClick={handleAdd} disabled={!g1 || !g2 || g1 === g2}
-            className="px-4 py-2 bg-[#C9956E] hover:bg-[#B8845D] disabled:opacity-40 text-white text-sm font-semibold rounded-lg transition-colors">
-            Add Rule
-          </button>
+        <h2 className="font-playfair text-2xl font-bold mb-1" style={{ color: cs.text }}>Seating Rules</h2>
+        <p className="text-sm mb-8" style={{ color: cs.textSoft }}>
+          Rules help you manually place guests correctly and are respected by the AI seating optimizer.
+        </p>
+
+        {/* Add rule */}
+        <div className="rounded-2xl p-6 mb-6" style={{ background: cs.surface, border: `1px solid ${cs.border}` }}>
+          <h3 className="font-semibold text-sm mb-4" style={{ color: cs.text }}>Add a rule</h3>
+          <div className="flex flex-wrap gap-3 items-center">
+            <GuestSelect value={g1} onChange={setG1} guests={guests} placeholder="Guest 1" exclude={g2} cs={cs}/>
+            <select value={type} onChange={e => setType(e.target.value as any)}
+              className="px-3 py-2 border rounded-lg text-sm" style={inputStyle}>
+              <option value="must_sit_with">must sit with</option>
+              <option value="must_not_sit_with">must NOT sit with</option>
+            </select>
+            <GuestSelect value={g2} onChange={setG2} guests={guests} placeholder="Guest 2" exclude={g1} cs={cs}/>
+            <button onClick={handleAdd} disabled={!g1 || !g2 || g1 === g2}
+              className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40 hover:opacity-90"
+              style={{ background: cs.accent }}>
+              Add Rule
+            </button>
+          </div>
         </div>
+
+        {/* Violations */}
+        {violations.length > 0 && (
+          <div className="rounded-2xl p-5 mb-6" style={{ background: "rgba(224,92,106,0.08)", border: "1px solid rgba(224,92,106,0.25)" }}>
+            <h3 className="font-semibold text-sm mb-3 flex items-center gap-2" style={{ color: "var(--danger)" }}>
+              <span>⚠</span> {violations.length} Rule Violation{violations.length !== 1 ? "s" : ""}
+            </h3>
+            <div className="space-y-2">
+              {violations.map(r => {
+                const tn1 = tableName(r.guest1_id);
+                const tn2 = tableName(r.guest2_id);
+                return (
+                  <div key={r.id} className="text-sm" style={{ color: "var(--danger)" }}>
+                    <strong>{guestName(r.guest1_id)}</strong>
+                    {tn1 && <span className="text-xs opacity-70"> ({tn1})</span>}
+                    <span className="mx-2 opacity-60">{r.type === "must_sit_with" ? "should be with" : "should not be with"}</span>
+                    <strong>{guestName(r.guest2_id)}</strong>
+                    {tn2 && <span className="text-xs opacity-70"> ({tn2})</span>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Rules list */}
+        {rules.length === 0 ? (
+          <div className="text-center py-12" style={{ color: cs.textMuted }}>
+            <div className="text-4xl mb-3">📋</div>
+            <p className="text-sm">No rules yet. Add rules to keep families together or exes apart!</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {must.length > 0 && (
+              <RuleGroup
+                title="✓ Must sit together"
+                colorScheme="green"
+                rules={must}
+                guestName={guestName}
+                tableName={tableName}
+                violations={violations}
+                onDelete={onDeleteRule}
+                cs={cs}
+              />
+            )}
+            {mustNot.length > 0 && (
+              <RuleGroup
+                title="✗ Must NOT sit together"
+                colorScheme="red"
+                rules={mustNot}
+                guestName={guestName}
+                tableName={tableName}
+                violations={violations}
+                onDelete={onDeleteRule}
+                cs={cs}
+              />
+            )}
+          </div>
+        )}
       </div>
-
-      {/* Rules list */}
-      {rules.length === 0 ? (
-        <div className="text-center py-12 text-[#9B9098]">
-          <div className="text-3xl mb-3">📋</div>
-          <p className="text-sm">No rules yet. Add rules to keep families together or exes apart!</p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {must.length > 0 && (
-            <RuleGroup title="✓ Must sit together" color="green" rules={must} guestName={guestName} onDelete={onDeleteRule}/>
-          )}
-          {mustNot.length > 0 && (
-            <RuleGroup title="✗ Must NOT sit together" color="red" rules={mustNot} guestName={guestName} onDelete={onDeleteRule}/>
-          )}
-        </div>
-      )}
     </div>
   );
 }
 
-function GuestSelect({ value, onChange, guests, placeholder, exclude }: {
+function GuestSelect({ value, onChange, guests, placeholder, exclude, cs }: {
   value: string; onChange: (v: string) => void; guests: Guest[]; placeholder: string; exclude: string;
+  cs: Record<string, string>;
 }) {
   return (
     <select value={value} onChange={e => onChange(e.target.value)}
-      className="px-3 py-2 border border-[#DDD7D0] rounded-lg text-sm focus:outline-none focus:border-[#C9956E] text-[#4A4348] min-w-[160px]">
+      className="px-3 py-2 border rounded-lg text-sm min-w-[160px]"
+      style={{ background: cs.surface, borderColor: cs.borderSoft, color: cs.text }}>
       <option value="">{placeholder}</option>
       {guests.filter(g => g.id !== exclude).map(g => (
         <option key={g.id} value={g.id}>{g.first_name} {g.last_name}</option>
@@ -88,30 +167,46 @@ function GuestSelect({ value, onChange, guests, placeholder, exclude }: {
   );
 }
 
-function RuleGroup({ title, color, rules, guestName, onDelete }: {
-  title: string; color: "green"|"red"; rules: Rule[]; guestName: (id: string) => string; onDelete: (id: string) => void;
+function RuleGroup({ title, colorScheme, rules, guestName, tableName, violations, onDelete, cs }: {
+  title: string;
+  colorScheme: "green" | "red";
+  rules: Rule[];
+  guestName: (id: string) => string;
+  tableName: (id: string) => string | null;
+  violations: Rule[];
+  onDelete: (id: string) => void;
+  cs: Record<string, string>;
 }) {
-  const cls = color === "green"
-    ? "bg-green-50 border-green-200"
-    : "bg-red-50 border-red-200";
-  const txtCls = color === "green" ? "text-green-800" : "text-red-800";
+  const isGreen = colorScheme === "green";
+  const bg = isGreen ? "rgba(76,175,125,0.08)" : "rgba(224,92,106,0.08)";
+  const border = isGreen ? "rgba(76,175,125,0.25)" : "rgba(224,92,106,0.25)";
+  const titleColor = isGreen ? "var(--success)" : "var(--danger)";
+  const textColor  = isGreen ? "var(--success)" : "var(--danger)";
+
   return (
-    <div className={`rounded-xl border p-4 ${cls}`}>
-      <h4 className={`text-sm font-semibold mb-3 ${txtCls}`}>{title}</h4>
+    <div className="rounded-xl p-4" style={{ background: bg, border: `1px solid ${border}` }}>
+      <h4 className="text-sm font-semibold mb-3" style={{ color: titleColor }}>{title}</h4>
       <div className="space-y-2">
-        {rules.map(r => (
-          <div key={r.id} className="flex items-center gap-3 group">
-            <span className={`text-sm ${txtCls} flex-1`}>
-              <strong>{guestName(r.guest1_id)}</strong>
-              <span className="mx-2 opacity-60">{r.type === "must_sit_with" ? "↔" : "↮"}</span>
-              <strong>{guestName(r.guest2_id)}</strong>
-            </span>
-            <button onClick={() => onDelete(r.id)}
-              className="opacity-0 group-hover:opacity-100 text-xs text-red-400 hover:text-red-600 transition-opacity">
-              Remove
-            </button>
-          </div>
-        ))}
+        {rules.map(r => {
+          const isViolated = violations.some(v => v.id === r.id);
+          const tn1 = tableName(r.guest1_id);
+          const tn2 = tableName(r.guest2_id);
+          return (
+            <div key={r.id} className="flex items-center gap-3 group">
+              {isViolated && <span className="text-xs flex-shrink-0" style={{ color: "var(--danger)" }}>⚠</span>}
+              <span className="text-sm flex-1" style={{ color: isViolated ? "var(--danger)" : textColor }}>
+                <strong>{guestName(r.guest1_id)}</strong>
+                {tn1 && <span className="text-xs opacity-60 ml-1">({tn1})</span>}
+                <span className="mx-2 opacity-50">{r.type === "must_sit_with" ? "↔" : "↮"}</span>
+                <strong>{guestName(r.guest2_id)}</strong>
+                {tn2 && <span className="text-xs opacity-60 ml-1">({tn2})</span>}
+              </span>
+              <button onClick={() => onDelete(r.id)}
+                className="opacity-0 group-hover:opacity-100 text-xs hover:opacity-70 transition-opacity"
+                style={{ color: "var(--danger)" }}>Remove</button>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
