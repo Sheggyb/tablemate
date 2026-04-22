@@ -46,7 +46,7 @@ export default function GuestPanel({
       const res = await fetch("/api/rsvp/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ guestId: g.id, weddingId }),
+        body: JSON.stringify({ guestIds: [g.id], weddingId }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed");
