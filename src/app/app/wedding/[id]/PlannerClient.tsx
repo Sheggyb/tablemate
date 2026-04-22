@@ -184,12 +184,16 @@ export default function PlannerClient({
     dispatch({ type: "ADD_GUEST", payload: newGuest });
     showToast("Guest added ✓", "success");
     // Persist async
-    supabase.from("guests").insert({ ...newGuest }).then();
+    supabase.from("guests").insert({ ...newGuest }).then(({ error }) => {
+      if (error) console.error("Insert guest failed:", error.message);
+    });
   }, [supabase, wedding.id, showToast]);
 
   const updateGuest = useCallback(async (id: string, data: Partial<Guest>) => {
     dispatch({ type: "UPDATE_GUEST", id, data });
-    supabase.from("guests").update(data).eq("id", id).then();
+    supabase.from("guests").update(data).eq("id", id).then(({ error }) => {
+      if (error) console.error("Update guest failed:", error.message);
+    });
   }, [supabase]);
 
   const deleteGuest = useCallback(async (id: string) => {
@@ -215,6 +219,7 @@ export default function PlannerClient({
     if (!activeVenueId) return;
     const newTable: Table = {
       id: crypto.randomUUID(),
+      wedding_id: wedding.id,
       venue_id: activeVenueId,
       name,
       shape,
@@ -224,12 +229,17 @@ export default function PlannerClient({
     };
     dispatch({ type: "ADD_TABLE", payload: newTable });
     showToast(`${name} added`, "success");
-    supabase.from("tables").insert(newTable).then();
+    supabase.from("tables").insert(newTable).then(({ error }) => {
+      if (error) console.error("Insert table failed:", error.message);
+    });
   }, [supabase, activeVenueId, showToast]);
 
   const updateTable = useCallback(async (id: string, data: Partial<Table>) => {
     dispatch({ type: "UPDATE_TABLE", id, data });
-    supabase.from("tables").update(data).eq("id", id).then();
+    const { wedding_id, ...safeData } = data as any;
+    supabase.from("tables").update(safeData).eq("id", id).then(({ error }) => {
+      if (error) console.error("Update table failed:", error.message);
+    });
   }, [supabase]);
 
   const deleteTable = useCallback(async (id: string) => {
