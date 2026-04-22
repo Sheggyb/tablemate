@@ -5,7 +5,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 export default function AppDashboard() {
-  const [dark, setDark] = useState(false);
+  const [dark, setDark] = useState(() => {
+    if (typeof window !== "undefined") return localStorage.getItem("tm-theme") === "dark";
+    return false;
+  });
   const [weddings, setWeddings] = useState<any[]>([]);
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -13,11 +16,7 @@ export default function AppDashboard() {
   const router = useRouter();
   const supabase = createClient();
 
-  useEffect(() => {
-    const saved = localStorage.getItem("tm-theme");
-    if (saved === "dark") setDark(true);
-    load();
-  }, []);
+  useEffect(() => { load(); }, []);
 
   async function load() {
     const { data: { user } } = await supabase.auth.getUser();
@@ -141,7 +140,7 @@ export default function AppDashboard() {
                 <button
                   onClick={() => deleteWedding(w.id, w.name)}
                   disabled={deletingId === w.id}
-                  className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 w-7 h-7 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-500 flex items-center justify-center text-xs transition-all"
+                  className="absolute top-4 right-4 w-7 h-7 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-500 flex items-center justify-center text-xs transition-all"
                   title="Delete wedding"
                 >
                   🗑
