@@ -8,6 +8,7 @@ import GuestPanel from "./GuestPanel";
 import ChartCanvas from "./ChartCanvas";
 import RulesPanel from "./RulesPanel";
 import ExportPanel from "./ExportPanel";
+import MobilePlanner from "./MobilePlanner";
 
 type Tab = "chart" | "guests" | "rules" | "export";
 
@@ -79,6 +80,7 @@ export default function PlannerClient({
   wedding, initialVenues, initialGuests, initialTables, initialGroups, initialRules, plan
 }: Props) {
   const supabase = createClient();
+  const [isMobile, setIsMobile] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("chart");
   const [activeVenueId, setActiveVenueId] = useState<string | null>(initialVenues[0]?.id ?? null);
   const [aiLoading, setAiLoading] = useState(false);
@@ -124,6 +126,14 @@ export default function PlannerClient({
     document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
     localStorage.setItem("tablemate_dark", darkMode ? "1" : "0");
   }, [darkMode]);
+
+  // Mobile detection
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   const showToast = useCallback((msg: string, type: "success" | "error" | "info" = "info") => {
     setToast({ msg, type });
@@ -402,6 +412,22 @@ export default function PlannerClient({
 
   return (
     <div className="flex flex-col h-screen overflow-hidden" style={{ background: cs.bg, color: cs.text }}>
+
+      {/* ── Mobile View ── */}
+      {isMobile && (
+        <MobilePlanner
+          wedding={wedding}
+          tables={state.tables}
+          guests={state.guests}
+          groups={state.groups}
+          rules={state.rules}
+          dispatch={dispatch}
+          dark={darkMode}
+        />
+      )}
+
+      {/* ── Desktop View ── */}
+      {!isMobile && (<>
 
       {/* ── Top Bar ── */}
       <header
@@ -711,6 +737,7 @@ export default function PlannerClient({
           {toast.msg}
         </div>
       )}
+      </>)}
     </div>
   );
 }
