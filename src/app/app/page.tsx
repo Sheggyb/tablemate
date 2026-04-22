@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -12,9 +12,18 @@ export default function AppDashboard() {
   const [weddings, setWeddings] = useState<any[]>([]);
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [ctx, setCtx] = useState<{ x: number; y: number; wedding: any } | null>(null);
+  const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
+  const ctxRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const supabase = createClient();
+
+  // close context menu on outside click
+  useEffect(() => {
+    const fn = (e: MouseEvent) => { if (ctxRef.current && !ctxRef.current.contains(e.target as Node)) setCtx(null); };
+    document.addEventListener("mousedown", fn);
+    return () => document.removeEventListener("mousedown", fn);
+  }, []);
 
   useEffect(() => { load(); }, []);
 
@@ -42,11 +51,19 @@ export default function AppDashboard() {
   };
 
   const deleteWedding = async (id: string, name: string) => {
+    setCtx(null);
     if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
-    setDeletingId(id);
     await supabase.from("weddings").delete().eq("id", id);
     setWeddings(prev => prev.filter(w => w.id !== id));
-    setDeletingId(null);
+  };
+
+  const startRename = (w: any) => { setCtx(null); setRenaming({ id: w.id, name: w.name }); };
+
+  const saveRename = async () => {
+    if (!renaming) return;
+    await supabase.from("weddings").update({ name: renaming.name }).eq("id", renaming.id);
+    setWeddings(prev => prev.map(w => w.id === renaming.id ? { ...w, name: renaming.name } : w));
+    setRenaming(null);
   };
 
   const bg = dark ? "bg-[#1A1618]" : "bg-[#FDFBF8]";
@@ -124,7 +141,11 @@ export default function AppDashboard() {
         ) : (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {weddings.map(w => (
-              <div key={w.id} className={`group relative ${card} rounded-2xl border transition-all hover:shadow-lg`}>
+              <div
+                key={w.id}
+                className={`group relative ${card} rounded-2xl border transition-all hover:shadow-lg cursor-pointer`}
+                onContextMenu={e => { e.preventDefault(); setCtx({ x: e.clientX, y: e.clientY, wedding: w }); }}
+              >
                 <Link href={`/app/wedding/${w.id}`} className="block p-6">
                   <div className="flex items-start justify-between mb-4">
                     <div className="w-10 h-10 bg-[#FDF4EC] rounded-xl flex items-center justify-center text-xl">💍</div>
@@ -133,20 +154,51 @@ export default function AppDashboard() {
                   <h3 className={`font-playfair font-semibold ${text} text-lg mb-1 group-hover:text-[#C9956E] transition-colors`}>{w.name}</h3>
                   {w.couple_names && <p className={`text-sm ${muted}`}>{w.couple_names}</p>}
                   <div className={`mt-4 pt-4 border-t ${dark ? "border-[#3A3540]" : "border-[#EDE8E0]"} flex items-center gap-2 text-xs ${muted}`}>
-                    <span>Open planner →</span>
+                    <span>Right-click for options · Open planner →</span>
                   </div>
                 </Link>
-                {/* Delete button */}
-                <button
-                  onClick={() => deleteWedding(w.id, w.name)}
-                  disabled={deletingId === w.id}
-                  className="absolute top-4 right-4 w-7 h-7 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-500 flex items-center justify-center text-xs transition-all"
-                  title="Delete wedding"
-                >
-                  🗑
-                </button>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Right-click context menu */}
+        {ctx && (
+          <div
+            ref={ctxRef}
+            style={{ top: ctx.y, left: ctx.x }}
+            className={`fixed z-50 rounded-xl shadow-2xl border py-1 min-w-[160px] ${dark ? "bg-[#242028] border-[#3A3540] text-[#F0EBE8]" : "bg-white border-[#EDE8E0] text-[#2A2328]"}`}
+          >
+            <button onClick={() => startRename(ctx.wedding)} className="w-full px-4 py-2 text-sm text-left hover:bg-[#C9956E]/10 flex items-center gap-2">
+              ✏️ Rename
+            </button>
+            <Link href={`/app/wedding/${ctx.wedding.id}`} onClick={() => setCtx(null)} className="w-full px-4 py-2 text-sm text-left hover:bg-[#C9956E]/10 flex items-center gap-2 block">
+              📋 Open planner
+            </Link>
+            <div className={`my-1 border-t ${dark ? "border-[#3A3540]" : "border-[#EDE8E0]"}`} />
+            <button onClick={() => deleteWedding(ctx.wedding.id, ctx.wedding.name)} className="w-full px-4 py-2 text-sm text-left hover:bg-red-500/10 text-red-500 flex items-center gap-2">
+              🗑️ Delete
+            </button>
+          </div>
+        )}
+
+        {/* Rename modal */}
+        {renaming && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+            <div className={`rounded-2xl p-6 w-80 shadow-2xl border ${dark ? "bg-[#242028] border-[#3A3540]" : "bg-white border-[#EDE8E0]"}`}>
+              <h3 className={`font-playfair font-semibold text-lg mb-4 ${text}`}>Rename Wedding</h3>
+              <input
+                autoFocus
+                value={renaming.name}
+                onChange={e => setRenaming({ ...renaming, name: e.target.value })}
+                onKeyDown={e => { if (e.key === "Enter") saveRename(); if (e.key === "Escape") setRenaming(null); }}
+                className={`w-full px-3 py-2 rounded-lg border text-sm mb-4 outline-none focus:border-[#C9956E] ${dark ? "bg-[#1A1618] border-[#3A3540] text-[#F0EBE8]" : "bg-white border-[#EDE8E0] text-[#2A2328]"}`}
+              />
+              <div className="flex gap-2 justify-end">
+                <button onClick={() => setRenaming(null)} className={`px-4 py-2 text-sm rounded-lg border ${dark ? "border-[#3A3540] text-[#9B9098] hover:bg-[#3A3540]" : "border-[#EDE8E0] text-[#6B6068] hover:bg-[#F5F0EB]"} transition-colors`}>Cancel</button>
+                <button onClick={saveRename} className="px-4 py-2 text-sm rounded-lg bg-[#C9956E] hover:bg-[#B8845D] text-white font-semibold transition-colors">Save</button>
+              </div>
+            </div>
           </div>
         )}
       </main>
