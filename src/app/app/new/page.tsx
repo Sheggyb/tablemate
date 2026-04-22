@@ -56,8 +56,8 @@ export default function NewWeddingPage() {
   const sub = dark ? "text-[#9B9098]" : "text-[#6B6068]";
   const header = dark ? "bg-[#211E1F] border-[#3D3540]" : "bg-white border-[#EDE8E0]";
   const inputCls = dark
-    ? "w-full px-3 py-2.5 rounded-lg border border-[#3D3540] bg-[#1A1718] text-[#F0EBE6] text-sm outline-none focus:border-[#C9956E]"
-    : "w-full px-3 py-2.5 rounded-lg border border-[#DDD7D0] bg-white text-[#2A2328] text-sm outline-none focus:border-[#C9956E]";
+    ? "w-full px-3 py-2.5 rounded-lg border border-[#3D3540] bg-[#1A1718] text-[#F0EBE6] text-sm outline-none focus:border-[#C9956E] [color-scheme:dark]"
+    : "w-full px-3 py-2.5 rounded-lg border border-[#DDD7D0] bg-white text-[#2A2328] text-sm outline-none focus:border-[#C9956E] [color-scheme:light]";
 
   return (
     <div className={`min-h-screen ${bg}`}>
