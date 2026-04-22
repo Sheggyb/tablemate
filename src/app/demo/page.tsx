@@ -132,7 +132,7 @@ export default function DemoPage() {
                 : "border-transparent text-[#6B6068] hover:text-[#2A2328]"
             }`}
           >
-            {tab === "chart" ? "🪑 Seating Chart" : "👥 Guest List"}
+            {tab === "chart" ? "🍽️ Seating Chart" : "👥 Guest List"}
           </button>
         ))}
       </div>
