@@ -423,6 +423,7 @@ export default function PlannerClient({
           rules={state.rules}
           dispatch={dispatch}
           dark={darkMode}
+          onToggleDark={() => setDarkMode(d => !d)}
         />
       )}
 
