@@ -1,21 +1,27 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
 export default function NewWeddingPage() {
   const router = useRouter();
-  const [form, setForm] = useState({
-    name: "",
-    couple_names: "",
-    date: "",
-    venue_name: "",
-    location: "",
-  });
+  const [dark, setDark] = useState(false);
+  const [form, setForm] = useState({ name: "", couple_names: "", date: "", venue_name: "", location: "" });
   const [loading, setLoading] = useState(false);
-  const [error, setError]     = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const saved = localStorage.getItem("tablemate-dark");
+    if (saved === "true") setDark(true);
+  }, []);
+
+  const toggleDark = () => {
+    const next = !dark;
+    setDark(next);
+    localStorage.setItem("tablemate-dark", String(next));
+  };
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
 
@@ -29,7 +35,6 @@ export default function NewWeddingPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { router.push("/login"); return; }
 
-    // Create wedding
     const { data: wedding, error: we } = await supabase.from("weddings").insert({
       user_id:      user.id,
       name:         form.name.trim(),
@@ -39,63 +44,66 @@ export default function NewWeddingPage() {
 
     if (we || !wedding) { setError("Failed to create wedding. Please try again."); setLoading(false); return; }
 
-    // Create default venue
-    if (form.venue_name.trim()) {
-      await supabase.from("venues").insert({
-        wedding_id: wedding.id,
-        name:       form.venue_name.trim(),
-        location:   form.location.trim() || null,
-      });
-    }
+    const venueName = form.venue_name.trim() || "Main Hall";
+    await supabase.from("venues").insert({ wedding_id: wedding.id, name: venueName });
 
     router.push(`/app/wedding/${wedding.id}`);
   };
 
+  const bg = dark ? "bg-[#1A1718]" : "bg-[#FDFBF8]";
+  const card = dark ? "bg-[#2A2328] border-[#3D3540]" : "bg-white border-[#EDE8E0]";
+  const text = dark ? "text-[#F0EBE6]" : "text-[#2A2328]";
+  const sub = dark ? "text-[#9B9098]" : "text-[#6B6068]";
+  const header = dark ? "bg-[#211E1F] border-[#3D3540]" : "bg-white border-[#EDE8E0]";
+  const inputCls = dark
+    ? "w-full px-3 py-2.5 rounded-lg border border-[#3D3540] bg-[#1A1718] text-[#F0EBE6] text-sm outline-none focus:border-[#C9956E]"
+    : "w-full px-3 py-2.5 rounded-lg border border-[#DDD7D0] bg-white text-[#2A2328] text-sm outline-none focus:border-[#C9956E]";
+
   return (
-    <div className="min-h-screen bg-[#FDFBF8]">
-      <header className="bg-white border-b border-[#EDE8E0] h-16 flex items-center px-6">
+    <div className={`min-h-screen ${bg}`}>
+      <header className={`${header} border-b h-16 flex items-center px-6`}>
         <div className="max-w-2xl mx-auto w-full flex items-center justify-between">
           <Link href="/app" className="flex items-center gap-2">
             <span className="text-[#C9956E]">♥</span>
-            <span className="font-playfair font-semibold text-[#2A2328]">TableMate</span>
+            <span className={`font-playfair font-semibold ${text}`}>TableMate</span>
           </Link>
-          <Link href="/app" className="text-sm text-[#6B6068] hover:text-[#2A2328]">← Cancel</Link>
+          <div className="flex items-center gap-3">
+            <button onClick={toggleDark} className={`text-lg px-2 py-1 rounded-lg ${dark ? "bg-[#3D3540]" : "bg-[#F5F0EB]"}`}>
+              {dark ? "☀️" : "🌙"}
+            </button>
+            <Link href="/app" className={`text-sm ${sub} hover:${text}`}>← Cancel</Link>
+          </div>
         </div>
       </header>
 
       <main className="max-w-2xl mx-auto px-6 py-12">
         <div className="mb-8">
-          <h1 className="font-playfair text-3xl font-bold text-[#2A2328]">Plan a new wedding 💍</h1>
-          <p className="text-[#6B6068] text-sm mt-1">You can change everything later.</p>
+          <h1 className={`font-playfair text-3xl font-bold ${text}`}>Create a new wedding</h1>
+          <p className={`${sub} text-sm mt-1`}>Fill in what you know — you can edit everything inside the planner.</p>
         </div>
 
-        <div className="bg-white rounded-2xl border border-[#EDE8E0] p-8 shadow-sm">
+        <div className={`${card} rounded-2xl border p-8 shadow-sm`}>
           {error && <div className="mb-5 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>}
 
           <form onSubmit={handleCreate} className="space-y-6">
-            <Section title="The Basics">
-              <Field label="Wedding name *" hint="e.g. 'Smith & Johnson Wedding'">
-                <input type="text" value={form.name} onChange={e => set("name", e.target.value)} required
-                  className="input" placeholder="Our Special Day"/>
+            <Section title="The Basics" dark={dark}>
+              <Field label="Wedding name *" hint="e.g. 'Smith & Johnson Wedding'" dark={dark}>
+                <input type="text" value={form.name} onChange={e => set("name", e.target.value)} required className={inputCls} placeholder="Our Special Day"/>
               </Field>
-              <Field label="Couple names" hint="Shown to guests on RSVP invites">
-                <input type="text" value={form.couple_names} onChange={e => set("couple_names", e.target.value)}
-                  className="input" placeholder="Alex & Sam"/>
+              <Field label="Couple names" hint="Shown to guests on RSVP invites" dark={dark}>
+                <input type="text" value={form.couple_names} onChange={e => set("couple_names", e.target.value)} className={inputCls} placeholder="Alex & Sam"/>
               </Field>
-              <Field label="Wedding date">
-                <input type="date" value={form.date} onChange={e => set("date", e.target.value)}
-                  className="input"/>
+              <Field label="Wedding date" dark={dark}>
+                <input type="date" value={form.date} onChange={e => set("date", e.target.value)} className={inputCls}/>
               </Field>
             </Section>
 
-            <Section title="Venue (optional)">
-              <Field label="Venue name">
-                <input type="text" value={form.venue_name} onChange={e => set("venue_name", e.target.value)}
-                  className="input" placeholder="Grand Hotel Ballroom"/>
+            <Section title="Venue (optional)" dark={dark}>
+              <Field label="Venue name" dark={dark}>
+                <input type="text" value={form.venue_name} onChange={e => set("venue_name", e.target.value)} className={inputCls} placeholder="Grand Hotel Ballroom"/>
               </Field>
-              <Field label="Location">
-                <input type="text" value={form.location} onChange={e => set("location", e.target.value)}
-                  className="input" placeholder="Stockholm, Sweden"/>
+              <Field label="Location" dark={dark}>
+                <input type="text" value={form.location} onChange={e => set("location", e.target.value)} className={inputCls} placeholder="Stockholm, Sweden"/>
               </Field>
             </Section>
 
@@ -106,39 +114,25 @@ export default function NewWeddingPage() {
           </form>
         </div>
       </main>
-
-      <style jsx>{`
-        .input {
-          width: 100%;
-          padding: 10px 12px;
-          border: 1px solid #DDD7D0;
-          border-radius: 8px;
-          font-size: 14px;
-          outline: none;
-          background: white;
-          color: #2A2328;
-        }
-        .input:focus { border-color: #C9956E; }
-      `}</style>
     </div>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, dark, children }: { title: string; dark: boolean; children: React.ReactNode }) {
   return (
     <div>
-      <h2 className="text-xs font-semibold text-[#9B9098] uppercase tracking-wider mb-4">{title}</h2>
+      <h2 className={`text-xs font-semibold uppercase tracking-wider mb-4 ${dark ? "text-[#6B6068]" : "text-[#9B9098]"}`}>{title}</h2>
       <div className="space-y-4">{children}</div>
     </div>
   );
 }
 
-function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+function Field({ label, hint, dark, children }: { label: string; hint?: string; dark: boolean; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-sm font-medium text-[#2A2328] mb-1">{label}</label>
+      <label className={`block text-sm font-medium mb-1 ${dark ? "text-[#F0EBE6]" : "text-[#2A2328]"}`}>{label}</label>
       {children}
-      {hint && <p className="text-xs text-[#9B9098] mt-1">{hint}</p>}
+      {hint && <p className={`text-xs mt-1 ${dark ? "text-[#6B6068]" : "text-[#9B9098]"}`}>{hint}</p>}
     </div>
   );
 }
