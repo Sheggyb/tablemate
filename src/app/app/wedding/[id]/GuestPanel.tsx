@@ -9,6 +9,7 @@ interface Props {
   tables:        Table[];
   plan:          string;
   darkMode:      boolean;
+  weddingId:     string;
   onAddGuest:    (data: Partial<Guest>) => void;
   onUpdateGuest: (id: string, data: Partial<Guest>) => void;
   onDeleteGuest: (id: string) => void;
@@ -32,10 +33,30 @@ const MEAL_ICON: Record<string, string> = {
 const GROUP_COLORS = ["#c9a96e","#7B9E87","#8B7BA8","#C97B6E","#6E9EC9","#B8A86E","#e8b4cb","#9EC9A6"];
 
 export default function GuestPanel({
-  guests, groups, tables, plan, darkMode,
+  guests, groups, tables, plan, darkMode, weddingId,
   onAddGuest, onUpdateGuest, onDeleteGuest,
   onBulkUpdate, onBulkDelete, onImportCsv, onAddGroup,
 }: Props) {
+  const [sendingRsvp, setSendingRsvp] = useState<string | null>(null);
+
+  const sendRsvp = async (g: Guest) => {
+    if (!g.email) return alert("Guest has no email address.");
+    setSendingRsvp(g.id);
+    try {
+      const res = await fetch("/api/rsvp/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guestId: g.id, weddingId }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed");
+      alert(`✅ RSVP sent to ${g.email}`);
+    } catch (e: any) {
+      alert(`❌ Failed to send: ${e.message}`);
+    } finally {
+      setSendingRsvp(null);
+    }
+  };
   const [search, setSearch]         = useState("");
   const [filterRsvp, setFilterRsvp] = useState("all");
   const [filterMeal, setFilterMeal] = useState("all");
@@ -330,6 +351,14 @@ export default function GuestPanel({
                       {g.allergies ? `⚠ ${g.allergies}` : "—"}
                     </td>
                     <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
+                      {g.email && (
+                        <button onClick={() => sendRsvp(g)}
+                          disabled={sendingRsvp === g.id}
+                          className="opacity-0 group-hover:opacity-100 text-xs mr-3 hover:underline transition-opacity"
+                          style={{ color: cs.accent }}>
+                          {sendingRsvp === g.id ? "Sending…" : "Send RSVP"}
+                        </button>
+                      )}
                       <button onClick={() => openEdit(g)}
                         className="opacity-0 group-hover:opacity-100 text-xs mr-3 hover:underline transition-opacity"
                         style={{ color: cs.accent }}>Edit</button>

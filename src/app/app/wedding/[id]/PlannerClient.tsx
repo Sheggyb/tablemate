@@ -547,6 +547,7 @@ export default function PlannerClient({
             tables={state.tables}
             plan={plan}
             darkMode={darkMode}
+            weddingId={weddingId}
             onAddGuest={addGuest}
             onUpdateGuest={updateGuest}
             onDeleteGuest={deleteGuest}
