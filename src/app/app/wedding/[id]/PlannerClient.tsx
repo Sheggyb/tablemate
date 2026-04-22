@@ -454,6 +454,14 @@ export default function PlannerClient({
           {aiLoading ? "🤖 Seating…" : "🤖 AI Seat"}
         </button>
 
+        {/* Dark mode toggle */}
+        <button onClick={() => setDarkMode(d => !d)}
+          className="w-8 h-8 flex items-center justify-center rounded-lg hover:opacity-80 text-sm"
+          title={darkMode ? "Light mode" : "Dark mode"}
+          style={{ background: cs.surface2, color: cs.textSoft }}>
+          {darkMode ? "☀️" : "🌙"}
+        </button>
+
         {/* Settings */}
         <button onClick={() => setShowSettings(true)}
           className="w-8 h-8 flex items-center justify-center rounded-lg hover:opacity-80 text-sm"

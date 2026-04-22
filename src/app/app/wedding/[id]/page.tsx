@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { randomUUID } from "crypto";
 import PlannerClient from "./PlannerClient";
 
 export default async function WeddingPlannerPage({ params }: { params: Promise<{ id: string }> }) {
@@ -16,6 +17,18 @@ export default async function WeddingPlannerPage({ params }: { params: Promise<{
     .single();
 
   if (!wedding) redirect("/app");
+
+  // Auto-create default venue if none exists
+  const { data: venueCheck } = await supabase.from("venues").select("id").eq("wedding_id", id).limit(1);
+  if (!venueCheck || venueCheck.length === 0) {
+    await supabase.from("venues").insert({
+      id: randomUUID(),
+      wedding_id: id,
+      name: "Main Hall",
+      bg_opacity: 0.15,
+      sort_order: 0,
+    });
+  }
 
   // Preload all data
   const [venuesRes, guestsRes, tablesRes, groupsRes, rulesRes, profileRes] = await Promise.all([
