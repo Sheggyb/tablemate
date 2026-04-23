@@ -20,6 +20,7 @@ interface Props {
   initialGroups: Group[];
   initialRules:  Rule[];
   plan:          string;
+  isDemo?:       boolean;
 }
 
 interface PlannerState {
@@ -77,7 +78,7 @@ function reducer(state: PlannerState, action: PlannerAction): PlannerState {
 const MAX_UNDO = 30;
 
 export default function PlannerClient({
-  wedding, initialVenues, initialGuests, initialTables, initialGroups, initialRules, plan
+  wedding, initialVenues, initialGuests, initialTables, initialGroups, initialRules, plan, isDemo = false
 }: Props) {
   const supabase = createClient();
   const [isMobile, setIsMobile] = useState(false);
@@ -194,35 +195,35 @@ export default function PlannerClient({
     dispatch({ type: "ADD_GUEST", payload: newGuest });
     showToast("Guest added ✓", "success");
     // Persist async
-    supabase.from("guests").insert({ ...newGuest }).then(({ error }) => {
+    if (!isDemo) supabase.from("guests").insert({ ...newGuest }).then(({ error }) => {
       if (error) console.error("Insert guest failed:", error.message);
     });
   }, [supabase, wedding.id, showToast]);
 
   const updateGuest = useCallback(async (id: string, data: Partial<Guest>) => {
     dispatch({ type: "UPDATE_GUEST", id, data });
-    supabase.from("guests").update(data).eq("id", id).then(({ error }) => {
+    if (!isDemo) supabase.from("guests").update(data).eq("id", id).then(({ error }) => {
       if (error) console.error("Update guest failed:", error.message);
     });
-  }, [supabase]);
+  }, [supabase, isDemo]);
 
   const deleteGuest = useCallback(async (id: string) => {
     dispatch({ type: "DELETE_GUEST", id });
     showToast("Guest removed", "info");
-    supabase.from("guests").delete().eq("id", id).then();
-  }, [supabase, showToast]);
+    if (!isDemo) supabase.from("guests").delete().eq("id", id).then();
+  }, [supabase, isDemo, showToast]);
 
   const bulkUpdateGuests = useCallback(async (ids: string[], data: Partial<Guest>) => {
     dispatch({ type: "BULK_UPDATE_GUESTS", ids, data });
     // Batch update
-    for (const id of ids) supabase.from("guests").update(data).eq("id", id).then();
-  }, [supabase]);
+    if (!isDemo) for (const id of ids) supabase.from("guests").update(data).eq("id", id).then();
+  }, [supabase, isDemo]);
 
   const bulkDeleteGuests = useCallback(async (ids: string[]) => {
     dispatch({ type: "BULK_DELETE_GUESTS", ids });
     showToast(`${ids.length} guests removed`, "info");
-    for (const id of ids) supabase.from("guests").delete().eq("id", id).then();
-  }, [supabase, showToast]);
+    if (!isDemo) for (const id of ids) supabase.from("guests").delete().eq("id", id).then();
+  }, [supabase, isDemo, showToast]);
 
   /* ── Table CRUD ── */
   const addTable = useCallback(async (name: string, shape: "round" | "rectangle" | "oval", capacity: number) => {
@@ -239,25 +240,29 @@ export default function PlannerClient({
     };
     dispatch({ type: "ADD_TABLE", payload: newTable });
     showToast(`${name} added`, "success");
-    supabase.from("tables").insert(newTable).then(({ error }) => {
+    if (!isDemo) supabase.from("tables").insert(newTable).then(({ error }) => {
       if (error) console.error("Insert table failed:", error.message);
     });
-  }, [supabase, activeVenueId, showToast]);
+  }, [supabase, isDemo, activeVenueId, showToast]);
 
   const updateTable = useCallback(async (id: string, data: Partial<Table>) => {
     dispatch({ type: "UPDATE_TABLE", id, data });
+    if (!isDemo) {
     const { wedding_id, ...safeData } = data as any;
     supabase.from("tables").update(safeData).eq("id", id).then(({ error }) => {
       if (error) console.error("Update table failed:", error.message);
     });
-  }, [supabase]);
+    }
+  }, [supabase, isDemo]);
 
   const deleteTable = useCallback(async (id: string) => {
     dispatch({ type: "DELETE_TABLE", id });
     showToast("Table removed", "info");
+    if (!isDemo) {
     supabase.from("guests").update({ table_id: null, seat_index: null }).eq("table_id", id).then();
     supabase.from("tables").delete().eq("id", id).then();
-  }, [supabase, showToast]);
+    }
+  }, [supabase, isDemo, showToast]);
 
   /* ── Venue CRUD ── */
   const addVenue = useCallback(async (name: string) => {
@@ -271,14 +276,14 @@ export default function PlannerClient({
     };
     dispatch({ type: "ADD_VENUE", payload: newVenue });
     setActiveVenueId(newVenue.id);
-    supabase.from("venues").insert(newVenue).then();
-  }, [supabase, wedding.id, state.venues.length]);
+    if (!isDemo) supabase.from("venues").insert(newVenue).then();
+  }, [supabase, isDemo, wedding.id, state.venues.length]);
 
   /* ── Seat guest ── */
   const seatGuest = useCallback(async (guestId: string, tableId: string | null, seatIndex: number | null) => {
     dispatch({ type: "UPDATE_GUEST", id: guestId, data: { table_id: tableId, seat_index: seatIndex } });
-    supabase.from("guests").update({ table_id: tableId, seat_index: seatIndex }).eq("id", guestId).then();
-  }, [supabase]);
+    if (!isDemo) supabase.from("guests").update({ table_id: tableId, seat_index: seatIndex }).eq("id", guestId).then();
+  }, [supabase, isDemo]);
 
   /* ── AI Seating ── */
   const runAiSeating = useCallback(async () => {
@@ -348,13 +353,13 @@ export default function PlannerClient({
       type,
     };
     dispatch({ type: "ADD_RULE", payload: newRule });
-    supabase.from("rules").insert(newRule).then();
-  }, [supabase, wedding.id]);
+    if (!isDemo) supabase.from("rules").insert(newRule).then();
+  }, [supabase, isDemo, wedding.id]);
 
   const deleteRule = useCallback(async (id: string) => {
     dispatch({ type: "DELETE_RULE", id });
-    supabase.from("rules").delete().eq("id", id).then();
-  }, [supabase]);
+    if (!isDemo) supabase.from("rules").delete().eq("id", id).then();
+  }, [supabase, isDemo]);
 
   /* ── Groups ── */
   const addGroup = useCallback(async (name: string) => {
@@ -367,8 +372,8 @@ export default function PlannerClient({
       invite_code: null,
     };
     dispatch({ type: "ADD_GROUP", payload: newGroup });
-    supabase.from("groups").insert(newGroup).then();
-  }, [supabase, wedding.id, state.groups.length]);
+    if (!isDemo) supabase.from("groups").insert(newGroup).then();
+  }, [supabase, isDemo, wedding.id, state.groups.length]);
 
   /* ── CSV Import ── */
   const importCsv = useCallback(async (text: string): Promise<string> => {
@@ -504,12 +509,21 @@ export default function PlannerClient({
           className="w-8 h-8 flex items-center justify-center rounded-lg hover:opacity-80 text-sm"
           style={{ background: cs.surface2, color: cs.textSoft }}>⚙</button>
 
-        {plan === "free" && (
+        {plan === "free" && !isDemo && (
           <Link href="/app/upgrade"
             className="text-xs px-3 py-1.5 rounded-lg font-semibold text-white"
             style={{ background: cs.accent }}>
             ✨ Upgrade
           </Link>
+        )}
+        {isDemo && (
+          <>
+            <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: cs.accentBg, color: cs.accent, border: `1px solid ${cs.border}` }}>Demo Mode</span>
+            <span className="text-xs hidden sm:block" style={{ color: cs.textMuted }}>Changes don't save</span>
+            <Link href="/signup" className="text-xs px-3 py-1.5 rounded-lg font-semibold text-white" style={{ background: cs.accent }}>
+              Create My Wedding →
+            </Link>
+          </>
         )}
       </header>
 
