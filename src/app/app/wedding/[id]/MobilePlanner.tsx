@@ -297,7 +297,7 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
                               {seated.map(g => (
                                 <div key={g.id} style={{ display:"flex", alignItems:"center", gap:10,
                                   background:surface2, borderRadius:10, padding:"10px 12px" }}>
-                                  <span style={{ fontSize:18 }}>{MEAL_ICON[g.meal||"standard"]???"🍽️"}</span>
+                                  <span style={{ fontSize:18 }}>{MEAL_ICON[g.meal||"standard"]??"🍽️"}</span>
                                   <div style={{ flex:1 }}>
                                     <div style={{ fontWeight:600, fontSize:14 }}>{g.first_name} {g.last_name}</div>
                                     <div style={{ fontSize:11, color:textMuted }}>{g.meal||"standard"}</div>
@@ -372,7 +372,7 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
                   return (
                     <div key={g.id} style={{ background:card, borderRadius:12, border:`1px solid ${border}`,
                       padding:"14px", display:"flex", alignItems:"center", gap:12 }}>
-                      <span style={{ fontSize:22 }}>{MEAL_ICON[g.meal||"standard"]???"🍽️"}</span>
+                      <span style={{ fontSize:22 }}>{MEAL_ICON[g.meal||"standard"]??"🍽️"}</span>
                       <div style={{ flex:1, minWidth:0 }}>
                         <div style={{ fontWeight:700, fontSize:15 }}>{g.first_name} {g.last_name}</div>
                         <div style={{ fontSize:12, color:textMuted, marginTop:2 }}>
