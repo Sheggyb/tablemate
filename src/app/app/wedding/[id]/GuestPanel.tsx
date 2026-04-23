@@ -10,6 +10,7 @@ interface Props {
   plan:          string;
   darkMode:      boolean;
   weddingId:     string;
+  isDemo?:       boolean;
   onAddGuest:    (data: Partial<Guest>) => void;
   onUpdateGuest: (id: string, data: Partial<Guest>) => void;
   onDeleteGuest: (id: string) => void;
@@ -33,7 +34,7 @@ const MEAL_ICON: Record<string, string> = {
 const GROUP_COLORS = ["#c9a96e","#7B9E87","#8B7BA8","#C97B6E","#6E9EC9","#B8A86E","#e8b4cb","#9EC9A6"];
 
 export default function GuestPanel({
-  guests, groups, tables, plan, darkMode, weddingId,
+  guests, groups, tables, plan, darkMode, weddingId, isDemo,
   onAddGuest, onUpdateGuest, onDeleteGuest,
   onBulkUpdate, onBulkDelete, onImportCsv, onAddGroup,
 }: Props) {
@@ -186,16 +187,25 @@ export default function GuestPanel({
         <span style={{ color: "var(--danger)" }}>✗ {stats.declined} declined</span>
         <span style={{ color: "var(--accent)" }}>🪑 {stats.seated} seated</span>
         <div className="flex-1"/>
-        <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs cursor-pointer hover:opacity-80"
-          style={{ border: `1px solid ${cs.borderSoft}`, color: cs.textSoft }}>
-          📎 Import CSV
-          <input type="file" accept=".csv" className="hidden" onChange={handleCsv}/>
-        </label>
-        <button onClick={openAdd}
-          className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white hover:opacity-90"
-          style={{ background: cs.accent }}>
-          + Add Guest
-        </button>
+        {!isDemo && (
+          <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs cursor-pointer hover:opacity-80"
+            style={{ border: `1px solid ${cs.borderSoft}`, color: cs.textSoft }}>
+            📎 Import CSV
+            <input type="file" accept=".csv" className="hidden" onChange={handleCsv}/>
+          </label>
+        )}
+        {isDemo ? (
+          <a href="/signup" className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white hover:opacity-90 flex items-center gap-1"
+            style={{ background: cs.accent }}>
+            🔒 Sign up to add guests
+          </a>
+        ) : (
+          <button onClick={openAdd}
+            className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white hover:opacity-90"
+            style={{ background: cs.accent }}>
+            + Add Guest
+          </button>
+        )}
       </div>
 
       {csvMsg && (
@@ -240,7 +250,7 @@ export default function GuestPanel({
       </div>
 
       {/* Bulk toolbar */}
-      {selected.size > 0 && (
+      {!isDemo && selected.size > 0 && (
         <div className="px-6 py-2 flex items-center gap-3 flex-wrap flex-shrink-0"
           style={{ background: "var(--accent-bg)", borderBottom: `1px solid var(--border)` }}>
           <span className="text-xs font-semibold" style={{ color: cs.accent }}>{selected.size} selected</span>
@@ -351,7 +361,7 @@ export default function GuestPanel({
                       {g.allergies ? `⚠ ${g.allergies}` : "—"}
                     </td>
                     <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
-                      {g.email && (
+                      {!isDemo && g.email && (
                         <button onClick={() => sendRsvp(g)}
                           disabled={sendingRsvp === g.id}
                           className="opacity-0 group-hover:opacity-100 text-xs mr-3 hover:underline transition-opacity"
@@ -359,12 +369,16 @@ export default function GuestPanel({
                           {sendingRsvp === g.id ? "Sending…" : "Send RSVP"}
                         </button>
                       )}
-                      <button onClick={() => openEdit(g)}
-                        className="opacity-0 group-hover:opacity-100 text-xs mr-3 hover:underline transition-opacity"
-                        style={{ color: cs.accent }}>Edit</button>
-                      <button onClick={() => { if (confirm(`Remove ${g.first_name}?`)) onDeleteGuest(g.id); }}
-                        className="opacity-0 group-hover:opacity-100 text-xs transition-opacity hover:opacity-70"
-                        style={{ color: "var(--danger)" }}>✕</button>
+                      {!isDemo && (
+                        <button onClick={() => openEdit(g)}
+                          className="opacity-0 group-hover:opacity-100 text-xs mr-3 hover:underline transition-opacity"
+                          style={{ color: cs.accent }}>Edit</button>
+                      )}
+                      {!isDemo && (
+                        <button onClick={() => { if (confirm(`Remove ${g.first_name}?`)) onDeleteGuest(g.id); }}
+                          className="opacity-0 group-hover:opacity-100 text-xs transition-opacity hover:opacity-70"
+                          style={{ color: "var(--danger)" }}>✕</button>
+                      )}
                     </td>
                   </tr>
                 );
@@ -375,7 +389,7 @@ export default function GuestPanel({
       </div>
 
       {/* Add/Edit Modal */}
-      {showAdd && (
+      {!isDemo && showAdd && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="rounded-2xl p-6 w-full max-w-md shadow-2xl animate-fade-in"
             style={{ background: cs.surface, border: `1px solid ${cs.border}` }}>

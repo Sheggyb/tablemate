@@ -11,6 +11,7 @@ interface Props {
   venues:   Venue[];
   rules:    Rule[];
   darkMode: boolean;
+  isDemo?:  boolean;
   onRestore: (data: { venues: Venue[]; guests: Guest[]; tables: Table[]; groups: Group[]; rules: Rule[] }) => void;
 }
 
@@ -19,7 +20,7 @@ const MEAL_ICON: Record<string, string> = {
   "gluten-free": "🌾", halal: "☪", kosher: "✡", children: "🧒",
 };
 
-export default function ExportPanel({ wedding, guests, tables, groups, venues, rules, darkMode, onRestore }: Props) {
+export default function ExportPanel({ wedding, guests, tables, groups, venues, rules, darkMode, isDemo, onRestore }: Props) {
   const restoreRef = useRef<HTMLInputElement>(null);
 
   const cs = {
@@ -180,11 +181,19 @@ export default function ExportPanel({ wedding, guests, tables, groups, venues, r
         <h3 className="font-semibold text-sm" style={{ color: cs.text }}>{title}</h3>
         <p className="text-xs mt-1" style={{ color: cs.textMuted }}>{desc}</p>
       </div>
-      <button onClick={onExport}
-        className="mt-auto px-4 py-2 rounded-xl text-xs font-semibold hover:opacity-80 text-white"
-        style={btnPrimary}>
-        Download
-      </button>
+      {isDemo ? (
+        <a href="/signup"
+          className="mt-auto px-4 py-2 rounded-xl text-xs font-semibold text-center hover:opacity-80"
+          style={{ background: cs.surface2, border: `1px solid ${cs.border}`, color: cs.textMuted }}>
+          🔒 Sign up to download
+        </a>
+      ) : (
+        <button onClick={onExport}
+          className="mt-auto px-4 py-2 rounded-xl text-xs font-semibold hover:opacity-80 text-white"
+          style={btnPrimary}>
+          Download
+        </button>
+      )}
     </div>
   );
 
@@ -248,18 +257,26 @@ export default function ExportPanel({ wedding, guests, tables, groups, venues, r
               <h3 className="font-semibold text-sm" style={{ color: cs.text }}>Backup / Restore</h3>
               <p className="text-xs mt-1" style={{ color: cs.textMuted }}>Save a full JSON backup or restore from a previous backup.</p>
             </div>
-            <div className="flex gap-2 mt-auto">
-              <button onClick={backupJson}
-                className="flex-1 px-3 py-2 rounded-xl text-xs font-semibold hover:opacity-80 text-white"
-                style={btnPrimary}>
-                ⬇ Backup
-              </button>
-              <label className="flex-1 px-3 py-2 rounded-xl text-xs font-semibold hover:opacity-80 text-center cursor-pointer"
-                style={btnStyle}>
-                ⬆ Restore
-                <input ref={restoreRef} type="file" accept=".json" className="hidden" onChange={handleRestore}/>
-              </label>
-            </div>
+            {isDemo ? (
+              <a href="/signup"
+                className="mt-auto px-4 py-2 rounded-xl text-xs font-semibold text-center hover:opacity-80"
+                style={{ background: cs.surface2, border: `1px solid ${cs.border}`, color: cs.textMuted }}>
+                🔒 Sign up to backup
+              </a>
+            ) : (
+              <div className="flex gap-2 mt-auto">
+                <button onClick={backupJson}
+                  className="flex-1 px-3 py-2 rounded-xl text-xs font-semibold hover:opacity-80 text-white"
+                  style={btnPrimary}>
+                  ⬇ Backup
+                </button>
+                <label className="flex-1 px-3 py-2 rounded-xl text-xs font-semibold hover:opacity-80 text-center cursor-pointer"
+                  style={btnStyle}>
+                  ⬆ Restore
+                  <input ref={restoreRef} type="file" accept=".json" className="hidden" onChange={handleRestore}/>
+                </label>
+              </div>
+            )}
           </div>
         </div>
 

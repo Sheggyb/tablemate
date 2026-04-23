@@ -589,6 +589,7 @@ export default function PlannerClient({
             plan={plan}
             darkMode={darkMode}
             weddingId={wedding.id}
+            isDemo={isDemo}
             onAddGuest={addGuest}
             onUpdateGuest={updateGuest}
             onDeleteGuest={deleteGuest}
@@ -618,6 +619,7 @@ export default function PlannerClient({
             venues={state.venues}
             rules={state.rules}
             darkMode={darkMode}
+            isDemo={isDemo}
             onRestore={(data) => {
               dispatch({ type: "SET_ALL", payload: data });
               showToast("Backup restored ✓", "success");
