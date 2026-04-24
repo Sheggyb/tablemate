@@ -88,16 +88,20 @@ export default function GuestPortal({ params }: { params: { shareCode: string } 
       const channel = supabase
         .channel(`wishes-guest-${w.id}-${Date.now()}`)
         .on("postgres_changes", {
-          event: "INSERT",
+          event: "*",
           schema: "public",
           table: "wishes",
           filter: `wedding_id=eq.${w.id}`,
         }, (payload) => {
-          const wish = payload.new as Wish;
-          setWishes(prev => [wish, ...prev]);
-          setNewIds(prev => new Set([...prev, wish.id]));
-          setTimeout(() => setNewIds(prev => { const s = new Set(prev); s.delete(wish.id); return s; }), 3000);
-          setTimeout(() => wallRef.current?.scrollTo({ top: 0, behavior: "smooth" }), 50);
+          if (payload.eventType === "INSERT") {
+            const wish = payload.new as Wish;
+            setWishes(prev => [wish, ...prev]);
+            setNewIds(prev => new Set([...prev, wish.id]));
+            setTimeout(() => setNewIds(prev => { const s = new Set(prev); s.delete(wish.id); return s; }), 3000);
+            setTimeout(() => wallRef.current?.scrollTo({ top: 0, behavior: "smooth" }), 50);
+          } else if (payload.eventType === "DELETE") {
+            setWishes(prev => prev.filter(w => w.id !== (payload.old as Wish).id));
+          }
         })
         .subscribe();
       channelRef.current = channel;

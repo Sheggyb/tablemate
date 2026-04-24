@@ -658,11 +658,14 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
         {tabs.map(tab => (
           <button key={tab.key} onClick={() => setActiveTab(tab.key)}
             style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center",
-              justifyContent:"center", gap:3, background:"transparent", border:"none", cursor:"pointer",
-              color: activeTab===tab.key ? accent : textMuted,
-              borderTop: activeTab===tab.key ? `2px solid ${accent}` : "2px solid transparent" }}>
-            <span style={{ fontSize:20 }}>{tab.emoji}</span>
-            <span style={{ fontSize:11, fontWeight: activeTab===tab.key ? 700 : 500 }}>{tab.label}</span>
+              justifyContent:"center", gap:2, background:"transparent", border:"none", cursor:"pointer",
+              color: activeTab===tab.key ? accent : textMuted, position:"relative",
+              borderTop: activeTab===tab.key ? `2px solid ${accent}` : "2px solid transparent",
+              padding:"4px 2px" }}>
+            <span style={{ fontSize:22 }}>{tab.emoji}</span>
+            <span style={{ fontSize:9, fontWeight: activeTab===tab.key ? 700 : 400,
+              overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:"100%",
+              paddingInline:2 }}>{tab.label}</span>
             {tab.key==="rules" && violations.length>0 && (
               <span style={{ position:"absolute", top:8, width:16, height:16, borderRadius:"50%",
                 background:danger, color:"#fff", fontSize:9, fontWeight:700,

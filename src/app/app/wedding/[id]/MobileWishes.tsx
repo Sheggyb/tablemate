@@ -63,22 +63,24 @@ export default function MobileWishes({ weddingId, shareCode, dark, isDemo }: Pro
       supabase.removeChannel(channelRef.current);
     }
 
-    // Subscribe to live inserts
+    // Subscribe to live inserts AND deletes
     const channel = supabase
       .channel(`mobile-wishes-${weddingId}-${Date.now()}`)
       .on("postgres_changes", {
-        event: "INSERT",
+        event: "*",
         schema: "public",
         table: "wishes",
         filter: `wedding_id=eq.${weddingId}`,
       }, (payload) => {
-        const wish = payload.new as Wish;
-        setWishes(prev => [wish, ...prev]);
-        setNewIds(prev => new Set([...prev, wish.id]));
-        // Fade out highlight after 3s
-        setTimeout(() => setNewIds(prev => { const s = new Set(prev); s.delete(wish.id); return s; }), 3000);
-        // Scroll to top smoothly
-        setTimeout(() => wallRef.current?.scrollTo({ top: 0, behavior: "smooth" }), 50);
+        if (payload.eventType === "INSERT") {
+          const wish = payload.new as Wish;
+          setWishes(prev => [wish, ...prev]);
+          setNewIds(prev => new Set([...prev, wish.id]));
+          setTimeout(() => setNewIds(prev => { const s = new Set(prev); s.delete(wish.id); return s; }), 3000);
+          setTimeout(() => wallRef.current?.scrollTo({ top: 0, behavior: "smooth" }), 50);
+        } else if (payload.eventType === "DELETE") {
+          setWishes(prev => prev.filter(w => w.id !== (payload.old as Wish).id));
+        }
       })
       .subscribe();
 

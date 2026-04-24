@@ -57,16 +57,20 @@ export default function WishingWall({ weddingId, shareCode, dark, isDemo }: Prop
     const channel = supabase
       .channel(`wishes-planner-${weddingId}-${Date.now()}`)
       .on("postgres_changes", {
-        event: "INSERT",
+        event: "*",
         schema: "public",
         table: "wishes",
         filter: `wedding_id=eq.${weddingId}`,
       }, (payload) => {
-        const wish = payload.new as Wish;
-        setWishes(prev => [wish, ...prev]);
-        setNewIds(prev => new Set([...prev, wish.id]));
-        setTimeout(() => setNewIds(prev => { const s = new Set(prev); s.delete(wish.id); return s; }), 3000);
-        wallRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+        if (payload.eventType === "INSERT") {
+          const wish = payload.new as Wish;
+          setWishes(prev => [wish, ...prev]);
+          setNewIds(prev => new Set([...prev, wish.id]));
+          setTimeout(() => setNewIds(prev => { const s = new Set(prev); s.delete(wish.id); return s; }), 3000);
+          wallRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+        } else if (payload.eventType === "DELETE") {
+          setWishes(prev => prev.filter(w => w.id !== (payload.old as Wish).id));
+        }
       })
       .subscribe();
 
