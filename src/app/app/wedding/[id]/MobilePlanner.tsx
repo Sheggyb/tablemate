@@ -103,7 +103,7 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
   // ── Add Table (mobile) ──
   const [showAddTable, setShowAddTable]   = useState(false);
   const [newTableName, setNewTableName]   = useState("");
-  const [newTableShape, setNewTableShape] = useState<"round"|"rectangle">("round");
+  const [newTableShape, setNewTableShape] = useState<"round"|"rectangle"|"oval">("round");
   const [newTableCap, setNewTableCap]     = useState(8);
 
   // ── Colors ──
@@ -839,13 +839,13 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
             </div>
             <div>
               <label style={{ fontSize:12, color:textMid, display:"block", marginBottom:8 }}>Shape</label>
-              <div style={{ display:"flex", gap:10 }}>
-                {(["round","rectangle"] as const).map(s => (
+              <div style={{ display:"flex", gap:8 }}>
+                {(["round","rectangle","oval"] as const).map(s => (
                   <button key={s} onClick={() => setNewTableShape(s)}
-                    style={{ flex:1, padding:"12px", borderRadius:10, border:`2px solid ${newTableShape===s ? accent : border}`,
+                    style={{ flex:1, padding:"10px 6px", borderRadius:10, border:`2px solid ${newTableShape===s ? accent : border}`,
                       background: newTableShape===s ? `${accent}22` : surface2, color: newTableShape===s ? accent : text,
-                      cursor:"pointer", fontWeight:600, fontSize:14, textTransform:"capitalize" }}>
-                    {s === "round" ? "🔵 Round" : "⬜ Rectangular"}
+                      cursor:"pointer", fontWeight:600, fontSize:12, textAlign:"center" }}>
+                    {s === "round" ? "🔵 Round" : s === "rectangle" ? "⬜ Square" : "🔲 Banquet"}
                   </button>
                 ))}
               </div>
