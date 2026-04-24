@@ -42,7 +42,7 @@ export default function LandingPage() {
             <button onClick={toggleDark} className={`w-9 h-9 rounded-lg flex items-center justify-center border transition-colors ${dark ? "border-[#3A3540] bg-[#2A2630] text-yellow-300 hover:bg-[#3A3540]" : "border-[#EDE8E0] bg-white text-[#6B6068] hover:border-[#C9956E]"}`}>
               {dark ? "☀️" : "🌙"}
             </button>
-            <Link href="/login" className={`text-sm ${muted} hover:${text} transition-colors`}>Sign in</Link>
+            <Link href="/login" className={`px-4 py-2 text-sm font-medium rounded-lg border-2 transition-colors ${dark ? "border-[#C9956E] text-[#C9956E] hover:bg-[#C9956E] hover:text-white" : "border-[#C9956E] text-[#C9956E] hover:bg-[#C9956E] hover:text-white"}`}>Sign in</Link>
             <Link href="/signup" className="px-4 py-2 bg-[#C9956E] hover:bg-[#B8845D] text-white text-sm font-medium rounded-lg transition-colors">
               Get Started Free
             </Link>
