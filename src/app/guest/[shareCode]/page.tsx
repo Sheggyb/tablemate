@@ -31,9 +31,13 @@ interface Wedding {
   couple_names?: string | null;
 }
 
-export default function GuestPortal({ params }: { params: { shareCode: string } }) {
+export default function GuestPortal({ params }: { params: Promise<{ shareCode: string }> }) {
   const supabase = createClient();
-  const { shareCode } = params;
+  const [shareCode, setShareCode] = useState("");
+
+  useEffect(() => {
+    params.then(p => setShareCode(p.shareCode));
+  }, []);
 
   const [wedding, setWedding] = useState<Wedding | null>(null);
   const [guests, setGuests] = useState<Guest[]>([]);
@@ -58,6 +62,7 @@ export default function GuestPortal({ params }: { params: { shareCode: string } 
   const [newIds, setNewIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
+    if (!shareCode) return;
     async function load() {
       // Find wedding by share_code
       const { data: w } = await supabase
