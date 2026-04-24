@@ -239,7 +239,7 @@ export default function GuestPortal({ params }: { params: Promise<{ shareCode: s
                     onChange={e => { setSearch(e.target.value); setSearched(false); setFoundGuest(null); }}
                     onKeyDown={e => e.key === "Enter" && doSearch()}
                     placeholder="Your name..."
-                    autoFocus
+
                     style={{
                       flex: 1, padding: "12px 14px", borderRadius: 10, border: `1px solid ${border}`,
                       background: inputBg, color: text, fontSize: 15, outline: "none"
