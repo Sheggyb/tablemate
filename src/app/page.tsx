@@ -94,40 +94,44 @@ export default function LandingPage() {
 
       {/* Pricing */}
       <section id="pricing" className={`py-20 ${bg}`}>
-        <div className="max-w-6xl mx-auto px-6">
-          <h2 className={`font-playfair text-3xl font-bold ${text} text-center mb-4`}>Simple pricing</h2>
-          <p className={`${muted} text-center mb-16`}>Pay once, own it forever. No surprise monthly bills.</p>
-          <div className="grid md:grid-cols-4 gap-6">
-            {plans.map(plan => (
-              <div key={plan.name} className={`p-6 rounded-2xl border ${plan.highlighted ? `border-[#C9956E] shadow-xl shadow-[#C9956E]/10 ${dark ? "bg-[#242028]" : "bg-white"} relative` : card}`}>
-                {plan.highlighted && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-[#C9956E] text-white text-xs font-semibold rounded-full">Most Popular</div>
-                )}
-                <h3 className={`font-playfair text-xl font-bold ${text} mb-1`}>{plan.name}</h3>
-                <div className="flex items-baseline gap-1 mb-1">
-                  <span className={`text-3xl font-bold ${text}`}>{plan.price}</span>
-                  {plan.period && <span className={`text-sm ${dark ? "text-[#6B6068]" : "text-[#9B9098]"}`}>{plan.period}</span>}
+        <div className="max-w-3xl mx-auto px-6 text-center">
+          <h2 className={`font-playfair text-3xl font-bold ${text} mb-4`}>Simple pricing</h2>
+          <p className={`${muted} mb-12`}>Pay once, own it forever. No surprise monthly bills.</p>
+
+          {/* Coming soon card */}
+          <div className={`relative rounded-3xl border border-[#C9956E] shadow-xl shadow-[#C9956E]/10 p-10 ${dark ? "bg-[#242028]" : "bg-white"}`}>
+            <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-[#C9956E] text-white text-xs font-semibold rounded-full tracking-wide">Coming Soon</div>
+
+            <div className="text-5xl mb-4">💍</div>
+            <h3 className={`font-playfair text-2xl font-bold ${text} mb-3`}>Pricing is on the way</h3>
+            <p className={`${muted} mb-8 max-w-md mx-auto leading-relaxed`}>
+              We&apos;re still working out the details to make sure it&apos;s fair and simple.
+              One thing is certain — <span className="text-[#C9956E] font-medium">you&apos;ll pay once and own it forever.</span> No subscriptions, no surprise bills.
+            </p>
+
+            {/* Teaser features */}
+            <div className="grid sm:grid-cols-3 gap-4 mb-8">
+              {[
+                { icon: "🆓", label: "Free tier", desc: "Always free to get started" },
+                { icon: "💳", label: "One-time payment", desc: "Pay once, yours forever" },
+                { icon: "🎯", label: "Fair pricing", desc: "Built for real couples" },
+              ].map(item => (
+                <div key={item.label} className={`rounded-xl p-4 ${dark ? "bg-[#1A181C]" : "bg-[#FAF7F5]"}`}>
+                  <div className="text-2xl mb-1">{item.icon}</div>
+                  <div className={`text-sm font-semibold ${text} mb-0.5`}>{item.label}</div>
+                  <div className={`text-xs ${muted}`}>{item.desc}</div>
                 </div>
-                <p className={`text-xs ${dark ? "text-[#6B6068]" : "text-[#9B9098]"} mb-6`}>{plan.subtitle}</p>
-                <ul className="space-y-2 mb-6">
-                  {plan.features.map(f => (
-                    <li key={f} className={`flex items-center gap-2 text-sm ${dark ? "text-[#C0BAB8]" : "text-[#4A4348]"}`}>
-                      <span className="text-[#C9956E]">✓</span>{f}
-                    </li>
-                  ))}
-                </ul>
-                <Link
-                  href={plan.href}
-                  className={`block w-full text-center py-3 rounded-lg font-medium text-sm transition-colors ${
-                    plan.highlighted
-                      ? 'bg-[#C9956E] hover:bg-[#B8845D] text-white'
-                      : `border ${dark ? "border-[#3A3540] hover:border-[#C9956E] text-[#F0EBE8]" : "border-[#DDD7D0] hover:border-[#C9956E] text-[#2A2328]"}`
-                  }`}
-                >
-                  {plan.cta}
-                </Link>
-              </div>
-            ))}
+              ))}
+            </div>
+
+            <p className={`text-xs ${muted} mb-6`}>In the meantime, everything is completely free during our beta.</p>
+
+            <Link
+              href="/signup"
+              className="inline-block px-8 py-3 bg-[#C9956E] hover:bg-[#B8845D] text-white font-medium rounded-lg transition-colors"
+            >
+              Get Started Free →
+            </Link>
           </div>
         </div>
       </section>
@@ -155,21 +159,4 @@ const features = [
   { icon: "🖨️", title: "Beautiful Exports", desc: "Print-ready seating charts, place cards, and table assignments. PDF export coming soon." },
 ];
 
-const plans = [
-  {
-    name: "Free", price: "€0", period: "", subtitle: "Forever free", highlighted: false, cta: "Start for Free", href: "/signup",
-    features: ["1 wedding", "Up to 50 guests", "Drag & drop chart", "CSV import", "Print export"],
-  },
-  {
-    name: "Couple", price: "€29", period: "one-time", subtitle: "Pay once, yours forever", highlighted: true, cta: "Get Couple", href: "/signup?plan=couple",
-    features: ["1 wedding", "Unlimited guests", "Cloud save & sync", "RSVP portal", "Share link", "PDF export"],
-  },
-  {
-    name: "Premium", price: "€49", period: "one-time", subtitle: "Everything for your big day", highlighted: false, cta: "Get Premium", href: "/signup?plan=premium",
-    features: ["1 wedding", "Unlimited guests", "Everything in Couple", "AI seating optimizer", "Live collaboration", "Custom floor plans"],
-  },
-  {
-    name: "Planner", price: "€19", period: "/month", subtitle: "For wedding professionals", highlighted: false, cta: "Start Trial", href: "/signup?plan=planner",
-    features: ["Unlimited weddings", "Client portals", "White-label option", "Multi-wedding dashboard", "Priority support"],
-  },
-];
+
