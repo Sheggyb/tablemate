@@ -21,6 +21,7 @@ export interface Wedding {
   name: string
   date: string | null
   couple_names: string | null
+  share_code: string | null
   created_at: string
   updated_at: string
 }
@@ -71,6 +72,14 @@ export interface Guest {
   rsvp_token?: string
   rsvp_responded_at?: string | null
   created_at?: string
+}
+
+export interface Wish {
+  id: string
+  wedding_id: string
+  name: string
+  message: string
+  created_at: string
 }
 
 export interface Rule {

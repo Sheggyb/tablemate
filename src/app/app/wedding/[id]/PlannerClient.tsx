@@ -9,8 +9,9 @@ import ChartCanvas from "./ChartCanvas";
 import RulesPanel from "./RulesPanel";
 import ExportPanel from "./ExportPanel";
 import MobilePlanner from "./MobilePlanner";
+import WishingWall from "./WishingWall";
 
-type Tab = "chart" | "guests" | "rules" | "export";
+type Tab = "chart" | "guests" | "rules" | "export" | "wishes";
 
 interface Props {
   wedding:       Wedding;
@@ -534,17 +535,14 @@ export default function PlannerClient({
         className="flex items-center gap-0.5 px-4 flex-shrink-0"
         style={{ background: cs.surface, borderBottom: `1px solid ${cs.border}` }}
       >
-        {(["chart", "guests", "rules", "export"] as Tab[]).map(tab => (
+        {([["chart","📐 Seating Chart"], ["guests","👥 Guests"], ["rules","📋 Rules"], ["export","📤 Export"], ["wishes","💌 Wishes"]] as [Tab,string][]).map(([tab, label]) => (
           <button key={tab} onClick={() => setActiveTab(tab)}
             className="py-2.5 px-4 text-sm font-medium border-b-2 transition-colors capitalize"
             style={{
               borderBottomColor: activeTab === tab ? "var(--accent)" : "transparent",
               color: activeTab === tab ? "var(--accent)" : "var(--text-muted)",
             }}>
-            {tab === "chart" ? "📐 Seating Chart"
-              : tab === "guests" ? "👥 Guests"
-              : tab === "rules" ? "📋 Rules"
-              : "📤 Export"}
+            {label}
           </button>
         ))}
 
@@ -629,9 +627,15 @@ export default function PlannerClient({
             }}
           />
         )}
+        {activeTab === "wishes" && (
+          <WishingWall
+            weddingId={wedding.id}
+            shareCode={wedding.share_code}
+            dark={darkMode}
+            isDemo={isDemo}
+          />
+        )}
       </div>
-
-      {/* ── Settings Modal ── */}
       {showSettings && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="rounded-2xl p-6 w-full max-w-sm shadow-2xl animate-fade-in"

@@ -8,6 +8,7 @@ const WEDDING: Wedding = {
   name: "Sarah & Tom's Wedding",
   date: "2025-09-06",
   couple_names: "Sarah & Tom",
+  share_code: null,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
 };

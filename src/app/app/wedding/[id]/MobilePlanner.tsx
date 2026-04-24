@@ -21,6 +21,8 @@ type PlannerAction =
   | { type: "BULK_UPDATE_GUESTS"; ids: string[]; data: Partial<Guest> }
   | { type: "BULK_DELETE_GUESTS"; ids: string[] };
 
+import WishingWall from "./WishingWall";
+
 interface Props {
   wedding:  Wedding;
   tables:   Table[];
@@ -34,7 +36,7 @@ interface Props {
   addTable?: (name: string, shape: "round" | "rectangle" | "oval", capacity: number) => void;
 }
 
-type MobileTab = "tables" | "guests" | "rules" | "export";
+type MobileTab = "tables" | "guests" | "rules" | "export" | "wishes";
 
 const MEAL_ICON: Record<string, string> = {
   standard: "🍽️", vegetarian: "🥗", vegan: "🌱",
@@ -245,6 +247,7 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
     { key: "guests" as MobileTab, label: "Guests",  emoji: "👥" },
     { key: "rules"  as MobileTab, label: "Rules",   emoji: "📋" },
     { key: "export" as MobileTab, label: "Export",  emoji: "📤" },
+    { key: "wishes" as MobileTab, label: "Wishes",  emoji: "💌" },
   ];
 
   // Backdrop is defined outside this component (above) to prevent keyboard dismissal on re-render.
@@ -638,9 +641,16 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
             </div>
           </div>
         )}
+        {/* ══ WISHES ══ */}
+        {activeTab === "wishes" && (
+          <WishingWall
+            weddingId={wedding.id}
+            shareCode={wedding.share_code ?? null}
+            dark={dark}
+            isDemo={isDemo}
+          />
+        )}
       </div>
-
-      {/* ── Bottom Tab Bar ── */}
       <div style={{ position:"fixed", bottom:0, left:0, right:0, background:card,
         borderTop:`1px solid ${border}`, display:"flex", height:64, zIndex:100,
         boxShadow:"0 -4px 16px rgba(0,0,0,0.15)" }}>
