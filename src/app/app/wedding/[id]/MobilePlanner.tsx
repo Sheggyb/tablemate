@@ -254,7 +254,7 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
   // Backdrop is defined outside this component (above) to prevent keyboard dismissal on re-render.
 
   return (
-    <div style={{ display:"flex", flexDirection:"column", height:"100%", background:bg, color:text }}>
+    <div style={{ display:"flex", flexDirection:"column", flex:1, minHeight:0, height:"100dvh", background:bg, color:text }}>
 
       {/* ── Top Bar ── */}
       <div style={{ background:card, borderBottom:`1px solid ${border}`, padding:"12px 16px",

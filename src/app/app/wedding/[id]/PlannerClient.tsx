@@ -421,6 +421,7 @@ export default function PlannerClient({
 
       {/* ── Mobile View ── */}
       {isMobile && (
+        <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
         <MobilePlanner
           wedding={wedding}
           tables={state.tables}
@@ -433,6 +434,7 @@ export default function PlannerClient({
           isDemo={isDemo}
           addTable={addTable}
         />
+        </div>
       )}
 
       {/* ── Desktop View ── */}
