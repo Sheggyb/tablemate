@@ -429,6 +429,8 @@ export default function PlannerClient({
           dispatch={dispatch}
           dark={darkMode}
           onToggleDark={() => setDarkMode(d => !d)}
+          isDemo={isDemo}
+          addTable={addTable}
         />
       )}
 

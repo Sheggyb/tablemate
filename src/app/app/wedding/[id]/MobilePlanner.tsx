@@ -30,9 +30,11 @@ interface Props {
   dispatch: Dispatch<PlannerAction>;
   dark:     boolean;
   onToggleDark: () => void;
+  isDemo?:  boolean;
+  addTable?: (name: string, shape: "round" | "rectangle" | "oval", capacity: number) => void;
 }
 
-type MobileTab = "tables" | "guests" | "rules";
+type MobileTab = "tables" | "guests" | "rules" | "export";
 
 const MEAL_ICON: Record<string, string> = {
   standard: "🍽️", vegetarian: "🥗", vegan: "🌱",
@@ -47,7 +49,7 @@ function shapeEmoji(shape: string) {
   return shape === "round" || shape === "oval" ? "🔵" : "⬜";
 }
 
-export default function MobilePlanner({ wedding, tables, guests, groups, rules, dispatch, dark, onToggleDark }: Props) {
+export default function MobilePlanner({ wedding, tables, guests, groups, rules, dispatch, dark, onToggleDark, isDemo = false, addTable }: Props) {
   const supabase = createClient();
   const [activeTab, setActiveTab] = useState<MobileTab>("tables");
   const [expandedTable, setExpandedTable] = useState<string | null>(null);
@@ -72,6 +74,11 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
 
   // ── Search ──
   const [guestSearch, setGuestSearch]     = useState("");
+
+  // ── Add Table (mobile) ──
+  const [showAddTable, setShowAddTable]   = useState(false);
+  const [newTableShape, setNewTableShape] = useState<"round"|"rectangle">("round");
+  const [newTableCap, setNewTableCap]     = useState(8);
 
   // ── Colors ──
   const bg       = dark ? "#1A1718" : "#F9F7F5";
@@ -200,6 +207,7 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
     { key: "tables" as MobileTab, label: "Tables",  emoji: "🍽️" },
     { key: "guests" as MobileTab, label: "Guests",  emoji: "👥" },
     { key: "rules"  as MobileTab, label: "Rules",   emoji: "📋" },
+    { key: "export" as MobileTab, label: "Export",  emoji: "📤" },
   ];
 
   // ── Modal backdrop helper ──
@@ -251,13 +259,27 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
           <div style={{ padding:"16px" }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
               <h2 style={{ fontWeight:700, fontSize:18, color:accent, margin:0 }}>Tables</h2>
-              <div style={{ fontSize:12, color:textMuted }}>{tables.length} tables · {guests.filter(g=>g.table_id).length} seated</div>
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                <div style={{ fontSize:12, color:textMuted }}>{tables.length} tables · {guests.filter(g=>g.table_id).length} seated</div>
+                {isDemo ? (
+                  <a href="/signup" style={{ background:surface2, color:textMuted, border:`1px solid ${border}`,
+                    borderRadius:10, padding:"7px 14px", fontSize:13, fontWeight:600, textDecoration:"none" }}>
+                    🔒 Sign up to add
+                  </a>
+                ) : (
+                  <button onClick={() => setShowAddTable(true)}
+                    style={{ background:accent, color:"#fff", border:"none", borderRadius:10,
+                      padding:"8px 16px", fontSize:14, fontWeight:700, cursor:"pointer" }}>
+                    + Add
+                  </button>
+                )}
+              </div>
             </div>
 
             {tables.length === 0 ? (
               <div style={{ textAlign:"center", padding:"48px 0", color:textMuted }}>
                 <div style={{ fontSize:40, marginBottom:12 }}>🍽️</div>
-                <p style={{ fontSize:14 }}>No tables yet. Add tables from desktop.</p>
+                <p style={{ fontSize:14 }}>No tables yet. Tap + Add to create one.</p>
               </div>
             ) : (
               <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
@@ -282,9 +304,11 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
                           <div style={{ fontSize:11, color:textMuted }}>seated</div>
                         </div>
                         {/* Edit button */}
-                        <button onClick={e => { e.stopPropagation(); setEditTable(table); setTableNameEdit(table.name); }}
-                          style={{ background:surface2, border:"none", borderRadius:8, padding:"6px 10px",
-                            color:textMuted, fontSize:13, cursor:"pointer" }}>✏️</button>
+                        {!isDemo && (
+                          <button onClick={e => { e.stopPropagation(); setEditTable(table); setTableNameEdit(table.name); }}
+                            style={{ background:surface2, border:"none", borderRadius:8, padding:"6px 10px",
+                              color:textMuted, fontSize:13, cursor:"pointer" }}>✏️</button>
+                        )}
                         <span style={{ color:textMuted, fontSize:16 }}>{isOpen ? "▲" : "▼"}</span>
                       </button>
 
@@ -310,7 +334,8 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
                                   <button onClick={() => unseatGuest(g.id)}
                                     style={{ background:"rgba(224,92,106,0.15)", color:danger,
                                       border:`1px solid rgba(224,92,106,0.3)`, borderRadius:8,
-                                      padding:"5px 10px", fontSize:12, cursor:"pointer", fontWeight:600 }}>
+                                      padding:"5px 10px", fontSize:12, cursor:"pointer", fontWeight:600,
+                                      display: isDemo ? "none" : undefined }}>
                                     Remove
                                   </button>
                                 </div>
@@ -334,9 +359,16 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
               <h2 style={{ fontWeight:700, fontSize:18, color:accent, margin:0 }}>Guests</h2>
               <button onClick={() => { setShowAddGuest(true); setGuestForm({ first_name:"", last_name:"", email:"", meal:"standard", rsvp:"pending" }); }}
                 style={{ background:accent, color:"#fff", border:"none", borderRadius:10,
-                  padding:"8px 16px", fontSize:14, fontWeight:700, cursor:"pointer" }}>
+                  padding:"8px 16px", fontSize:14, fontWeight:700, cursor:"pointer",
+                  display: isDemo ? "none" : undefined }}>
                 + Add
               </button>
+              {isDemo && (
+                <a href="/signup" style={{ background:surface2, color:textMuted, border:`1px solid ${border}`,
+                  borderRadius:10, padding:"7px 14px", fontSize:13, fontWeight:600, textDecoration:"none" }}>
+                  🔒 Sign up to add
+                </a>
+              )}
             </div>
 
             {/* Stats */}
@@ -395,7 +427,7 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
                         </select>
                         <div style={{ display:"flex", gap:4 }}>
                           {/* Seat button */}
-                          {!g.table_id && g.rsvp !== "declined" && (
+                          {!isDemo && !g.table_id && g.rsvp !== "declined" && (
                             <button onClick={() => setSeatGuest(g)}
                               style={{ fontSize:11, padding:"3px 8px", borderRadius:6, cursor:"pointer",
                                 background:`${success}22`, color:success, border:`1px solid ${success}44`, fontWeight:600 }}>
@@ -403,11 +435,13 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
                             </button>
                           )}
                           {/* Edit */}
-                          <button onClick={() => { setEditGuest(g); setGuestForm({ ...g }); }}
-                            style={{ fontSize:11, padding:"3px 8px", borderRadius:6, cursor:"pointer",
-                              background:surface2, color:textMid, border:`1px solid ${border}` }}>
-                            ✏️
-                          </button>
+                          {!isDemo && (
+                            <button onClick={() => { setEditGuest(g); setGuestForm({ ...g }); }}
+                              style={{ fontSize:11, padding:"3px 8px", borderRadius:6, cursor:"pointer",
+                                background:surface2, color:textMid, border:`1px solid ${border}` }}>
+                              ✏️
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -425,9 +459,16 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
               <h2 style={{ fontWeight:700, fontSize:18, color:accent, margin:0 }}>Seating Rules</h2>
               <button onClick={() => setShowAddRule(true)}
                 style={{ background:accent, color:"#fff", border:"none", borderRadius:10,
-                  padding:"8px 16px", fontSize:14, fontWeight:700, cursor:"pointer" }}>
+                  padding:"8px 16px", fontSize:14, fontWeight:700, cursor:"pointer",
+                  display: isDemo ? "none" : undefined }}>
                 + Add
               </button>
+              {isDemo && (
+                <a href="/signup" style={{ background:surface2, color:textMuted, border:`1px solid ${border}`,
+                  borderRadius:10, padding:"7px 14px", fontSize:13, fontWeight:600, textDecoration:"none" }}>
+                  🔒 Sign up to add
+                </a>
+              )}
             </div>
 
             {violations.length > 0 && (
@@ -476,15 +517,97 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
                           {isViolated&&" · ⚠️ Violated"}
                         </div>
                       </div>
-                      <button onClick={() => deleteRule(r.id)}
-                        style={{ background:"rgba(224,92,106,0.15)", color:danger,
-                          border:`1px solid rgba(224,92,106,0.3)`, borderRadius:8,
-                          padding:"6px 10px", fontSize:13, cursor:"pointer" }}>🗑️</button>
+                      {!isDemo && (
+                        <button onClick={() => deleteRule(r.id)}
+                          style={{ background:"rgba(224,92,106,0.15)", color:danger,
+                            border:`1px solid rgba(224,92,106,0.3)`, borderRadius:8,
+                            padding:"6px 10px", fontSize:13, cursor:"pointer" }}>🗑️</button>
+                      )}
                     </div>
                   );
                 })}
               </div>
             )}
+          </div>
+        )}
+        {/* ══ EXPORT ══ */}
+        {/* ══ EXPORT ══ */}
+        {activeTab === "export" && (
+          <div style={{ padding:"16px" }}>
+            <h2 style={{ fontWeight:700, fontSize:18, color:accent, marginBottom:16 }}>Export & Stats</h2>
+
+            {/* Stats cards */}
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:20 }}>
+              {[
+                { label:"Total Guests",  value: guests.length,                                  emoji:"👥" },
+                { label:"Confirmed",     value: guests.filter(g=>g.rsvp==="confirmed").length,  emoji:"✅", color:success },
+                { label:"Pending",       value: guests.filter(g=>g.rsvp==="pending").length,    emoji:"⏳", color:warning },
+                { label:"Declined",      value: guests.filter(g=>g.rsvp==="declined").length,   emoji:"❌", color:danger },
+                { label:"Seated",        value: guests.filter(g=>g.table_id).length,            emoji:"🪑", color:accent },
+                { label:"Tables",        value: tables.length,                                  emoji:"🍽️" },
+              ].map(s => (
+                <div key={s.label} style={{ background:card, borderRadius:12, border:`1px solid ${border}`,
+                  padding:"14px", textAlign:"center" }}>
+                  <div style={{ fontSize:24, marginBottom:4 }}>{s.emoji}</div>
+                  <div style={{ fontSize:26, fontWeight:800, color: (s as any).color || text }}>{s.value}</div>
+                  <div style={{ fontSize:11, color:textMuted, marginTop:2 }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Meal breakdown */}
+            <div style={{ background:card, borderRadius:12, border:`1px solid ${border}`, padding:"16px", marginBottom:20 }}>
+              <div style={{ fontWeight:700, fontSize:14, color:text, marginBottom:12 }}>🍽️ Meal Breakdown</div>
+              {Object.entries(
+                guests.reduce((acc, g) => { const m = g.meal||"standard"; acc[m]=(acc[m]||0)+1; return acc; }, {} as Record<string,number>)
+              ).map(([meal, count]) => (
+                <div key={meal} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:8 }}>
+                  <span style={{ fontSize:18, width:24 }}>{MEAL_ICON[meal]??"🍽️"}</span>
+                  <div style={{ flex:1 }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", fontSize:13 }}>
+                      <span style={{ textTransform:"capitalize", color:text }}>{meal}</span>
+                      <span style={{ color:textMuted, fontWeight:700 }}>{count}</span>
+                    </div>
+                    <div style={{ height:4, borderRadius:2, background:surface2, marginTop:4 }}>
+                      <div style={{ height:"100%", borderRadius:2, background:accent,
+                        width:`${Math.round((count/Math.max(guests.length,1))*100)}%` }}/>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Download section */}
+            <div style={{ background:card, borderRadius:12, border:`1px solid ${border}`, padding:"16px" }}>
+              <div style={{ fontWeight:700, fontSize:14, color:text, marginBottom:12 }}>📥 Downloads</div>
+              {isDemo ? (
+                <div style={{ textAlign:"center", padding:"20px 0" }}>
+                  <div style={{ fontSize:32, marginBottom:8 }}>🔒</div>
+                  <p style={{ fontSize:14, color:textMuted, marginBottom:16 }}>Sign up to download your guest list, seating chart, and more.</p>
+                  <a href="/signup" style={{ background:accent, color:"#fff", borderRadius:12,
+                    padding:"12px 28px", fontSize:15, fontWeight:700, textDecoration:"none", display:"inline-block" }}>
+                    Create Free Account →
+                  </a>
+                </div>
+              ) : (
+                <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                  {[
+                    { label:"Guest List (CSV)",     emoji:"📊" },
+                    { label:"Seating Chart (PDF)",  emoji:"📋" },
+                    { label:"Table Plan (PDF)",     emoji:"🗺️" },
+                  ].map(d => (
+                    <div key={d.label} style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
+                      background:surface2, borderRadius:10, padding:"12px 14px" }}>
+                      <span style={{ fontSize:14, color:text }}>{d.emoji} {d.label}</span>
+                      <span style={{ fontSize:12, color:textMuted }}>Use desktop</span>
+                    </div>
+                  ))}
+                  <p style={{ fontSize:12, color:textMuted, textAlign:"center", marginTop:4 }}>
+                    Open TableMate on a desktop browser for full export options.
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -661,6 +784,48 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
               style={{ background:accent, color:"#fff", border:"none", borderRadius:12, padding:"14px",
                 fontSize:16, fontWeight:700, cursor:"pointer", opacity:(!ruleGuest1||!ruleGuest2)?0.5:1 }}>
               Add Rule
+            </button>
+          </div>
+        </Backdrop>
+      )}
+
+      {/* Add Table */}
+      {showAddTable && (
+        <Backdrop onClose={() => setShowAddTable(false)}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
+            <h3 style={{ fontWeight:700, fontSize:20, color:text, margin:0 }}>Add Table</h3>
+            <button onClick={() => setShowAddTable(false)} style={{ background:"none", border:"none", color:textMuted, fontSize:24, cursor:"pointer" }}>×</button>
+          </div>
+          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+            <div>
+              <label style={{ fontSize:12, color:textMid, display:"block", marginBottom:8 }}>Shape</label>
+              <div style={{ display:"flex", gap:10 }}>
+                {(["round","rectangle"] as const).map(s => (
+                  <button key={s} onClick={() => setNewTableShape(s)}
+                    style={{ flex:1, padding:"12px", borderRadius:10, border:`2px solid ${newTableShape===s ? accent : border}`,
+                      background: newTableShape===s ? `${accent}22` : surface2, color: newTableShape===s ? accent : text,
+                      cursor:"pointer", fontWeight:600, fontSize:14, textTransform:"capitalize" }}>
+                    {s === "round" ? "🔵 Round" : "⬜ Rectangular"}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label style={{ fontSize:12, color:textMid, display:"block", marginBottom:5 }}>Capacity: {newTableCap}</label>
+              <input type="range" min={2} max={20} value={newTableCap} onChange={e => setNewTableCap(Number(e.target.value))}
+                style={{ width:"100%", accentColor:accent }} />
+              <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:textMuted, marginTop:4 }}>
+                <span>2</span><span>20</span>
+              </div>
+            </div>
+            <button onClick={() => {
+              const name = `Table ${tables.length + 1}`;
+              addTable?.(name, newTableShape, newTableCap);
+              setShowAddTable(false);
+            }}
+              style={{ background:accent, color:"#fff", border:"none", borderRadius:12,
+                padding:"14px", fontSize:16, fontWeight:700, cursor:"pointer" }}>
+              Add Table
             </button>
           </div>
         </Backdrop>
