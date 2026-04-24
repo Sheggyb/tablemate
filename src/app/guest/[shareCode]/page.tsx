@@ -160,13 +160,19 @@ export default function GuestPortal({ params }: { params: Promise<{ shareCode: s
     "gluten-free": "🌾 Gluten-Free", halal: "☪️ Halal", kosher: "✡️ Kosher", children: "👶 Children's",
   };
 
+  const [dark, setDark] = useState(true);
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    setDark(mq.matches);
+  }, []);
+
   const accent = "#C9956E";
-  const bg = "#0f0c15";
-  const surface = "#1a1625";
-  const border = "#2a2438";
-  const text = "#f0ece8";
-  const muted = "#8a8090";
-  const inputBg = "#12101a";
+  const bg = dark ? "#0f0c15" : "#faf8f5";
+  const surface = dark ? "#1a1625" : "#ffffff";
+  const border = dark ? "#2a2438" : "#e8e0d8";
+  const text = dark ? "#f0ece8" : "#1a1218";
+  const muted = dark ? "#8a8090" : "#7a6e78";
+  const inputBg = dark ? "#12101a" : "#f4f0ec";
 
   if (loading) return (
     <div style={{ minHeight: "100dvh", background: bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -187,7 +193,10 @@ export default function GuestPortal({ params }: { params: Promise<{ shareCode: s
     <div style={{ minHeight: "100dvh", background: bg, color: text, fontFamily: "system-ui, sans-serif", display: "flex", flexDirection: "column" }}>
 
       {/* ── Header ── */}
-      <div style={{ background: surface, borderBottom: `1px solid ${border}`, padding: "20px 20px 16px", textAlign: "center", flexShrink: 0 }}>
+      <div style={{ background: surface, borderBottom: `1px solid ${border}`, padding: "20px 20px 16px", textAlign: "center", flexShrink: 0, position: "relative" }}>
+        <button onClick={() => setDark(d => !d)} style={{ position: "absolute", top: 16, right: 16, background: "transparent", border: `1px solid ${border}`, borderRadius: 20, padding: "4px 10px", cursor: "pointer", fontSize: 16, color: muted }}>
+          {dark ? "☀️" : "🌙"}
+        </button>
         <div style={{ fontSize: 32, marginBottom: 6 }}>💍</div>
         <h1 style={{ color: text, fontSize: 22, fontWeight: 700, margin: 0 }}>
           {wedding?.couple_names ?? wedding?.name}
