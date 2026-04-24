@@ -31,7 +31,7 @@ interface Wedding {
   couple_names?: string | null;
 }
 
-type Tab = "seat" | "wall";
+type Tab = "seat" | "wish" | "wall";
 
 export default function GuestPortal({ params }: { params: Promise<{ shareCode: string }> }) {
   const supabase = createClient();
@@ -203,7 +203,8 @@ export default function GuestPortal({ params }: { params: Promise<{ shareCode: s
       <div style={{ background: surface, borderBottom: `1px solid ${border}`, display: "flex", flexShrink: 0 }}>
         {([
           { key: "seat" as Tab, emoji: "🪑", label: "Find My Seat" },
-          { key: "wall" as Tab, emoji: "🌸", label: `Wishing Wall${wishes.length > 0 ? ` (${wishes.length})` : ""}` },
+          { key: "wish" as Tab, emoji: "💌", label: "Leave a Wish" },
+          { key: "wall" as Tab, emoji: "🌸", label: `Wall${wishes.length > 0 ? ` (${wishes.length})` : ""}` },
         ]).map(tab => (
           <button key={tab.key} onClick={() => setActiveTab(tab.key)}
             style={{
@@ -269,7 +270,7 @@ export default function GuestPortal({ params }: { params: Promise<{ shareCode: s
                             Meal: {mealLabel[foundGuest.meal] ?? foundGuest.meal}
                           </div>
                         )}
-                        <button onClick={() => { setActiveTab("wall"); setWishName(`${foundGuest.first_name}${foundGuest.last_name ? " " + foundGuest.last_name : ""}`); }}
+                        <button onClick={() => { setActiveTab("wish"); setWishName(`${foundGuest.first_name}${foundGuest.last_name ? " " + foundGuest.last_name : ""}`); }}
                           style={{ marginTop: 4, padding: "10px", borderRadius: 10, background: `${accent}20`, color: accent, fontWeight: 600, fontSize: 13, border: `1px solid ${accent}40`, cursor: "pointer" }}>
                           💌 Leave a wish for the couple →
                         </button>
@@ -286,44 +287,58 @@ export default function GuestPortal({ params }: { params: Promise<{ shareCode: s
 
             {/* CTA to wishing wall */}
             {!foundGuest && (
-              <button onClick={() => setActiveTab("wall")}
-                style={{ padding: "14px", borderRadius: 14, background: surface, border: `1px solid ${border}`, color: muted, fontSize: 14, cursor: "pointer", textAlign: "center" }}>
-                🌸 View the Wishing Wall →
-              </button>
+              <div style={{ display: "flex", gap: 10 }}>
+                <button onClick={() => setActiveTab("wish")}
+                  style={{ flex: 1, padding: "14px", borderRadius: 14, background: surface, border: `1px solid ${border}`, color: muted, fontSize: 14, cursor: "pointer", textAlign: "center" }}>
+                  💌 Leave a Wish →
+                </button>
+                <button onClick={() => setActiveTab("wall")}
+                  style={{ flex: 1, padding: "14px", borderRadius: 14, background: surface, border: `1px solid ${border}`, color: muted, fontSize: 14, cursor: "pointer", textAlign: "center" }}>
+                  🌸 Wishing Wall →
+                </button>
+              </div>
             )}
           </div>
         )}
 
-        {/* ══ WISHING WALL ══ */}
-        {activeTab === "wall" && (
+        {/* ══ LEAVE A WISH ══ */}
+        {activeTab === "wish" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-
-            {/* Leave a wish */}
             <div style={{ background: surface, borderRadius: 16, border: `1px solid ${border}`, overflow: "hidden" }}>
               <div style={{ padding: "16px 16px 12px", borderBottom: `1px solid ${border}` }}>
                 <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: text }}>💌 Leave a Wish</h2>
-                <p style={{ margin: "4px 0 0", fontSize: 13, color: muted }}>Your message appears on the wall instantly</p>
+                <p style={{ margin: "4px 0 0", fontSize: 13, color: muted }}>Your message appears on the wall instantly for everyone to see</p>
               </div>
               <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
                 <input
                   value={wishName}
                   onChange={e => setWishName(e.target.value)}
                   placeholder="Your name"
-                  style={{ padding: "12px 14px", borderRadius: 10, border: `1px solid ${border}`, background: inputBg, color: text, fontSize: 14, outline: "none", width: "100%", boxSizing: "border-box" }}
+                  style={{ padding: "12px 14px", borderRadius: 10, border: `1px solid ${border}`, background: inputBg, color: text, fontSize: 15, outline: "none", width: "100%", boxSizing: "border-box" }}
                 />
                 <textarea
                   value={wishMsg}
                   onChange={e => setWishMsg(e.target.value)}
                   placeholder="Write something beautiful... 💍"
-                  rows={3}
-                  style={{ padding: "12px 14px", borderRadius: 10, border: `1px solid ${border}`, background: inputBg, color: text, fontSize: 14, outline: "none", resize: "none", width: "100%", boxSizing: "border-box", lineHeight: 1.5 }}
+                  rows={4}
+                  style={{ padding: "12px 14px", borderRadius: 10, border: `1px solid ${border}`, background: inputBg, color: text, fontSize: 15, outline: "none", resize: "none", width: "100%", boxSizing: "border-box", lineHeight: 1.6 }}
                 />
                 <button onClick={sendWish} disabled={sending || !wishName.trim() || !wishMsg.trim()}
-                  style={{ padding: "13px", borderRadius: 10, background: accent, color: "#fff", fontWeight: 700, fontSize: 15, border: "none", cursor: "pointer", opacity: (sending || !wishName.trim() || !wishMsg.trim()) ? 0.5 : 1, transition: "opacity 0.2s" }}>
+                  style={{ padding: "14px", borderRadius: 10, background: accent, color: "#fff", fontWeight: 700, fontSize: 15, border: "none", cursor: "pointer", opacity: (sending || !wishName.trim() || !wishMsg.trim()) ? 0.5 : 1, transition: "opacity 0.2s" }}>
                   {sent ? "✅ Message sent!" : sending ? "Sending…" : "Send ❤️"}
                 </button>
               </div>
             </div>
+            <button onClick={() => setActiveTab("wall")}
+              style={{ padding: "14px", borderRadius: 14, background: surface, border: `1px solid ${border}`, color: muted, fontSize: 14, cursor: "pointer", textAlign: "center" }}>
+              🌸 View the Wishing Wall →
+            </button>
+          </div>
+        )}
+
+        {/* ══ WISHING WALL ══ */}
+        {activeTab === "wall" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
             {/* Live wall */}
             <div style={{ background: surface, borderRadius: 16, border: `1px solid ${border}`, overflow: "hidden" }}>
@@ -366,6 +381,11 @@ export default function GuestPortal({ params }: { params: Promise<{ shareCode: s
                 ))}
               </div>
             </div>
+
+            <button onClick={() => setActiveTab("wish")}
+              style={{ padding: "14px", borderRadius: 14, background: surface, border: `1px solid ${accent}40`, color: accent, fontSize: 14, fontWeight: 600, cursor: "pointer", textAlign: "center" }}>
+              💌 Leave your own wish →
+            </button>
           </div>
         )}
 
