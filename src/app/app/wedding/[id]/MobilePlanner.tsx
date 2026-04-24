@@ -49,6 +49,31 @@ function shapeEmoji(shape: string) {
   return shape === "round" || shape === "oval" ? "🔵" : "⬜";
 }
 
+// ── Backdrop must live OUTSIDE MobilePlanner so React never remounts it on re-render.
+// If defined inside the component, every keystroke causes React to see a brand-new
+// component type → unmount/remount → mobile keyboard dismisses on every character.
+function Backdrop({
+  onClose, children, cardBg, borderColor,
+}: {
+  onClose: () => void;
+  children: React.ReactNode;
+  cardBg: string;
+  borderColor: string;
+}) {
+  return (
+    <div
+      style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.6)", zIndex:200, display:"flex", alignItems:"flex-end" }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div style={{ background:cardBg, borderRadius:"20px 20px 0 0", width:"100%", padding:"24px 20px 40px",
+        maxHeight:"85vh", overflowY:"auto", boxShadow:"0 -8px 32px rgba(0,0,0,0.3)",
+        border:`1px solid ${borderColor}` }}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export default function MobilePlanner({ wedding, tables, guests, groups, rules, dispatch, dark, onToggleDark, isDemo = false, addTable }: Props) {
   const supabase = createClient();
   const [activeTab, setActiveTab] = useState<MobileTab>("tables");
@@ -221,16 +246,7 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
     { key: "export" as MobileTab, label: "Export",  emoji: "📤" },
   ];
 
-  // ── Modal backdrop helper ──
-  const Backdrop = ({ onClose, children }: { onClose: () => void; children: React.ReactNode }) => (
-    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.6)", zIndex:200, display:"flex", alignItems:"flex-end" }}
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={{ background:card, borderRadius:"20px 20px 0 0", width:"100%", padding:"24px 20px 40px",
-        maxHeight:"85vh", overflowY:"auto", boxShadow:"0 -8px 32px rgba(0,0,0,0.3)" }}>
-        {children}
-      </div>
-    </div>
-  );
+  // Backdrop is defined outside this component (above) to prevent keyboard dismissal on re-render.
 
   return (
     <div style={{ display:"flex", flexDirection:"column", height:"100%", background:bg, color:text }}>
@@ -648,7 +664,7 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
 
       {/* Add / Edit Guest */}
       {(showAddGuest || editGuest) && (
-        <Backdrop onClose={() => { setShowAddGuest(false); setEditGuest(null); }}>
+        <Backdrop onClose={() => { setShowAddGuest(false); setEditGuest(null); }} cardBg={card} borderColor={border}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
             <h3 style={{ fontWeight:700, fontSize:20, color:text, margin:0 }}>{editGuest?"Edit Guest":"Add Guest"}</h3>
             <button onClick={() => { setShowAddGuest(false); setEditGuest(null); }}
@@ -705,7 +721,7 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
 
       {/* Seat Guest */}
       {seatGuest && (
-        <Backdrop onClose={() => setSeatGuest(null)}>
+        <Backdrop onClose={() => setSeatGuest(null)} cardBg={card} borderColor={border}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
             <h3 style={{ fontWeight:700, fontSize:18, color:text, margin:0 }}>
               Seat {seatGuest.first_name} {seatGuest.last_name}
@@ -739,7 +755,7 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
 
       {/* Edit Table */}
       {editTable && (
-        <Backdrop onClose={() => setEditTable(null)}>
+        <Backdrop onClose={() => setEditTable(null)} cardBg={card} borderColor={border}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
             <h3 style={{ fontWeight:700, fontSize:20, color:text, margin:0 }}>Edit Table</h3>
             <button onClick={() => setEditTable(null)} style={{ background:"none", border:"none", color:textMuted, fontSize:24, cursor:"pointer" }}>×</button>
@@ -764,7 +780,7 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
 
       {/* Add Rule */}
       {showAddRule && (
-        <Backdrop onClose={() => setShowAddRule(false)}>
+        <Backdrop onClose={() => setShowAddRule(false)} cardBg={card} borderColor={border}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
             <h3 style={{ fontWeight:700, fontSize:20, color:text, margin:0 }}>Add Seating Rule</h3>
             <button onClick={() => setShowAddRule(false)} style={{ background:"none", border:"none", color:textMuted, fontSize:24, cursor:"pointer" }}>×</button>
@@ -802,7 +818,7 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
 
       {/* Add Table */}
       {showAddTable && (
-        <Backdrop onClose={() => setShowAddTable(false)}>
+        <Backdrop onClose={() => setShowAddTable(false)} cardBg={card} borderColor={border}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
             <h3 style={{ fontWeight:700, fontSize:20, color:text, margin:0 }}>Add Table</h3>
             <button onClick={() => setShowAddTable(false)} style={{ background:"none", border:"none", color:textMuted, fontSize:24, cursor:"pointer" }}>×</button>
@@ -824,7 +840,8 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
             <div>
               <label style={{ fontSize:12, color:textMid, display:"block", marginBottom:5 }}>Capacity: {newTableCap}</label>
               <input type="range" min={2} max={20} value={newTableCap} onChange={e => setNewTableCap(Number(e.target.value))}
-                style={{ width:"100%", accentColor:accent }} />
+                onTouchStart={e => e.stopPropagation()}
+                style={{ width:"100%", accentColor:accent, touchAction:"none" }} />
               <div style={{ display:"flex", justifyContent:"space-between", fontSize:11, color:textMuted, marginTop:4 }}>
                 <span>2</span><span>20</span>
               </div>
