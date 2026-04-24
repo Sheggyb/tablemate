@@ -102,6 +102,7 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
 
   // ── Add Table (mobile) ──
   const [showAddTable, setShowAddTable]   = useState(false);
+  const [newTableName, setNewTableName]   = useState("");
   const [newTableShape, setNewTableShape] = useState<"round"|"rectangle">("round");
   const [newTableCap, setNewTableCap]     = useState(8);
 
@@ -825,6 +826,18 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
           </div>
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
             <div>
+              <label style={{ fontSize:12, color:textMid, display:"block", marginBottom:5 }}>Table Name</label>
+              <input
+                type="text"
+                value={newTableName}
+                onChange={e => setNewTableName(e.target.value)}
+                placeholder={`Table ${tables.length + 1}`}
+                style={{ width:"100%", padding:"12px 14px", borderRadius:10, border:`1.5px solid ${border}`,
+                  background:surface2, color:text, fontSize:15, boxSizing:"border-box" }}
+                autoFocus
+              />
+            </div>
+            <div>
               <label style={{ fontSize:12, color:textMid, display:"block", marginBottom:8 }}>Shape</label>
               <div style={{ display:"flex", gap:10 }}>
                 {(["round","rectangle"] as const).map(s => (
@@ -847,8 +860,9 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
               </div>
             </div>
             <button onClick={() => {
-              const name = `Table ${tables.length + 1}`;
+              const name = newTableName.trim() || `Table ${tables.length + 1}`;
               addTable?.(name, newTableShape, newTableCap);
+              setNewTableName("");
               setShowAddTable(false);
             }}
               style={{ background:accent, color:"#fff", border:"none", borderRadius:12,
