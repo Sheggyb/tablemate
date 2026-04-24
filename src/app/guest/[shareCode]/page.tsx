@@ -105,7 +105,15 @@ export default function GuestPortal({ params }: { params: Promise<{ shareCode: s
             setTimeout(() => setNewIds(prev => { const s = new Set(prev); s.delete(wish.id); return s; }), 3000);
             setTimeout(() => wallRef.current?.scrollTo({ top: 0, behavior: "smooth" }), 50);
           } else if (payload.eventType === "DELETE") {
-            setWishes(prev => prev.filter(w => w.id !== (payload.old as Wish).id));
+            // payload.old.id requires REPLICA IDENTITY FULL — use id if present, else refetch
+            const deletedId = (payload.old as Partial<Wish>).id;
+            if (deletedId) {
+              setWishes(prev => prev.filter(w => w.id !== deletedId));
+            } else {
+              // fallback: refetch wishes
+              supabase.from("wishes").select("*").eq("wedding_id", w.id).order("created_at", { ascending: false })
+                .then(({ data }) => { if (data) setWishes(data as Wish[]); });
+            }
           }
         })
         .subscribe();

@@ -5,6 +5,13 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const playfair = Playfair_Display({ subsets: ["latin"], variable: "--font-playfair" });
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
+
 export const metadata: Metadata = {
   title: "TableMate — Free Wedding Seating Planner",
   description: "Plan your perfect wedding seating chart. Drag-and-drop tables, manage guests, handle meal preferences, and export printable charts. Free to start.",

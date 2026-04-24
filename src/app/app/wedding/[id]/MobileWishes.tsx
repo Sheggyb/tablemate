@@ -79,7 +79,13 @@ export default function MobileWishes({ weddingId, shareCode, dark, isDemo }: Pro
           setTimeout(() => setNewIds(prev => { const s = new Set(prev); s.delete(wish.id); return s; }), 3000);
           setTimeout(() => wallRef.current?.scrollTo({ top: 0, behavior: "smooth" }), 50);
         } else if (payload.eventType === "DELETE") {
-          setWishes(prev => prev.filter(w => w.id !== (payload.old as Wish).id));
+          const deletedId = (payload.old as Partial<Wish>).id;
+          if (deletedId) {
+            setWishes(prev => prev.filter(w => w.id !== deletedId));
+          } else {
+            supabase.from("wishes").select("*").eq("wedding_id", weddingId).order("created_at", { ascending: false })
+              .then(({ data }) => { if (data) setWishes(data as Wish[]); });
+          }
         }
       })
       .subscribe();
