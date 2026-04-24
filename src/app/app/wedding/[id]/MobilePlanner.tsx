@@ -22,6 +22,7 @@ type PlannerAction =
   | { type: "BULK_DELETE_GUESTS"; ids: string[] };
 
 import WishingWall from "./WishingWall";
+import MobileWishes from "./MobileWishes";
 
 interface Props {
   wedding:  Wedding;
@@ -643,7 +644,7 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
         )}
         {/* ══ WISHES ══ */}
         {activeTab === "wishes" && (
-          <WishingWall
+          <MobileWishes
             weddingId={wedding.id}
             shareCode={wedding.share_code ?? null}
             dark={dark}

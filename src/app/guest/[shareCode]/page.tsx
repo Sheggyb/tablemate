@@ -54,6 +54,8 @@ export default function GuestPortal({ params }: { params: { shareCode: string } 
   const [sent, setSent] = useState(false);
 
   const wallRef = useRef<HTMLDivElement>(null);
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const [newIds, setNewIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     async function load() {
@@ -81,18 +83,24 @@ export default function GuestPortal({ params }: { params: { shareCode: string } 
       setWishes(wRes.data ?? []);
       setLoading(false);
 
-      // Subscribe to new wishes
-      supabase
-        .channel("wishes-live")
+      // Subscribe to new wishes — unique channel name to prevent duplicates
+      if (channelRef.current) supabase.removeChannel(channelRef.current);
+      const channel = supabase
+        .channel(`wishes-guest-${w.id}-${Date.now()}`)
         .on("postgres_changes", {
           event: "INSERT",
           schema: "public",
           table: "wishes",
           filter: `wedding_id=eq.${w.id}`,
         }, (payload) => {
-          setWishes(prev => [payload.new as Wish, ...prev]);
+          const wish = payload.new as Wish;
+          setWishes(prev => [wish, ...prev]);
+          setNewIds(prev => new Set([...prev, wish.id]));
+          setTimeout(() => setNewIds(prev => { const s = new Set(prev); s.delete(wish.id); return s; }), 3000);
+          setTimeout(() => wallRef.current?.scrollTo({ top: 0, behavior: "smooth" }), 50);
         })
         .subscribe();
+      channelRef.current = channel;
     }
     load();
   }, [shareCode]);
@@ -267,7 +275,11 @@ export default function GuestPortal({ params }: { params: { shareCode: string } 
         <div style={{ background: surface, borderRadius: 16, border: `1px solid ${border}`, overflow: "hidden" }}>
           <div style={{ padding: "16px 16px 12px", borderBottom: `1px solid ${border}`, display: "flex", alignItems: "center", gap: 8 }}>
             <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: text }}>🌸 Wishing Wall</h2>
-            <span style={{ marginLeft: "auto", background: "rgba(201,149,110,0.15)", color: accent, borderRadius: 20, padding: "2px 10px", fontSize: 12, fontWeight: 600 }}>
+            <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#22c55e", display: "inline-block", animation: "pulse 2s infinite" }} />
+              <span style={{ fontSize: 11, color: "#22c55e", fontWeight: 600 }}>Live</span>
+            </span>
+            <span style={{ background: "rgba(201,149,110,0.15)", color: accent, borderRadius: 20, padding: "2px 10px", fontSize: 12, fontWeight: 600 }}>
               {wishes.length} {wishes.length === 1 ? "wish" : "wishes"}
             </span>
           </div>
@@ -280,8 +292,9 @@ export default function GuestPortal({ params }: { params: { shareCode: string } 
             ) : wishes.map((w, i) => (
               <div key={w.id} style={{
                 padding: "12px 14px", borderRadius: 12,
-                background: i === 0 ? "rgba(201,149,110,0.08)" : "#12101a",
-                border: `1px solid ${i === 0 ? accent + "40" : border}`,
+                background: newIds.has(w.id) ? "rgba(201,149,110,0.15)" : i === 0 ? "rgba(201,149,110,0.08)" : "#12101a",
+                border: `1px solid ${newIds.has(w.id) ? accent : i === 0 ? accent + "40" : border}`,
+                transition: "background 0.5s, border-color 0.5s",
                 animation: i === 0 ? "fadeIn 0.4s ease" : "none"
               }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
@@ -306,6 +319,7 @@ export default function GuestPortal({ params }: { params: { shareCode: string } 
 
       <style>{`
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+        @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.3; } }
         * { -webkit-tap-highlight-color: transparent; }
         input::placeholder, textarea::placeholder { color: #4a4258; }
       `}</style>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 interface Wish {
@@ -23,7 +23,9 @@ export default function WishingWall({ weddingId, shareCode, dark, isDemo }: Prop
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [newIds, setNewIds] = useState<Set<string>>(new Set());
   const wallRef = useRef<HTMLDivElement>(null);
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   const cs = {
     bg: dark ? "#0f0c15" : "#f5f2ef",
@@ -48,21 +50,28 @@ export default function WishingWall({ weddingId, shareCode, dark, isDemo }: Prop
       .order("created_at", { ascending: false })
       .then(({ data }) => { setWishes(data ?? []); setLoading(false); });
 
-    // Live subscription
+    // Clean up previous channel
+    if (channelRef.current) supabase.removeChannel(channelRef.current);
+
+    // Live subscription with unique channel name
     const channel = supabase
-      .channel(`wishes-planner-${weddingId}`)
+      .channel(`wishes-planner-${weddingId}-${Date.now()}`)
       .on("postgres_changes", {
         event: "INSERT",
         schema: "public",
         table: "wishes",
         filter: `wedding_id=eq.${weddingId}`,
       }, (payload) => {
-        setWishes(prev => [payload.new as Wish, ...prev]);
+        const wish = payload.new as Wish;
+        setWishes(prev => [wish, ...prev]);
+        setNewIds(prev => new Set([...prev, wish.id]));
+        setTimeout(() => setNewIds(prev => { const s = new Set(prev); s.delete(wish.id); return s; }), 3000);
         wallRef.current?.scrollTo({ top: 0, behavior: "smooth" });
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    channelRef.current = channel;
+    return () => { if (channelRef.current) { supabase.removeChannel(channelRef.current); channelRef.current = null; } };
   }, [weddingId, isDemo]);
 
   async function deleteWish(id: string) {
