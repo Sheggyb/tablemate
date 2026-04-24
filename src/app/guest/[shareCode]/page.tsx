@@ -202,7 +202,7 @@ export default function GuestPortal({ params }: { params: Promise<{ shareCode: s
       {/* ── Tab Bar ── */}
       <div style={{ background: surface, borderBottom: `1px solid ${border}`, display: "flex", flexShrink: 0 }}>
         {([
-          { key: "seat" as Tab, emoji: "🪑", label: "Find My Seat" },
+          { key: "seat" as Tab, emoji: "🪑", label: "Find Your Table" },
           { key: "wish" as Tab, emoji: "💌", label: "Leave a Wish" },
           { key: "wall" as Tab, emoji: "🌸", label: `Wall${wishes.length > 0 ? ` (${wishes.length})` : ""}` },
         ]).map(tab => (
@@ -231,7 +231,7 @@ export default function GuestPortal({ params }: { params: Promise<{ shareCode: s
             <div style={{ background: surface, borderRadius: 16, border: `1px solid ${border}`, overflow: "hidden" }}>
               <div style={{ padding: "16px 16px 12px", borderBottom: `1px solid ${border}` }}>
                 <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: text }}>🪑 Find Your Seat</h2>
-                <p style={{ margin: "4px 0 0", fontSize: 13, color: muted }}>Type your name to find your table</p>
+                <p style={{ margin: "4px 0 0", fontSize: 13, color: muted }}>Search your name below to see where you're seated</p>
               </div>
               <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
                 <div style={{ display: "flex", gap: 8 }}>
