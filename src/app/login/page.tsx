@@ -16,14 +16,14 @@ function LoginForm() {
   const redirectTo = searchParams.get("redirectTo") || "/app";
 
   useEffect(() => {
-    const saved = localStorage.getItem("tm-dark");
-    if (saved === "true") setDark(true);
+    const saved = localStorage.getItem("tablemate_dark");
+    if (saved === "1") setDark(true);
   }, []);
 
   const toggleDark = () => {
     const next = !dark;
     setDark(next);
-    localStorage.setItem("tm-dark", String(next));
+    localStorage.setItem("tablemate_dark", String(next ? "1" : "0"));
   };
 
   const handleLogin = async (e: React.FormEvent) => {

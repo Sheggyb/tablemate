@@ -608,6 +608,7 @@ export default function PlannerClient({
             tables={state.tables}
             violations={violations}
             darkMode={darkMode}
+            isDemo={isDemo}
             onAddRule={addRule}
             onDeleteRule={deleteRule}
           />
@@ -662,7 +663,16 @@ export default function PlannerClient({
                 style={{ border: `1px solid ${cs.borderSoft}`, color: cs.textSoft }}>
                 Cancel
               </button>
-              <button onClick={() => { setShowSettings(false); showToast("Settings saved", "success"); }}
+              <button onClick={() => {
+                setShowSettings(false);
+                if (venueName.trim() && state.venues[0]) {
+                  supabase.from("venues").update({ name: venueName.trim() }).eq("id", state.venues[0].id).then();
+                }
+                if (!isDemo && weddingName !== wedding.name) {
+                  supabase.from("weddings").update({ name: weddingName }).eq("id", wedding.id).then();
+                }
+                showToast("Settings saved", "success");
+              }}
                 className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white"
                 style={{ background: cs.accent }}>
                 Save

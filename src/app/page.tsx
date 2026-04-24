@@ -6,14 +6,14 @@ export default function LandingPage() {
   const [dark, setDark] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem("tm-theme");
-    if (saved === "dark") setDark(true);
+    const saved = localStorage.getItem("tablemate_dark");
+    if (saved === "1") setDark(true);
   }, []);
 
   const toggleDark = () => {
     const next = !dark;
     setDark(next);
-    localStorage.setItem("tm-theme", next ? "dark" : "light");
+    localStorage.setItem("tablemate_dark", next ? "1" : "0");
   };
 
   const bg = dark ? "bg-[#1A1618]" : "bg-[#FDFBF8]";

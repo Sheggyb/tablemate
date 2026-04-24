@@ -9,11 +9,12 @@ interface Props {
   tables:       Table[];
   violations:   Rule[];
   darkMode:     boolean;
+  isDemo?:      boolean;
   onAddRule:    (g1: string, g2: string, type: "must_sit_with" | "must_not_sit_with") => void;
   onDeleteRule: (id: string) => void;
 }
 
-export default function RulesPanel({ rules, guests, tables, violations, darkMode, onAddRule, onDeleteRule }: Props) {
+export default function RulesPanel({ rules, guests, tables, violations, darkMode, isDemo = false, onAddRule, onDeleteRule }: Props) {
   const [g1, setG1]     = useState("");
   const [g2, setG2]     = useState("");
   const [type, setType] = useState<"must_sit_with" | "must_not_sit_with">("must_sit_with");
@@ -72,20 +73,27 @@ export default function RulesPanel({ rules, guests, tables, violations, darkMode
         {/* Add rule */}
         <div className="rounded-2xl p-6 mb-6" style={{ background: cs.surface, border: `1px solid ${cs.border}` }}>
           <h3 className="font-semibold text-sm mb-4" style={{ color: cs.text }}>Add a rule</h3>
-          <div className="flex flex-wrap gap-3 items-center">
-            <GuestSelect value={g1} onChange={setG1} guests={guests} placeholder="Guest 1" exclude={g2} cs={cs}/>
-            <select value={type} onChange={e => setType(e.target.value as any)}
-              className="px-3 py-2 border rounded-lg text-sm" style={inputStyle}>
-              <option value="must_sit_with">must sit with</option>
-              <option value="must_not_sit_with">must NOT sit with</option>
-            </select>
-            <GuestSelect value={g2} onChange={setG2} guests={guests} placeholder="Guest 2" exclude={g1} cs={cs}/>
-            <button onClick={handleAdd} disabled={!g1 || !g2 || g1 === g2}
-              className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40 hover:opacity-90"
-              style={{ background: cs.accent }}>
-              Add Rule
-            </button>
-          </div>
+          {isDemo ? (
+            <a href="/signup" className="flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold"
+              style={{ background: cs.surface2, border: `1px solid ${cs.border}`, color: cs.textMuted }}>
+              🔒 Sign up to add seating rules
+            </a>
+          ) : (
+            <div className="flex flex-wrap gap-3 items-center">
+              <GuestSelect value={g1} onChange={setG1} guests={guests} placeholder="Guest 1" exclude={g2} cs={cs}/>
+              <select value={type} onChange={e => setType(e.target.value as any)}
+                className="px-3 py-2 border rounded-lg text-sm" style={inputStyle}>
+                <option value="must_sit_with">must sit with</option>
+                <option value="must_not_sit_with">must NOT sit with</option>
+              </select>
+              <GuestSelect value={g2} onChange={setG2} guests={guests} placeholder="Guest 2" exclude={g1} cs={cs}/>
+              <button onClick={handleAdd} disabled={!g1 || !g2 || g1 === g2}
+                className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40 hover:opacity-90"
+                style={{ background: cs.accent }}>
+                Add Rule
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Violations */}
@@ -129,6 +137,7 @@ export default function RulesPanel({ rules, guests, tables, violations, darkMode
                 tableName={tableName}
                 violations={violations}
                 onDelete={onDeleteRule}
+                isDemo={isDemo}
                 cs={cs}
               />
             )}
@@ -141,6 +150,7 @@ export default function RulesPanel({ rules, guests, tables, violations, darkMode
                 tableName={tableName}
                 violations={violations}
                 onDelete={onDeleteRule}
+                isDemo={isDemo}
                 cs={cs}
               />
             )}
@@ -167,7 +177,7 @@ function GuestSelect({ value, onChange, guests, placeholder, exclude, cs }: {
   );
 }
 
-function RuleGroup({ title, colorScheme, rules, guestName, tableName, violations, onDelete, cs }: {
+function RuleGroup({ title, colorScheme, rules, guestName, tableName, violations, onDelete, isDemo = false, cs }: {
   title: string;
   colorScheme: "green" | "red";
   rules: Rule[];
@@ -175,6 +185,7 @@ function RuleGroup({ title, colorScheme, rules, guestName, tableName, violations
   tableName: (id: string) => string | null;
   violations: Rule[];
   onDelete: (id: string) => void;
+  isDemo?: boolean;
   cs: Record<string, string>;
 }) {
   const isGreen = colorScheme === "green";
@@ -203,7 +214,7 @@ function RuleGroup({ title, colorScheme, rules, guestName, tableName, violations
               </span>
               <button onClick={() => onDelete(r.id)}
                 className="opacity-0 group-hover:opacity-100 text-xs hover:opacity-70 transition-opacity"
-                style={{ color: "var(--danger)" }}>Remove</button>
+                style={{ color: "var(--danger)", display: isDemo ? "none" : undefined }}>Remove</button>
             </div>
           );
         })}

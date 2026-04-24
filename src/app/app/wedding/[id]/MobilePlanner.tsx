@@ -110,10 +110,13 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
     return r.type === "must_sit_with" ? !together : !!together;
   });
 
+  const [toast, setToast] = useState<string | null>(null);
+  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
+
   // ── Actions ──
   const unseatGuest = async (guestId: string) => {
     dispatch({ type: "UPDATE_GUEST", id: guestId, data: { table_id: null, seat_index: null } });
-    await supabase.from("guests").update({ table_id: null, seat_index: null }).eq("id", guestId);
+    if (!isDemo) await supabase.from("guests").update({ table_id: null, seat_index: null }).eq("id", guestId);
   };
 
   const seatGuestToTable = async (guest: Guest, tableId: string) => {
@@ -122,13 +125,14 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
     const seated = guests.filter(g => g.table_id === tableId).length;
     if (seated >= table.capacity) return;
     dispatch({ type: "UPDATE_GUEST", id: guest.id, data: { table_id: tableId, seat_index: seated } });
-    await supabase.from("guests").update({ table_id: tableId, seat_index: seated }).eq("id", guest.id);
+    if (!isDemo) await supabase.from("guests").update({ table_id: tableId, seat_index: seated }).eq("id", guest.id);
     setSeatGuest(null);
+    showToast("Guest seated ✓");
   };
 
   const updateGuestRsvp = async (guest: Guest, rsvp: Rsvp) => {
     dispatch({ type: "UPDATE_GUEST", id: guest.id, data: { rsvp } });
-    await supabase.from("guests").update({ rsvp }).eq("id", guest.id);
+    if (!isDemo) await supabase.from("guests").update({ rsvp }).eq("id", guest.id);
   };
 
   const saveEditGuest = async () => {
@@ -142,14 +146,16 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
       notes:      guestForm.notes || "",
     };
     dispatch({ type: "UPDATE_GUEST", id: editGuest.id, data });
-    await supabase.from("guests").update(data).eq("id", editGuest.id);
+    if (!isDemo) await supabase.from("guests").update(data).eq("id", editGuest.id);
     setEditGuest(null);
+    showToast("Guest saved ✓");
   };
 
   const deleteGuest = async (id: string) => {
     dispatch({ type: "DELETE_GUEST", id });
-    await supabase.from("guests").delete().eq("id", id);
+    if (!isDemo) await supabase.from("guests").delete().eq("id", id);
     setEditGuest(null);
+    showToast("Guest removed");
   };
 
   const addGuest = async () => {
@@ -163,23 +169,26 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
       rsvp_token: crypto.randomUUID(),
     };
     dispatch({ type: "ADD_GUEST", payload: newGuest });
-    await supabase.from("guests").insert(newGuest);
+    if (!isDemo) await supabase.from("guests").insert(newGuest);
     setShowAddGuest(false);
     setGuestForm({ first_name: "", last_name: "", email: "", meal: "standard", rsvp: "pending" });
+    showToast("Guest added ✓");
   };
 
   const saveTableName = async () => {
     if (!editTable || !tableNameEdit.trim()) return;
     dispatch({ type: "UPDATE_TABLE", id: editTable.id, data: { name: tableNameEdit.trim() } });
-    await supabase.from("tables").update({ name: tableNameEdit.trim() }).eq("id", editTable.id);
+    if (!isDemo) await supabase.from("tables").update({ name: tableNameEdit.trim() }).eq("id", editTable.id);
     setEditTable(null);
+    showToast("Table renamed ✓");
   };
 
   const deleteTable = async (id: string) => {
     dispatch({ type: "DELETE_TABLE", id });
-    await supabase.from("tables").delete().eq("id", id);
+    if (!isDemo) await supabase.from("tables").delete().eq("id", id);
     setEditTable(null);
     setExpandedTable(null);
+    showToast("Table removed");
   };
 
   const addRule = async () => {
@@ -189,14 +198,16 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
       guest1_id: ruleGuest1, guest2_id: ruleGuest2, type: ruleType,
     };
     dispatch({ type: "ADD_RULE", payload: newRule });
-    await supabase.from("rules").insert(newRule);
+    if (!isDemo) await supabase.from("rules").insert(newRule);
     setShowAddRule(false);
     setRuleGuest1(""); setRuleGuest2("");
+    showToast("Rule added ✓");
   };
 
   const deleteRule = async (id: string) => {
     dispatch({ type: "DELETE_RULE", id });
-    await supabase.from("rules").delete().eq("id", id);
+    if (!isDemo) await supabase.from("rules").delete().eq("id", id);
+    showToast("Rule removed");
   };
 
   const filteredGuests = guests.filter(g =>
@@ -829,6 +840,16 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
             </button>
           </div>
         </Backdrop>
+      )}
+
+      {/* ── Toast ── */}
+      {toast && (
+        <div style={{ position:"fixed", bottom:80, left:"50%", transform:"translateX(-50%)",
+          background:"#2C2628", color:"#EDE8E3", padding:"12px 20px", borderRadius:12,
+          fontSize:14, fontWeight:600, zIndex:999, whiteSpace:"nowrap",
+          boxShadow:"0 4px 20px rgba(0,0,0,0.4)", border:`1px solid rgba(255,255,255,0.1)` }}>
+          {toast}
+        </div>
       )}
 
     </div>
