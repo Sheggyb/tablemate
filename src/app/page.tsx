@@ -6,14 +6,14 @@ export default function LandingPage() {
   const [dark, setDark] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem("tablemate_dark");
-    if (saved === "1") setDark(true);
+    const saved = localStorage.getItem("tm-theme");
+    if (saved === "dark") setDark(true);
   }, []);
 
   const toggleDark = () => {
     const next = !dark;
     setDark(next);
-    localStorage.setItem("tablemate_dark", next ? "1" : "0");
+    localStorage.setItem("tm-theme", next ? "dark" : "light");
   };
 
   const bg = dark ? "bg-[#1A1618]" : "bg-[#FDFBF8]";
@@ -157,6 +157,7 @@ const features = [
   { icon: "🤝", title: "Real-time Collaboration", desc: "Share a link with your partner or wedding planner. Edit together live with presence indicators." },
   { icon: "🥗", title: "Meal Management", desc: "Track dietary requirements per guest. Visual meal summary shows totals. Export for your caterer." },
   { icon: "🖨️", title: "Beautiful Exports", desc: "Print-ready seating charts, place cards, and table assignments. PDF export coming soon." },
+  { icon: "💌", title: "Wishing Wall", desc: "Guests can leave heartfelt messages directly from their RSVP link. A digital guestbook your guests will love." },
 ];
 
 

@@ -17,6 +17,17 @@ export async function POST(req: Request) {
 
   const { weddingId, venueId } = await req.json();
 
+  const { data: wedding, error: weddingError } = await supabase
+    .from("weddings")
+    .select("id")
+    .eq("id", weddingId)
+    .eq("user_id", user.id)
+    .single();
+
+  if (weddingError || !wedding) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+  }
+
   // Load all data
   const [guestsRes, tablesRes, rulesRes, groupsRes] = await Promise.all([
     supabase.from("guests").select("*").eq("wedding_id", weddingId),

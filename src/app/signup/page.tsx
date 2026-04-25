@@ -18,14 +18,14 @@ function SignupForm() {
   const router = useRouter();
 
   useEffect(() => {
-    const saved = localStorage.getItem("tablemate_dark");
-    if (saved === "1") setDark(true);
+    const saved = localStorage.getItem("tm-theme");
+    if (saved === "dark") setDark(true);
   }, []);
 
   const toggleDark = () => {
     const next = !dark;
     setDark(next);
-    localStorage.setItem("tablemate_dark", String(next ? "1" : "0"));
+    localStorage.setItem("tm-theme", next ? "dark" : "light");
   };
 
   const handleSignup = async (e: React.FormEvent) => {

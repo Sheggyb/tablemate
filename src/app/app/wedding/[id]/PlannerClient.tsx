@@ -120,13 +120,13 @@ export default function PlannerClient({
 
   // Dark mode from localStorage
   useEffect(() => {
-    const saved = localStorage.getItem("tablemate_dark");
-    if (saved === "1") setDarkMode(true);
+    const saved = localStorage.getItem("tm-theme");
+    if (saved === "dark") setDarkMode(true);
   }, []);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
-    localStorage.setItem("tablemate_dark", darkMode ? "1" : "0");
+    localStorage.setItem("tm-theme", darkMode ? "dark" : "light");
   }, [darkMode]);
 
   // Mobile detection
@@ -177,6 +177,16 @@ export default function PlannerClient({
 
   /* ── Guest CRUD ── */
   const addGuest = useCallback(async (data: Partial<Guest>) => {
+    if (plan === "free") {
+      const { count } = await supabase
+        .from("guests")
+        .select("*", { count: "exact", head: true })
+        .eq("wedding_id", wedding.id);
+      if (count !== null && count >= 50) {
+        showToast("Free plan limit: 50 guests. Upgrade to add more.", "error");
+        return;
+      }
+    }
     const newGuest: Guest = {
       id: crypto.randomUUID(),
       wedding_id: wedding.id,
@@ -199,7 +209,7 @@ export default function PlannerClient({
     if (!isDemo) supabase.from("guests").insert({ ...newGuest }).then(({ error }) => {
       if (error) console.error("Insert guest failed:", error.message);
     });
-  }, [supabase, wedding.id, showToast]);
+  }, [supabase, wedding.id, showToast, plan]);
 
   const updateGuest = useCallback(async (id: string, data: Partial<Guest>) => {
     dispatch({ type: "UPDATE_GUEST", id, data });
@@ -342,7 +352,16 @@ export default function PlannerClient({
     dispatch({ type: "SET_ALL", payload: { ...state, guests: updatedGuests } });
     const seatedNow = updatedGuests.filter(g => g.table_id && !state.guests.find(og => og.id === g.id)?.table_id).length;
     showToast(`✨ Auto-seated ${seatedNow} guests`, "success");
-  }, [state, activeTables, showToast]);
+
+    if (!isDemo) {
+      for (const g of updatedGuests) {
+        const orig = state.guests.find(og => og.id === g.id);
+        if (orig && (orig.table_id !== g.table_id || orig.seat_index !== g.seat_index)) {
+          supabase.from("guests").update({ table_id: g.table_id, seat_index: g.seat_index }).eq("id", g.id).then();
+        }
+      }
+    }
+  }, [state, activeTables, showToast, supabase, isDemo]);
 
   /* ── Rules ── */
   const addRule = useCallback(async (guest1Id: string, guest2Id: string, type: "must_sit_with" | "must_not_sit_with") => {
@@ -599,6 +618,7 @@ export default function PlannerClient({
             onBulkDelete={bulkDeleteGuests}
             onImportCsv={importCsv}
             onAddGroup={addGroup}
+            showToast={showToast}
           />
         )}
         {activeTab === "rules" && (
@@ -627,6 +647,7 @@ export default function PlannerClient({
               dispatch({ type: "SET_ALL", payload: data });
               showToast("Backup restored ✓", "success");
             }}
+            showToast={showToast}
           />
         )}
         {activeTab === "wishes" && (

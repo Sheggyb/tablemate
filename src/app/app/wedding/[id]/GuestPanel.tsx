@@ -18,6 +18,7 @@ interface Props {
   onBulkDelete:  (ids: string[]) => void;
   onImportCsv:   (text: string) => Promise<string>;
   onAddGroup:    (name: string) => void;
+  showToast?:    (msg: string, type?: "success" | "error" | "info") => void;
 }
 
 type SortKey = "name" | "rsvp" | "meal" | "table" | "party";
@@ -36,12 +37,12 @@ const GROUP_COLORS = ["#c9a96e","#7B9E87","#8B7BA8","#C97B6E","#6E9EC9","#B8A86E
 export default function GuestPanel({
   guests, groups, tables, plan, darkMode, weddingId, isDemo,
   onAddGuest, onUpdateGuest, onDeleteGuest,
-  onBulkUpdate, onBulkDelete, onImportCsv, onAddGroup,
+  onBulkUpdate, onBulkDelete, onImportCsv, onAddGroup, showToast,
 }: Props) {
   const [sendingRsvp, setSendingRsvp] = useState<string | null>(null);
 
   const sendRsvp = async (g: Guest) => {
-    if (!g.email) return alert("Guest has no email address.");
+    if (!g.email) { showToast?.("Guest has no email address.", "error"); return; }
     setSendingRsvp(g.id);
     try {
       const res = await fetch("/api/rsvp/send", {
@@ -51,9 +52,9 @@ export default function GuestPanel({
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed");
-      alert(`✅ RSVP sent to ${g.email}`);
+      showToast?.(`RSVP sent to ${g.email}`, "success");
     } catch (e: any) {
-      alert(`❌ Failed to send: ${e.message}`);
+      showToast?.(`Failed to send: ${e.message}`, "error");
     } finally {
       setSendingRsvp(null);
     }

@@ -13,6 +13,7 @@ interface Props {
   darkMode: boolean;
   isDemo?:  boolean;
   onRestore: (data: { venues: Venue[]; guests: Guest[]; tables: Table[]; groups: Group[]; rules: Rule[] }) => void;
+  showToast?: (msg: string, type?: "success" | "error" | "info") => void;
 }
 
 const MEAL_ICON: Record<string, string> = {
@@ -20,7 +21,7 @@ const MEAL_ICON: Record<string, string> = {
   "gluten-free": "🌾", halal: "☪", kosher: "✡", children: "🧒",
 };
 
-export default function ExportPanel({ wedding, guests, tables, groups, venues, rules, darkMode, isDemo, onRestore }: Props) {
+export default function ExportPanel({ wedding, guests, tables, groups, venues, rules, darkMode, isDemo, onRestore, showToast }: Props) {
   const restoreRef = useRef<HTMLInputElement>(null);
 
   const cs = {
@@ -101,7 +102,7 @@ export default function ExportPanel({ wedding, guests, tables, groups, venues, r
     try {
       const text = await file.text();
       const data = JSON.parse(text);
-      if (!data.guests || !data.tables) { alert("Invalid backup file."); return; }
+      if (!data.guests || !data.tables) { showToast?.("Invalid backup file.", "error"); return; }
       if (!confirm("This will replace all current data. Continue?")) return;
       onRestore({
         venues:  data.venues  ?? [],
@@ -110,7 +111,7 @@ export default function ExportPanel({ wedding, guests, tables, groups, venues, r
         groups:  data.groups  ?? [],
         rules:   data.rules   ?? [],
       });
-    } catch { alert("Failed to parse backup file."); }
+    } catch { showToast?.("Failed to parse backup file.", "error"); }
     e.target.value = "";
   };
 

@@ -13,14 +13,14 @@ export default function NewWeddingPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const saved = localStorage.getItem("tablemate-dark");
-    if (saved === "true") setDark(true);
+    const saved = localStorage.getItem("tm-theme");
+    if (saved === "dark") setDark(true);
   }, []);
 
   const toggleDark = () => {
     const next = !dark;
     setDark(next);
-    localStorage.setItem("tablemate-dark", String(next));
+    localStorage.setItem("tm-theme", next ? "dark" : "light");
   };
 
   const set = (k: string, v: string) => setForm(f => ({ ...f, [k]: v }));
@@ -40,6 +40,7 @@ export default function NewWeddingPage() {
       name:         form.name.trim(),
       couple_names: form.couple_names.trim() || null,
       date:         form.date || null,
+      location:     form.location.trim() || null,
     }).select().single();
 
     if (we || !wedding) { setError("Failed to create wedding. Please try again."); setLoading(false); return; }
