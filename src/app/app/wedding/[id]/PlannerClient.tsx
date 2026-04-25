@@ -91,6 +91,8 @@ export default function PlannerClient({
   const [showSettings, setShowSettings] = useState(false);
   const [showPartiesModal, setShowPartiesModal] = useState(false);
   const [showMealsModal, setShowMealsModal] = useState(false);
+  const [showFloorModal, setShowFloorModal] = useState(false);
+  const [floorName, setFloorName] = useState("");
   const [weddingName, setWeddingName] = useState(wedding.name);
   const [venueName, setVenueName] = useState("");
 
@@ -578,10 +580,8 @@ export default function PlannerClient({
                   color: activeVenueId === v.id ? "white" : cs.textSoft,
                 }}>{v.name}</button>
             ))}
-            <button onClick={() => {
-              const name = window.prompt("New floor / venue name:");
-              if (name?.trim()) addVenue(name.trim());
-            }} className="px-2 py-1 text-xs hover:opacity-80" style={{ color: cs.textMuted }}>+ Add floor</button>
+            <button onClick={() => { setFloorName(""); setShowFloorModal(true); }}
+              className="px-2 py-1 text-xs hover:opacity-80" style={{ color: cs.textMuted }}>+ Add floor</button>
           </div>
         )}
       </div>
@@ -778,6 +778,38 @@ export default function PlannerClient({
             <button onClick={() => setShowMealsModal(false)}
               className="w-full mt-4 py-2 rounded-xl text-sm hover:opacity-80"
               style={{ border: `1px solid ${cs.borderSoft}`, color: cs.textSoft }}>Close</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Floor Modal ── */}
+      {showFloorModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="rounded-2xl p-6 w-full max-w-sm shadow-2xl animate-fade-in"
+            style={{ background: cs.surface, border: `1px solid ${cs.border}` }}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-playfair text-lg font-bold" style={{ color: cs.text }}>Add Floor / Venue</h3>
+              <button onClick={() => setShowFloorModal(false)} className="text-xl leading-none hover:opacity-60" style={{ color: cs.textMuted }}>×</button>
+            </div>
+            <input
+              type="text"
+              placeholder="Floor or venue name…"
+              value={floorName}
+              onChange={e => setFloorName(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter" && floorName.trim()) { addVenue(floorName.trim()); setShowFloorModal(false); } }}
+              autoFocus
+              className="w-full px-3 py-2 border rounded-lg text-sm mb-4"
+              style={{ background: cs.surface2, borderColor: cs.borderSoft, color: cs.text }}
+            />
+            <div className="flex gap-2">
+              <button onClick={() => setShowFloorModal(false)}
+                className="flex-1 py-2 rounded-xl text-sm hover:opacity-80"
+                style={{ border: `1px solid ${cs.borderSoft}`, color: cs.textSoft }}>Cancel</button>
+              <button onClick={() => { if (floorName.trim()) { addVenue(floorName.trim()); setShowFloorModal(false); } }}
+                disabled={!floorName.trim()}
+                className="flex-1 py-2 rounded-xl text-sm font-semibold text-white disabled:opacity-40"
+                style={{ background: cs.accent }}>Add</button>
+            </div>
           </div>
         </div>
       )}

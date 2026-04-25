@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import type { Guest, Rule } from "@/lib/types";
 
-// POST /api/ai/seat — AI seating optimizer
+// POST /api/ai/seat — Smart seating optimizer (no external API)
 // Premium/Planner only
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -36,97 +35,112 @@ export async function POST(req: Request) {
     supabase.from("groups").select("*").eq("wedding_id", weddingId),
   ]);
 
-  const guests  = guestsRes.data  || [];
-  const tables  = tablesRes.data  || [];
-  const rules   = rulesRes.data   || [];
-  const groups  = groupsRes.data  || [];
+  const guests = guestsRes.data || [];
+  const tables = tablesRes.data || [];
+  const rules  = rulesRes.data  || [];
 
   const unseated = guests.filter(g => !g.table_id && g.rsvp !== "declined");
   if (!unseated.length) return NextResponse.json({ message: "Everyone is already seated", assignments: [] });
 
-  // Build a compact prompt for GPT-4o-mini
-  const tableList = tables.map(t => ({
-    id: t.id, name: t.name, capacity: t.capacity,
-    free: t.capacity - guests.filter(g => g.table_id === t.id).length,
-  })).filter(t => t.free > 0);
-
-  const guestList = unseated.map(g => ({
-    id: g.id,
-    name: `${g.first_name} ${g.last_name}`,
-    group: groups.find(gr => gr.id === g.group_id)?.name || null,
-    meal: g.meal,
-  }));
-
-  const ruleList = rules.map(r => {
-    const g1 = guests.find(g => g.id === r.guest1_id);
-    const g2 = guests.find(g => g.id === r.guest2_id);
-    return `${g1?.first_name} ${r.type} ${g2?.first_name}`;
-  });
-
-  const prompt = `You are a wedding seating optimizer. Assign guests to tables optimally.
-
-TABLES (name: free seats):
-${tableList.map(t => `- ${t.name} (id:${t.id}): ${t.free} free seats`).join("\n")}
-
-GUESTS TO SEAT:
-${guestList.map(g => `- ${g.name} (id:${g.id})${g.group ? ` [party: ${g.group}]` : ""}${g.meal !== "standard" ? ` [meal: ${g.meal}]` : ""}`).join("\n")}
-
-RULES (MUST follow):
-${ruleList.length ? ruleList.join("\n") : "No rules."}
-
-INSTRUCTIONS:
-1. Keep members of the same party (group) together at the same table
-2. Respect must-sit-with rules (same table) and must-not-sit-with rules (different tables)
-3. Don't exceed table capacity
-4. Return ONLY valid JSON, no explanation:
-
-{"assignments": [{"guestId": "...", "tableId": "..."}]}`;
-
-  // Call OpenAI
-  const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.2,
-      response_format: { type: "json_object" },
-    }),
-  });
-
-  if (!openaiRes.ok) {
-    return NextResponse.json({ error: "AI service unavailable" }, { status: 503 });
+  // Track free seats per table
+  const seatMap: Record<string, number> = {};
+  for (const t of tables) {
+    const taken = guests.filter(g => g.table_id === t.id).length;
+    seatMap[t.id] = t.capacity - taken;
   }
 
-  const aiData = await openaiRes.json();
-  let parsed;
-  try {
-    parsed = JSON.parse(aiData.choices[0].message.content);
-  } catch {
-    return NextResponse.json({ error: "AI returned invalid response" }, { status: 500 });
+  // Build rule lookups
+  const mustWith: Record<string, string[]> = {};
+  const mustNotWith: Record<string, string[]> = {};
+  for (const r of rules) {
+    if (r.type === "must") {
+      (mustWith[r.guest1_id] = mustWith[r.guest1_id] || []).push(r.guest2_id);
+      (mustWith[r.guest2_id] = mustWith[r.guest2_id] || []).push(r.guest1_id);
+    } else {
+      (mustNotWith[r.guest1_id] = mustNotWith[r.guest1_id] || []).push(r.guest2_id);
+      (mustNotWith[r.guest2_id] = mustNotWith[r.guest2_id] || []).push(r.guest1_id);
+    }
   }
 
-  // Apply assignments to DB
-  const assignments: Array<{guestId: string; tableId: string}> = parsed.assignments || [];
+  // Group guests by group_id (party), then ungrouped last
+  const grouped: Record<string, typeof unseated> = {};
+  const ungrouped: typeof unseated = [];
+  for (const g of unseated) {
+    if (g.group_id) {
+      (grouped[g.group_id] = grouped[g.group_id] || []).push(g);
+    } else {
+      ungrouped.push(g);
+    }
+  }
+
+  const assignments: Array<{ guestId: string; tableId: string }> = [];
+  const assignedTo: Record<string, string> = {}; // guestId → tableId
+
+  function canFit(tableId: string, count: number) {
+    return seatMap[tableId] >= count;
+  }
+
+  function violatesRules(guestId: string, tableId: string): boolean {
+    const mustNotIds = mustNotWith[guestId] || [];
+    for (const blocked of mustNotIds) {
+      if (assignedTo[blocked] === tableId) return true;
+    }
+    return false;
+  }
+
+  function scoreTable(guestIds: string[], tableId: string): number {
+    let score = 0;
+    for (const gid of guestIds) {
+      for (const mustId of (mustWith[gid] || [])) {
+        if (assignedTo[mustId] === tableId) score += 10;
+      }
+    }
+    return score;
+  }
+
+  function assignGroup(guestIds: string[]) {
+    // Sort tables: prefer ones with must-with already there, enough capacity, no violations
+    const candidates = tables
+      .filter(t => canFit(t.id, guestIds.length) && !guestIds.some(id => violatesRules(id, t.id)))
+      .sort((a, b) => scoreTable(guestIds, b.id) - scoreTable(guestIds, a.id));
+
+    if (!candidates.length) {
+      // Try splitting into individuals if group is too big
+      for (const gid of guestIds) assignGroup([gid]);
+      return;
+    }
+
+    const table = candidates[0];
+    for (const gid of guestIds) {
+      assignments.push({ guestId: gid, tableId: table.id });
+      assignedTo[gid] = table.id;
+      seatMap[table.id]--;
+    }
+  }
+
+  // Assign groups first (keep parties together)
+  for (const groupGuests of Object.values(grouped)) {
+    assignGroup(groupGuests.map(g => g.id));
+  }
+
+  // Then ungrouped individuals
+  for (const g of ungrouped) {
+    assignGroup([g.id]);
+  }
+
+  // Persist to DB
   let applied = 0;
-
   for (const a of assignments) {
-    const table = tableList.find(t => t.id === a.tableId);
-    if (!table) continue;
-
-    // Find next free seat index
     const { data: tableGuests } = await supabase
       .from("guests")
       .select("seat_index")
       .eq("table_id", a.tableId);
 
-    const usedSeats = new Set((tableGuests || []).map(g => g.seat_index).filter(s => s !== null));
+    const usedSeats = new Set((tableGuests || []).map((g: { seat_index: number }) => g.seat_index).filter((s: number | null) => s !== null));
     let seatIndex = 0;
-    while (usedSeats.has(seatIndex)) seatIndex++;
-    if (seatIndex >= (tables.find(t => t.id === a.tableId)?.capacity || 8)) continue;
+    const cap = tables.find(t => t.id === a.tableId)?.capacity || 8;
+    while (usedSeats.has(seatIndex) && seatIndex < cap) seatIndex++;
+    if (seatIndex >= cap) continue;
 
     await supabase.from("guests").update({
       table_id: a.tableId,
@@ -137,7 +151,7 @@ INSTRUCTIONS:
   }
 
   return NextResponse.json({
-    message: `AI seated ${applied} of ${unseated.length} guests`,
+    message: `Seated ${applied} of ${unseated.length} guests`,
     applied,
     total: unseated.length,
     assignments,

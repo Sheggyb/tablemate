@@ -2,7 +2,7 @@
 
 export type Plan = 'free' | 'couple' | 'premium' | 'planner'
 export type Rsvp = 'pending' | 'confirmed' | 'declined'
-export type Meal = 'standard' | 'vegetarian' | 'vegan' | 'gluten-free' | 'halal' | 'kosher' | 'children'
+export type Meal = 'standard' | 'vegetarian' | 'vegan' | 'gluten-free' | 'halal' | 'kosher' | 'children' | 'chicken' | 'fish'
 export type TableType = 'round' | 'rectangle' | 'oval'
 export type RuleType = 'must_sit_with' | 'must_not_sit_with'
 
@@ -22,6 +22,7 @@ export interface Wedding {
   date: string | null
   couple_names: string | null
   share_code: string | null
+  location?: string
   created_at: string
   updated_at: string
 }

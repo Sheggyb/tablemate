@@ -13,6 +13,7 @@ export default function AppDashboard() {
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [ctx, setCtx] = useState<{ x: number; y: number; wedding: any } | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
   const ctxRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -50,11 +51,11 @@ export default function AppDashboard() {
     router.push("/");
   };
 
-  const deleteWedding = async (id: string, name: string) => {
+  const deleteWedding = async (id: string) => {
     setCtx(null);
-    if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
     await supabase.from("weddings").delete().eq("id", id);
     setWeddings(prev => prev.filter(w => w.id !== id));
+    setConfirmDeleteId(null);
   };
 
   const startRename = (w: any) => { setCtx(null); setRenaming({ id: w.id, name: w.name }); };
@@ -176,7 +177,7 @@ export default function AppDashboard() {
               📋 Open planner
             </Link>
             <div className={`my-1 border-t ${dark ? "border-[#3A3540]" : "border-[#EDE8E0]"}`} />
-            <button onClick={() => deleteWedding(ctx.wedding.id, ctx.wedding.name)} className="w-full px-4 py-2 text-sm text-left hover:bg-red-500/10 text-red-500 flex items-center gap-2">
+            <button onClick={() => { setCtx(null); setConfirmDeleteId(ctx.wedding.id); }} className="w-full px-4 py-2 text-sm text-left hover:bg-red-500/10 text-red-500 flex items-center gap-2">
               🗑️ Delete
             </button>
           </div>
