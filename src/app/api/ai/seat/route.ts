@@ -11,7 +11,7 @@ export async function POST(req: Request) {
   // Check plan
   const { data: profile } = await supabase.from("profiles").select("plan").eq("id", user.id).single();
   if (!profile || !["premium","planner"].includes(profile.plan)) {
-    return NextResponse.json({ error: "AI seating requires Premium or Planner plan", upgrade: true }, { status: 403 });
+    return NextResponse.json({ error: "Smart Seating requires Premium or Planner plan", upgrade: true }, { status: 403 });
   }
 
   const { weddingId, venueId } = await req.json();

@@ -298,7 +298,7 @@ export default function PlannerClient({
     if (!isDemo) supabase.from("guests").update({ table_id: tableId, seat_index: seatIndex }).eq("id", guestId).then();
   }, [supabase, isDemo]);
 
-  /* ── AI Seating ── */
+  /* ── Smart Seating ── */
   const runAiSeating = useCallback(async () => {
     if (plan === "free" || plan === "couple") {
       showToast("✨ AI seating requires Premium. Upgrade to unlock.", "error");
@@ -515,11 +515,11 @@ export default function PlannerClient({
           </button>
         )}
 
-        {/* AI Seat */}
+        {/* Smart Seat */}
         <button onClick={runAiSeating} disabled={aiLoading || unseatedCount === 0}
           className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg disabled:opacity-40"
           style={{ background: cs.accentBg, border: `1px solid ${cs.accent}`, color: cs.accent }}>
-          {aiLoading ? "🤖 Seating…" : "🤖 AI Seat"}
+          {aiLoading ? "✨ Seating…" : "✨ Smart Seat"}
         </button>
 
         {/* Dark mode toggle */}

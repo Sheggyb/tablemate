@@ -157,7 +157,7 @@ export default function LandingPage() {
 const features = [
   { icon: "🍽️", title: "Drag & Drop Canvas", desc: "Place tables visually on your venue floor plan. Round, square, and banquet tables. Supports up to 500+ guests." },
   { icon: "📧", title: "RSVP Portal", desc: "Send personalized email invites. Guests confirm attendance and meal choice. Responses sync automatically to your chart." },
-  { icon: "🤖", title: "AI Seating Optimizer", desc: "Let AI arrange your guests in seconds. Keeps families together, separates feuding relatives, respects all your rules." },
+  { icon: "✨", title: "Smart Seating", desc: "Auto-arrange your guests in seconds. Keeps families together, separates feuding relatives, respects all your custom rules." },
   { icon: "🤝", title: "Real-time Collaboration", desc: "Share a link with your partner or wedding planner. Edit together live with presence indicators." },
   { icon: "🥗", title: "Meal Management", desc: "Track dietary requirements per guest. Visual meal summary shows totals. Export for your caterer." },
   { icon: "🖨️", title: "Beautiful Exports", desc: "Print-ready seating charts, place cards, and table assignments. PDF export coming soon." },
