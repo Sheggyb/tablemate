@@ -117,6 +117,12 @@ export default function GuestPanel({
     if (sortKey === "meal")  { av = a.meal ?? ""; bv = b.meal ?? ""; }
     if (sortKey === "table") { av = tables.find(t => t.id === a.table_id)?.name ?? ""; bv = tables.find(t => t.id === b.table_id)?.name ?? ""; }
     if (sortKey === "party") { av = groups.find(g => g.id === a.group_id)?.name ?? ""; bv = groups.find(g => g.id === b.group_id)?.name ?? ""; }
+    if (sortKey === "table" || sortKey === "party") {
+      // Natural sort: "Table 10" after "Table 2"
+      return sortDir === "asc"
+        ? av.localeCompare(bv, undefined, { numeric: true, sensitivity: "base" })
+        : bv.localeCompare(av, undefined, { numeric: true, sensitivity: "base" });
+    }
     return sortDir === "asc" ? av.localeCompare(bv) : bv.localeCompare(av);
   });
 
