@@ -67,7 +67,7 @@ export default function RulesPanel({ rules, guests, tables, violations, darkMode
 
         <h2 className="font-playfair text-2xl font-bold mb-1" style={{ color: cs.text }}>Seating Rules</h2>
         <p className="text-sm mb-8" style={{ color: cs.textSoft }}>
-          Rules help you manually place guests correctly and are respected by the AI seating optimizer.
+          Rules help you manually place guests correctly and are respected by the Smart Seating engine.
         </p>
 
         {/* Add rule */}
@@ -213,8 +213,8 @@ function RuleGroup({ title, colorScheme, rules, guestName, tableName, violations
                 {tn2 && <span className="text-xs opacity-60 ml-1">({tn2})</span>}
               </span>
               <button onClick={() => onDelete(r.id)}
-                className="opacity-0 group-hover:opacity-100 text-xs hover:opacity-70 transition-opacity"
-                style={{ color: "var(--danger)", display: isDemo ? "none" : undefined }}>Remove</button>
+                className="text-xs px-2 py-1 rounded-lg font-semibold transition-opacity hover:opacity-70 flex-shrink-0"
+                style={{ color: "var(--danger)", background: "rgba(224,92,106,0.12)", display: isDemo ? "none" : undefined }}>✕ Remove</button>
             </div>
           );
         })}
