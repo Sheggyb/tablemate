@@ -202,6 +202,22 @@ export default function AppDashboard() {
             </div>
           </div>
         )}
+        {/* Delete confirmation dialog */}
+        {confirmDeleteId && (() => {
+          const w = weddings.find(w => w.id === confirmDeleteId);
+          return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+              <div className={`rounded-2xl p-6 w-80 shadow-2xl border ${dark ? "bg-[#242028] border-[#3A3540]" : "bg-white border-[#EDE8E0]"}`}>
+                <h3 className={`font-playfair font-semibold text-lg mb-2 ${text}`}>Delete Wedding?</h3>
+                <p className={`text-sm ${muted} mb-6`}>Are you sure you want to delete <span className={`font-medium ${text}`}>&ldquo;{w?.name}&rdquo;</span>? This cannot be undone.</p>
+                <div className="flex gap-2 justify-end">
+                  <button onClick={() => setConfirmDeleteId(null)} className={`px-4 py-2 text-sm rounded-lg border transition-colors ${dark ? "border-[#3A3540] text-[#9B9098] hover:bg-[#3A3540]" : "border-[#EDE8E0] text-[#6B6068] hover:bg-[#F5F0EB]"}`}>Cancel</button>
+                  <button onClick={() => deleteWedding(confirmDeleteId)} className="px-4 py-2 text-sm rounded-lg bg-red-500 hover:bg-red-600 text-white font-semibold transition-colors">Delete</button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </main>
     </div>
   );
