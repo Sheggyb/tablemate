@@ -53,8 +53,27 @@ export default function ExportPanel({ wedding, guests, tables, groups, venues, r
     URL.revokeObjectURL(url);
   };
 
-  /* ── Kitchen Sheet (HTML) ── */
-  const kitchenSheet = () => {
+  /* ── Kitchen Sheet PDF ── */
+  const kitchenSheet = async () => {
+    const { jsPDF } = await import("jspdf");
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const ACCENT: [number,number,number] = [201,169,110];
+    const DARK:   [number,number,number] = [51,51,51];
+    const MUTED:  [number,number,number] = [120,110,100];
+    const WHITE:  [number,number,number] = [255,255,255];
+    const PAGE_W = 210, PAGE_H = 297, ML = 18, MR = 18, CW = 210 - 18 - 18;
+
+    // Header
+    doc.setFillColor(...ACCENT);
+    doc.rect(0, 0, PAGE_W, 44, "F");
+    doc.setFont("helvetica", "bold"); doc.setFontSize(22); doc.setTextColor(...WHITE);
+    doc.text(wedding.name, PAGE_W / 2, 18, { align: "center" });
+    doc.setFont("helvetica", "normal"); doc.setFontSize(11); doc.setTextColor(252,244,228);
+    doc.text("Kitchen Sheet", PAGE_W / 2, 28, { align: "center" });
+    doc.setFontSize(8); doc.setTextColor(240,230,210);
+    doc.text(`Generated ${new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"})}`, PAGE_W/2, 38, { align:"center" });
+
+    let y = 54;
     const confirmed = guests.filter(g => g.rsvp !== "declined");
     const mealGroups = confirmed.reduce<Record<string, Guest[]>>((acc, g) => {
       const m = g.meal || "standard";
@@ -63,19 +82,70 @@ export default function ExportPanel({ wedding, guests, tables, groups, venues, r
       return acc;
     }, {});
 
-    const rows = Object.entries(mealGroups).map(([meal, list]) =>
-      `<tr><td style="padding:8px 12px;border:1px solid #ddd;font-weight:600">${meal}</td>
-       <td style="padding:8px 12px;border:1px solid #ddd;font-size:24px;font-weight:700;color:#c9a96e">${list.length}</td>
-       <td style="padding:8px 12px;border:1px solid #ddd;font-size:12px;color:#666">${list.map(g => guestName(g)).join(", ")}</td></tr>`
-    ).join("");
+    // Summary totals
+    doc.setFont("helvetica","bold"); doc.setFontSize(9); doc.setTextColor(...DARK);
+    doc.text(`Total confirmed guests: ${confirmed.length}`, ML, y); y += 8;
 
-    const html = `<!DOCTYPE html><html><head><title>Kitchen Sheet – ${wedding.name}</title>
-    <style>body{font-family:Georgia,serif;padding:40px;color:#333}h1{color:#c9a96e}table{border-collapse:collapse;width:100%}th{background:#c9a96e;color:white;padding:10px 12px;text-align:left}</style></head>
-    <body><h1>Kitchen Sheet</h1><h2 style="color:#666;font-weight:normal">${wedding.name}</h2>
-    <p style="color:#999">Total confirmed: ${confirmed.length} guests</p>
-    <table><thead><tr><th>Meal</th><th>Count</th><th>Guests</th></tr></thead><tbody>${rows}</tbody></table>
-    <script>window.print()</script></body></html>`;
-    download(html, `kitchen-sheet-${wedding.name.replace(/\s+/g, "-")}.html`, "text/html");
+    // Summary table header
+    doc.setFillColor(...ACCENT);
+    doc.rect(ML, y, CW, 8, "F");
+    doc.setFont("helvetica","bold"); doc.setFontSize(8.5); doc.setTextColor(...WHITE);
+    doc.text("Meal Type", ML+3, y+5.5);
+    doc.text("Count", ML+60, y+5.5);
+    doc.text("Guests", ML+85, y+5.5);
+    y += 10;
+
+    Object.entries(mealGroups).sort((a,b)=>b[1].length-a[1].length).forEach(([meal, list], idx) => {
+      if (y > PAGE_H - 20) { doc.addPage(); y = 20; }
+      if (idx%2===0) { doc.setFillColor(250,247,242); doc.rect(ML,y,CW,7,"F"); }
+      doc.setDrawColor(...ACCENT); doc.setLineWidth(0.15);
+      doc.rect(ML, y, CW, 7, "D");
+      doc.setFont("helvetica","bold"); doc.setFontSize(8.5); doc.setTextColor(...DARK);
+      doc.text(meal.charAt(0).toUpperCase()+meal.slice(1), ML+3, y+5);
+      doc.setFont("helvetica","bold"); doc.setFontSize(11); doc.setTextColor(...ACCENT);
+      doc.text(String(list.length), ML+63, y+5.2, { align:"center" });
+      const names = list.map(g=>guestName(g)).join(", ");
+      doc.setFont("helvetica","normal"); doc.setFontSize(7.5); doc.setTextColor(...MUTED);
+      const wrapped = doc.splitTextToSize(names, CW - 88);
+      doc.text(wrapped[0] + (wrapped.length > 1 ? "…" : ""), ML+87, y+5);
+      y += 8;
+    });
+
+    y += 8;
+    // Detailed section per meal
+    Object.entries(mealGroups).forEach(([meal, list]) => {
+      if (y > PAGE_H - 30) { doc.addPage(); y = 20; }
+      doc.setFillColor(245,238,225); doc.setDrawColor(...ACCENT); doc.setLineWidth(0.3);
+      doc.roundedRect(ML, y, CW, 8, 1, 1, "FD");
+      doc.setFont("helvetica","bold"); doc.setFontSize(9); doc.setTextColor(...DARK);
+      doc.text(`${meal.charAt(0).toUpperCase()+meal.slice(1)} (${list.length})`, ML+4, y+5.5);
+      y += 11;
+      list.forEach((g, idx) => {
+        if (y > PAGE_H - 16) { doc.addPage(); y = 20; }
+        if (idx%2===0) { doc.setFillColor(250,247,242); doc.rect(ML,y,CW,6.5,"F"); }
+        doc.setFont("helvetica","normal"); doc.setFontSize(8.5); doc.setTextColor(...DARK);
+        doc.text(guestName(g), ML+6, y+4.5);
+        if (g.table_id) {
+          doc.setFont("helvetica","italic"); doc.setFontSize(7.5); doc.setTextColor(...MUTED);
+          doc.text(tableName(g.table_id), PAGE_W-MR-2, y+4.5, { align:"right" });
+        }
+        y += 6.5;
+      });
+      doc.setDrawColor(...ACCENT); doc.setLineWidth(0.2);
+      doc.line(ML, y, PAGE_W-MR, y); y += 6;
+    });
+
+    // Footer
+    const totalPages = (doc as unknown as { internal: { getNumberOfPages: ()=>number } }).internal.getNumberOfPages();
+    for (let p=1; p<=totalPages; p++) {
+      doc.setPage(p);
+      doc.setDrawColor(...ACCENT); doc.setLineWidth(0.3);
+      doc.line(ML, PAGE_H-12, PAGE_W-MR, PAGE_H-12);
+      doc.setFont("helvetica","normal"); doc.setFontSize(7); doc.setTextColor(...MUTED);
+      doc.text("TableMate — Kitchen Sheet", ML, PAGE_H-7);
+      doc.text(`Page ${p} of ${totalPages}`, PAGE_W-MR, PAGE_H-7, { align:"right" });
+    }
+    doc.save(`kitchen-sheet-${wedding.name.replace(/\s+/g,"-")}.pdf`);
   };
 
   /* ── Guest CSV ── */
@@ -116,60 +186,219 @@ export default function ExportPanel({ wedding, guests, tables, groups, venues, r
     e.target.value = "";
   };
 
-  /* ── Table Cards HTML ── */
-  const tableCards = () => {
-    const cards = tables.map(t => {
+  /* ── Table Cards PDF ── */
+  const tableCards = async () => {
+    const { jsPDF } = await import("jspdf");
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const ACCENT: [number,number,number] = [201,169,110];
+    const DARK:   [number,number,number] = [51,51,51];
+    const MUTED:  [number,number,number] = [120,110,100];
+    const WHITE:  [number,number,number] = [255,255,255];
+    const PAGE_W = 210, PAGE_H = 297, ML = 18, MR = 18, CW = 210-18-18;
+
+    // Cover header
+    doc.setFillColor(...ACCENT);
+    doc.rect(0,0,PAGE_W,44,"F");
+    doc.setFont("helvetica","bold"); doc.setFontSize(22); doc.setTextColor(...WHITE);
+    doc.text(wedding.name, PAGE_W/2, 18, { align:"center" });
+    doc.setFont("helvetica","normal"); doc.setFontSize(11); doc.setTextColor(252,244,228);
+    doc.text("Table Cards", PAGE_W/2, 28, { align:"center" });
+    doc.setFontSize(8); doc.setTextColor(240,230,210);
+    doc.text(`Generated ${new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"})}`, PAGE_W/2, 38, { align:"center" });
+
+    let y = 54;
+
+    for (const t of tables) {
       const tg = guests.filter(g => g.table_id === t.id);
-      const list = tg.map(g => `<li style="padding:2px 0;border-bottom:1px solid #f0e8d8">${guestName(g)} <span style="color:#999;font-size:12px">${MEAL_ICON[g.meal||"standard"]} ${g.meal||"standard"}</span></li>`).join("");
-      return `<div style="page-break-inside:avoid;border:2px solid #c9a96e;border-radius:12px;padding:20px;margin:16px;display:inline-block;min-width:220px;vertical-align:top">
-        <h2 style="color:#c9a96e;font-family:Georgia,serif;margin:0 0 4px">${t.name}</h2>
-        <p style="color:#999;font-size:12px;margin:0 0 12px">${tg.length}/${t.capacity} guests</p>
-        <ul style="list-style:none;padding:0;margin:0">${list}</ul></div>`;
-    }).join("");
-    const html = `<!DOCTYPE html><html><head><title>Table Cards – ${wedding.name}</title>
-    <style>body{font-family:Georgia,serif;padding:32px;background:#fff;color:#333}h1{color:#c9a96e}</style></head>
-    <body><h1>Table Cards — ${wedding.name}</h1>${cards}
-    <script>window.print()</script></body></html>`;
-    download(html, `table-cards-${wedding.name.replace(/\s+/g, "-")}.html`, "text/html");
+      const cardH = 14 + Math.max(tg.length,1)*6.5 + 6;
+      if (y + cardH > PAGE_H - 16) { doc.addPage(); y = 20; }
+
+      // Card border + header
+      doc.setDrawColor(...ACCENT); doc.setLineWidth(0.5);
+      doc.setFillColor(252,249,245);
+      doc.roundedRect(ML, y, CW, cardH, 2, 2, "FD");
+
+      // Gold top strip
+      doc.setFillColor(...ACCENT);
+      doc.roundedRect(ML, y, CW, 9, 2, 2, "F");
+      doc.rect(ML, y+5, CW, 4, "F"); // square bottom corners
+
+      doc.setFont("helvetica","bold"); doc.setFontSize(10); doc.setTextColor(...WHITE);
+      doc.text(t.name, ML+5, y+6.2);
+      doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor(252,244,228);
+      doc.text(`${tg.length} / ${t.capacity} guests`, PAGE_W-MR-3, y+6.2, { align:"right" });
+
+      let gy = y + 13;
+      if (tg.length === 0) {
+        doc.setFont("helvetica","italic"); doc.setFontSize(8); doc.setTextColor(...MUTED);
+        doc.text("No guests assigned", ML+5, gy+3);
+      } else {
+        tg.forEach((g, idx) => {
+          if (idx%2===0) { doc.setFillColor(246,241,232); doc.rect(ML+1, gy, CW-2, 6.5, "F"); }
+          doc.setFont("helvetica","normal"); doc.setFontSize(8.5); doc.setTextColor(...DARK);
+          doc.text(guestName(g), ML+5, gy+4.5);
+          const meal = g.meal || "standard";
+          if (meal !== "standard") {
+            doc.setFont("helvetica","italic"); doc.setFontSize(7.5); doc.setTextColor(...MUTED);
+            doc.text(meal, PAGE_W-MR-4, gy+4.5, { align:"right" });
+          }
+          gy += 6.5;
+        });
+      }
+      y += cardH + 5;
+    }
+
+    // Footer
+    const totalPages = (doc as unknown as { internal: { getNumberOfPages: ()=>number } }).internal.getNumberOfPages();
+    for (let p=1; p<=totalPages; p++) {
+      doc.setPage(p);
+      doc.setDrawColor(...ACCENT); doc.setLineWidth(0.3);
+      doc.line(ML, PAGE_H-12, PAGE_W-MR, PAGE_H-12);
+      doc.setFont("helvetica","normal"); doc.setFontSize(7); doc.setTextColor(...MUTED);
+      doc.text("TableMate — Table Cards", ML, PAGE_H-7);
+      doc.text(`Page ${p} of ${totalPages}`, PAGE_W-MR, PAGE_H-7, { align:"right" });
+    }
+    doc.save(`table-cards-${wedding.name.replace(/\s+/g,"-")}.pdf`);
   };
 
-  /* ── Place Cards HTML ── */
-  const placeCards = () => {
+  /* ── Place Cards PDF ── */
+  const placeCards = async () => {
+    const { jsPDF } = await import("jspdf");
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const ACCENT: [number,number,number] = [201,169,110];
+    const DARK:   [number,number,number] = [51,51,51];
+    const MUTED:  [number,number,number] = [120,110,100];
+    const WHITE:  [number,number,number] = [255,255,255];
+    const PAGE_W = 210, PAGE_H = 297, ML = 14, MR = 14;
+
+    // Cover header
+    doc.setFillColor(...ACCENT);
+    doc.rect(0,0,PAGE_W,44,"F");
+    doc.setFont("helvetica","bold"); doc.setFontSize(22); doc.setTextColor(...WHITE);
+    doc.text(wedding.name, PAGE_W/2, 18, { align:"center" });
+    doc.setFont("helvetica","normal"); doc.setFontSize(11); doc.setTextColor(252,244,228);
+    doc.text("Place Cards", PAGE_W/2, 28, { align:"center" });
+    doc.setFontSize(8); doc.setTextColor(240,230,210);
+    doc.text(`Generated ${new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"})}`, PAGE_W/2, 38, { align:"center" });
+
     const confirmed = guests.filter(g => g.rsvp !== "declined");
-    const cards = confirmed.map(g => {
-      const t = tableName(g.table_id);
-      return `<div style="page-break-inside:avoid;border:1px solid #c9a96e;border-radius:8px;padding:16px 20px;margin:8px;display:inline-block;min-width:180px;text-align:center;vertical-align:top">
-        <div style="font-family:Georgia,serif;font-size:18px;color:#333;margin-bottom:4px">${guestName(g)}</div>
-        <div style="color:#c9a96e;font-size:13px">${t !== "—" ? t : "Unseated"}</div>
-        <div style="color:#999;font-size:11px;margin-top:2px">${MEAL_ICON[g.meal||"standard"]} ${g.meal||"standard"}</div>
-      </div>`;
-    }).join("");
-    const html = `<!DOCTYPE html><html><head><title>Place Cards – ${wedding.name}</title>
-    <style>body{font-family:Georgia,serif;padding:32px;background:#fff}</style></head>
-    <body><h1 style="color:#c9a96e">Place Cards — ${wedding.name}</h1>${cards}
-    <script>window.print()</script></body></html>`;
-    download(html, `place-cards-${wedding.name.replace(/\s+/g, "-")}.html`, "text/html");
+    const CARD_W = (PAGE_W - ML - MR - 6) / 2;
+    const CARD_H = 32;
+    const GAP = 6;
+    let col = 0;
+    let y = 54;
+
+    confirmed.forEach((g) => {
+      const x = ML + col * (CARD_W + GAP);
+      if (y + CARD_H > PAGE_H - 16) { doc.addPage(); y = 20; col = 0; }
+
+      // Card background + border
+      doc.setFillColor(252,249,245);
+      doc.setDrawColor(...ACCENT);
+      doc.setLineWidth(0.4);
+      doc.roundedRect(x, y, CARD_W, CARD_H, 2, 2, "FD");
+
+      // Top gold accent line
+      doc.setFillColor(...ACCENT);
+      doc.rect(x+2, y+2, CARD_W-4, 1.5, "F");
+
+      // Name
+      doc.setFont("helvetica","bold"); doc.setFontSize(11); doc.setTextColor(...DARK);
+      doc.text(guestName(g), x + CARD_W/2, y + 12, { align:"center" });
+
+      // Table
+      const tname = tableName(g.table_id);
+      doc.setFont("helvetica","normal"); doc.setFontSize(8.5); doc.setTextColor(...ACCENT);
+      doc.text(tname !== "—" ? tname : "Unseated", x + CARD_W/2, y + 20, { align:"center" });
+
+      // Meal
+      const meal = g.meal || "standard";
+      doc.setFont("helvetica","italic"); doc.setFontSize(7.5); doc.setTextColor(...MUTED);
+      doc.text(meal, x + CARD_W/2, y + 27, { align:"center" });
+
+      col++;
+      if (col >= 2) { col = 0; y += CARD_H + GAP; }
+    });
+
+    // Footer
+    const totalPages = (doc as unknown as { internal: { getNumberOfPages: ()=>number } }).internal.getNumberOfPages();
+    for (let p=1; p<=totalPages; p++) {
+      doc.setPage(p);
+      doc.setDrawColor(...ACCENT); doc.setLineWidth(0.3);
+      doc.line(ML, PAGE_H-12, PAGE_W-MR, PAGE_H-12);
+      doc.setFont("helvetica","normal"); doc.setFontSize(7); doc.setTextColor(...MUTED);
+      doc.text("TableMate — Place Cards", ML, PAGE_H-7);
+      doc.text(`Page ${p} of ${totalPages}`, PAGE_W-MR, PAGE_H-7, { align:"right" });
+    }
+    doc.save(`place-cards-${wedding.name.replace(/\s+/g,"-")}.pdf`);
   };
 
-  /* ── Seating Chart HTML ── */
-  const venueChart = () => {
-    const tableHtml = tables.map(t => {
+  /* ── Venue Chart PDF ── */
+  const venueChart = async () => {
+    const { jsPDF } = await import("jspdf");
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    const ACCENT: [number,number,number] = [201,169,110];
+    const DARK:   [number,number,number] = [51,51,51];
+    const MUTED:  [number,number,number] = [120,110,100];
+    const WHITE:  [number,number,number] = [255,255,255];
+    const PAGE_W = 297, PAGE_H = 210, ML = 14, MT = 14;
+
+    // Header
+    doc.setFillColor(...ACCENT);
+    doc.rect(0,0,PAGE_W,36,"F");
+    doc.setFont("helvetica","bold"); doc.setFontSize(20); doc.setTextColor(...WHITE);
+    doc.text(wedding.name, PAGE_W/2, 14, { align:"center" });
+    doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.setTextColor(252,244,228);
+    doc.text("Venue Chart", PAGE_W/2, 23, { align:"center" });
+    doc.setFontSize(7.5); doc.setTextColor(240,230,210);
+    doc.text(`Generated ${new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"})}`, PAGE_W/2, 31, { align:"center" });
+
+    // Compute scale to fit all tables within the drawing area
+    const DRAW_X = ML, DRAW_Y = 42, DRAW_W = PAGE_W - ML*2, DRAW_H = PAGE_H - 42 - 18;
+    const maxTX = Math.max(...tables.map(t => t.x), 1);
+    const maxTY = Math.max(...tables.map(t => t.y), 1);
+    const scaleX = tables.length ? DRAW_W / (maxTX + 140) : 1;
+    const scaleY = tables.length ? DRAW_H / (maxTY + 80)  : 1;
+    const scale  = Math.min(scaleX, scaleY, 1);
+
+    // Draw canvas background
+    doc.setFillColor(250,248,244);
+    doc.setDrawColor(220,210,195); doc.setLineWidth(0.3);
+    doc.rect(DRAW_X, DRAW_Y, DRAW_W, DRAW_H, "FD");
+
+    for (const t of tables) {
       const tg = guests.filter(g => g.table_id === t.id);
-      const list = tg.map(g => `<span style="font-size:12px;color:#555;display:block">${guestName(g)}</span>`).join("");
+      const tx = DRAW_X + t.x * scale;
+      const ty = DRAW_Y + t.y * scale;
       const isRound = t.shape === "round";
-      return `<div style="position:absolute;left:${t.x}px;top:${t.y}px;width:${isRound?100:140}px;border:2px solid #c9a96e;border-radius:${isRound?"50%":"8px"};padding:10px;background:white;text-align:center">
-        <strong style="font-size:13px;color:#c9a96e">${t.name}</strong><br>
-        <span style="font-size:11px;color:#999">${tg.length}/${t.capacity}</span>
-        ${list}</div>`;
-    }).join("");
-    const maxX = Math.max(...tables.map(t => t.x + 160), 800);
-    const maxY = Math.max(...tables.map(t => t.y + 160), 600);
-    const html = `<!DOCTYPE html><html><head><title>Venue Chart – ${wedding.name}</title></head>
-    <body style="margin:0;padding:32px;font-family:Georgia,serif">
-    <h1 style="color:#c9a96e">${wedding.name} — Venue Chart</h1>
-    <div style="position:relative;width:${maxX}px;height:${maxY}px;border:1px solid #eee;background:#faf8f5">${tableHtml}</div>
-    <script>window.print()</script></body></html>`;
-    download(html, `venue-chart-${wedding.name.replace(/\s+/g, "-")}.html`, "text/html");
+      const bw = isRound ? 22 : 28, bh = isRound ? 22 : 18;
+
+      // Table shape
+      doc.setFillColor(255,255,255);
+      doc.setDrawColor(...ACCENT); doc.setLineWidth(0.6);
+      if (isRound) {
+        doc.circle(tx + bw/2, ty + bh/2, bw/2, "FD");
+      } else {
+        doc.roundedRect(tx, ty, bw, bh, 1.5, 1.5, "FD");
+      }
+
+      // Table name
+      doc.setFont("helvetica","bold"); doc.setFontSize(6); doc.setTextColor(...ACCENT);
+      doc.text(t.name, tx + bw/2, ty + bh/2 - 1, { align:"center" });
+
+      // Guest count
+      doc.setFont("helvetica","normal"); doc.setFontSize(5.5); doc.setTextColor(...MUTED);
+      doc.text(`${tg.length}/${t.capacity}`, tx + bw/2, ty + bh/2 + 4, { align:"center" });
+    }
+
+    // Footer
+    doc.setDrawColor(...ACCENT); doc.setLineWidth(0.3);
+    doc.line(ML, PAGE_H-10, PAGE_W-ML, PAGE_H-10);
+    doc.setFont("helvetica","normal"); doc.setFontSize(7); doc.setTextColor(...MUTED);
+    doc.text("TableMate — Venue Chart", ML, PAGE_H-5);
+    doc.text(`${tables.length} tables · ${guests.filter(g=>!!g.table_id).length} seated guests`, PAGE_W-ML, PAGE_H-5, { align:"right" });
+
+    doc.save(`venue-chart-${wedding.name.replace(/\s+/g,"-")}.pdf`);
   };
 
   const cardStyle = { background: cs.surface, border: `1px solid ${cs.border}` };
