@@ -143,7 +143,11 @@ export default function LandingPage() {
             <span className="text-[#C9956E]">♥</span>
             <span className={`font-playfair font-semibold ${text}`}>TableMate</span>
           </div>
-          <p className={`text-sm ${dark ? "text-[#6B6068]" : "text-[#9B9098]"}`}>© 2025 TableMate. Made with love for couples everywhere.</p>
+          <div className="flex items-center gap-4">
+            <p className={`text-sm ${dark ? "text-[#6B6068]" : "text-[#9B9098]"}`}>© 2025 TableMate. Made with love for couples everywhere.</p>
+            <Link href="/privacy" className={`text-sm ${dark ? "text-[#6B6068] hover:text-[#9B9098]" : "text-[#9B9098] hover:text-[#6B6068]"} transition-colors`}>Privacy</Link>
+            <Link href="/terms" className={`text-sm ${dark ? "text-[#6B6068] hover:text-[#9B9098]" : "text-[#9B9098] hover:text-[#6B6068]"} transition-colors`}>Terms</Link>
+          </div>
         </div>
       </footer>
     </div>

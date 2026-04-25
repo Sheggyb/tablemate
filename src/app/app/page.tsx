@@ -219,6 +219,19 @@ export default function AppDashboard() {
           );
         })()}
       </main>
+      <footer className={`border-t ${dark ? "border-[#3A3540]" : "border-[#EDE8E0]"} py-6 mt-auto`}>
+        <div className="max-w-6xl mx-auto px-6 flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-[#C9956E]">♥</span>
+            <span className={`font-semibold text-sm ${dark ? "text-white" : "text-[#1a1a1a]"}`}>TableMate</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <span className={`text-xs ${dark ? "text-[#6B6068]" : "text-[#9B9098]"}`}>© 2025 TableMate</span>
+            <Link href="/privacy" className={`text-xs ${dark ? "text-[#6B6068] hover:text-[#9B9098]" : "text-[#9B9098] hover:text-[#6B6068]"} transition-colors`}>Privacy</Link>
+            <Link href="/terms" className={`text-xs ${dark ? "text-[#6B6068] hover:text-[#9B9098]" : "text-[#9B9098] hover:text-[#6B6068]"} transition-colors`}>Terms</Link>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
