@@ -341,7 +341,7 @@ export default function ExportPanel({ wedding, guests, tables, groups, venues, r
     const DARK:   [number,number,number] = [51,51,51];
     const MUTED:  [number,number,number] = [120,110,100];
     const WHITE:  [number,number,number] = [255,255,255];
-    const PAGE_W = 297, PAGE_H = 210, ML = 14, MT = 14;
+    const PAGE_W = 297, PAGE_H = 210, ML = 14, MR = 14;
 
     // Header
     doc.setFillColor(...ACCENT);
@@ -353,50 +353,56 @@ export default function ExportPanel({ wedding, guests, tables, groups, venues, r
     doc.setFontSize(7.5); doc.setTextColor(240,230,210);
     doc.text(`Generated ${new Date().toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"})}`, PAGE_W/2, 31, { align:"center" });
 
-    // Compute scale to fit all tables within the drawing area
-    const DRAW_X = ML, DRAW_Y = 42, DRAW_W = PAGE_W - ML*2, DRAW_H = PAGE_H - 42 - 18;
-    const maxTX = Math.max(...tables.map(t => t.x), 1);
-    const maxTY = Math.max(...tables.map(t => t.y), 1);
-    const scaleX = tables.length ? DRAW_W / (maxTX + 140) : 1;
-    const scaleY = tables.length ? DRAW_H / (maxTY + 80)  : 1;
-    const scale  = Math.min(scaleX, scaleY, 1);
+    // Grid layout constants
+    const COLS = tables.length <= 8 ? Math.min(tables.length, 4) : 4;
+    const DRAW_X = ML, DRAW_Y = 42;
+    const DRAW_W = PAGE_W - ML - MR;
+    const CELL_GAP = 6;
+    const CELL_W = (DRAW_W - CELL_GAP * (COLS - 1)) / COLS;
+    const CELL_H = 32;
 
-    // Draw canvas background
+    // Draw background
     doc.setFillColor(250,248,244);
     doc.setDrawColor(220,210,195); doc.setLineWidth(0.3);
-    doc.rect(DRAW_X, DRAW_Y, DRAW_W, DRAW_H, "FD");
+    const rows = Math.ceil(tables.length / COLS);
+    const gridH = rows * CELL_H + (rows - 1) * CELL_GAP;
+    doc.rect(DRAW_X - 4, DRAW_Y - 4, DRAW_W + 8, gridH + 8, "FD");
 
-    for (const t of tables) {
+    tables.forEach((t, idx) => {
       const tg = guests.filter(g => g.table_id === t.id);
-      const tx = DRAW_X + t.x * scale;
-      const ty = DRAW_Y + t.y * scale;
+      const col = idx % COLS;
+      const row = Math.floor(idx / COLS);
+      const cx = DRAW_X + col * (CELL_W + CELL_GAP);
+      const cy = DRAW_Y + row * (CELL_H + CELL_GAP);
       const isRound = t.shape === "round";
-      const bw = isRound ? 22 : 28, bh = isRound ? 22 : 18;
 
-      // Table shape
+      // Cell background
       doc.setFillColor(255,255,255);
       doc.setDrawColor(...ACCENT); doc.setLineWidth(0.6);
+
       if (isRound) {
-        doc.circle(tx + bw/2, ty + bh/2, bw/2, "FD");
+        const r = Math.min(CELL_W, CELL_H) / 2;
+        doc.circle(cx + CELL_W/2, cy + CELL_H/2, r, "FD");
       } else {
-        doc.roundedRect(tx, ty, bw, bh, 1.5, 1.5, "FD");
+        doc.roundedRect(cx, cy, CELL_W, CELL_H, 2, 2, "FD");
       }
 
       // Table name
-      doc.setFont("helvetica","bold"); doc.setFontSize(6); doc.setTextColor(...ACCENT);
-      doc.text(t.name, tx + bw/2, ty + bh/2 - 1, { align:"center" });
+      const nameLines = doc.splitTextToSize(t.name, CELL_W - 6);
+      doc.setFont("helvetica","bold"); doc.setFontSize(7); doc.setTextColor(...DARK);
+      doc.text(nameLines[0], cx + CELL_W/2, cy + CELL_H/2 - 2, { align:"center" });
 
       // Guest count
-      doc.setFont("helvetica","normal"); doc.setFontSize(5.5); doc.setTextColor(...MUTED);
-      doc.text(`${tg.length}/${t.capacity}`, tx + bw/2, ty + bh/2 + 4, { align:"center" });
-    }
+      doc.setFont("helvetica","normal"); doc.setFontSize(6.5); doc.setTextColor(...MUTED);
+      doc.text(`${tg.length}/${t.capacity}`, cx + CELL_W/2, cy + CELL_H/2 + 5, { align:"center" });
+    });
 
     // Footer
     doc.setDrawColor(...ACCENT); doc.setLineWidth(0.3);
-    doc.line(ML, PAGE_H-10, PAGE_W-ML, PAGE_H-10);
+    doc.line(ML, PAGE_H-10, PAGE_W-MR, PAGE_H-10);
     doc.setFont("helvetica","normal"); doc.setFontSize(7); doc.setTextColor(...MUTED);
     doc.text("TableMate — Venue Chart", ML, PAGE_H-5);
-    doc.text(`${tables.length} tables · ${guests.filter(g=>!!g.table_id).length} seated guests`, PAGE_W-ML, PAGE_H-5, { align:"right" });
+    doc.text(`${tables.length} tables · ${guests.filter(g=>!!g.table_id).length} seated guests`, PAGE_W-MR, PAGE_H-5, { align:"right" });
 
     doc.save(`venue-chart-${wedding.name.replace(/\s+/g,"-")}.pdf`);
   };
@@ -465,7 +471,7 @@ export default function ExportPanel({ wedding, guests, tables, groups, venues, r
             onExport={venueChart}
           />
           <ExportCard
-            icon="🪑"
+            icon="📋"
             title="Table Cards"
             desc="Per-table guest lists for placing on each table at the venue."
             onExport={tableCards}
