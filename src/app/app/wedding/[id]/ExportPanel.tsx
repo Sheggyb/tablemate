@@ -2,6 +2,7 @@
 
 import { useRef } from "react";
 import type { Wedding, Guest, Table, Group, Venue, Rule } from "@/lib/types";
+import { exportSeatingChartPDF } from "@/lib/exportPDF";
 
 interface Props {
   wedding:  Wedding;

@@ -160,11 +160,24 @@ export default function GuestPortal({ params }: { params: Promise<{ shareCode: s
     "gluten-free": "🌾 Gluten-Free", halal: "☪️ Halal", kosher: "✡️ Kosher", children: "👶 Children's",
   };
 
-  const [dark, setDark] = useState(true);
+  const [dark, setDark] = useState(false);
   useEffect(() => {
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    setDark(mq.matches);
+    const saved = localStorage.getItem("tm-theme");
+    if (saved === "dark" || saved === "light") {
+      setDark(saved === "dark");
+    } else {
+      const mq = window.matchMedia("(prefers-color-scheme: dark)");
+      setDark(mq.matches);
+    }
   }, []);
+
+  function toggleDark() {
+    setDark(d => {
+      const next = !d;
+      localStorage.setItem("tm-theme", next ? "dark" : "light");
+      return next;
+    });
+  }
 
   const accent = "#C9956E";
   const bg = dark ? "#0f0c15" : "#faf8f5";
@@ -194,7 +207,7 @@ export default function GuestPortal({ params }: { params: Promise<{ shareCode: s
 
       {/* ── Header ── */}
       <div style={{ background: surface, borderBottom: `1px solid ${border}`, padding: "20px 20px 16px", textAlign: "center", flexShrink: 0, position: "relative" }}>
-        <button onClick={() => setDark(d => !d)} style={{ position: "absolute", top: 16, right: 16, background: "transparent", border: `1px solid ${border}`, borderRadius: 20, padding: "4px 10px", cursor: "pointer", fontSize: 16, color: muted }}>
+        <button onClick={toggleDark} style={{ position: "absolute", top: 16, right: 16, background: "transparent", border: `1px solid ${border}`, borderRadius: 20, padding: "4px 10px", cursor: "pointer", fontSize: 16, color: muted }}>
           {dark ? "☀️" : "🌙"}
         </button>
         <div style={{ fontSize: 32, marginBottom: 6 }}>💍</div>

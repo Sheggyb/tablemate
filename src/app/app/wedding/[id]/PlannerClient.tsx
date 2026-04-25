@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useReducer, useEffect, useRef } from "react";
 import Link from "next/link";
+import QRCode from "qrcode";
 import { createClient } from "@/lib/supabase/client";
 import type { Wedding, Venue, Guest, Table, Group, Rule, Rsvp, Meal } from "@/lib/types";
 import GuestPanel from "./GuestPanel";
@@ -92,6 +93,8 @@ export default function PlannerClient({
   const [showPartiesModal, setShowPartiesModal] = useState(false);
   const [showMealsModal, setShowMealsModal] = useState(false);
   const [showFloorModal, setShowFloorModal] = useState(false);
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [floorName, setFloorName] = useState("");
   const [weddingName, setWeddingName] = useState(wedding.name);
   const [venueName, setVenueName] = useState("");
@@ -522,7 +525,21 @@ export default function PlannerClient({
           {aiLoading ? "✨ Seating…" : "✨ Smart Seat"}
         </button>
 
-        {/* Dark mode toggle */}
+        {/* Day-of QR Code */}
+        {wedding.share_code && (
+          <button
+            onClick={async () => {
+              const url = `${window.location.origin}/guest/${wedding.share_code}`;
+              const dataUrl = await QRCode.toDataURL(url, { width: 320, margin: 2, color: { dark: "#1a1218", light: "#FDFBF8" } });
+              setQrDataUrl(dataUrl);
+              setShowQrModal(true);
+            }}
+            className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg hover:opacity-80"
+            style={{ background: cs.surface2, border: `1px solid ${cs.border}`, color: cs.textSoft }}
+            title="Day-of QR Code">
+            📲 QR Code
+          </button>
+        )}
         <button onClick={() => setDarkMode(d => !d)}
           className="w-8 h-8 flex items-center justify-center rounded-lg hover:opacity-80 text-sm"
           title={darkMode ? "Light mode" : "Dark mode"}
@@ -778,6 +795,37 @@ export default function PlannerClient({
             <button onClick={() => setShowMealsModal(false)}
               className="w-full mt-4 py-2 rounded-xl text-sm hover:opacity-80"
               style={{ border: `1px solid ${cs.borderSoft}`, color: cs.textSoft }}>Close</button>
+          </div>
+        </div>
+      )}
+
+      {/* ── QR Code Modal ── */}
+      {showQrModal && qrDataUrl && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setShowQrModal(false)}>
+          <div className="rounded-2xl p-6 w-full max-w-sm shadow-2xl animate-fade-in flex flex-col items-center gap-4"
+            style={{ background: cs.surface, border: `1px solid ${cs.border}` }}
+            onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between w-full">
+              <h3 className="font-playfair text-lg font-bold" style={{ color: cs.text }}>📲 Day-of QR Code</h3>
+              <button onClick={() => setShowQrModal(false)} className="text-xl leading-none hover:opacity-60" style={{ color: cs.textMuted }}>×</button>
+            </div>
+            <p className="text-sm text-center" style={{ color: cs.textMuted }}>
+              Print or display this QR code at your wedding so guests can instantly find their table.
+            </p>
+            <div className="rounded-xl overflow-hidden p-3" style={{ background: "#FDFBF8", border: `2px solid ${cs.accent}` }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={qrDataUrl} alt="Guest table finder QR code" width={260} height={260} />
+            </div>
+            <p className="text-xs text-center break-all" style={{ color: cs.textMuted }}>
+              {`${typeof window !== "undefined" ? window.location.origin : ""}/guest/${wedding.share_code}`}
+            </p>
+            <a
+              href={qrDataUrl}
+              download={`tablemate-qr-${wedding.share_code}.png`}
+              className="w-full py-3 rounded-xl text-sm font-semibold text-white text-center block"
+              style={{ background: cs.accent }}>
+              ⬇ Download QR Code
+            </a>
           </div>
         </div>
       )}
