@@ -248,6 +248,12 @@ export default function ExportPanel({ wedding, guests, tables, groups, venues, r
             onExport={placeCards}
           />
           <ExportCard
+            icon="📄"
+            title="Seating Chart PDF"
+            desc="Beautiful PDF with every table, seated guests, meal choices, and unassigned guests."
+            onExport={() => exportSeatingChartPDF(wedding.name, tables, guests)}
+          />
+          <ExportCard
             icon="📊"
             title="Guest CSV"
             desc="Full guest list with RSVP, meal, table, and party information."
