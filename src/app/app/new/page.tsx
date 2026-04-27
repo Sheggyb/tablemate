@@ -40,7 +40,6 @@ export default function NewWeddingPage() {
       name:         form.name.trim(),
       couple_names: form.couple_names.trim() || null,
       date:         form.date || null,
-      location:     form.location.trim() || null,
     }).select().single();
 
     if (we || !wedding) { setError("Failed to create wedding. Please try again."); setLoading(false); return; }
