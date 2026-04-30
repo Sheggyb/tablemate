@@ -1,6 +1,8 @@
 "use client";
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useDarkMode } from "@/lib/darkmode";
+import DarkModeToggle from "@/components/DarkModeToggle";
 
 /* ── Seating Chart Mockup ── */
 function SeatingChartMockup({ dark }: { dark: boolean }) {
@@ -263,7 +265,7 @@ const faqs = [
 ];
 
 export default function LandingPage() {
-  const [dark, setDark] = useState(false);
+  const { dark } = useDarkMode();
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [mobileBanner, setMobileBanner] = useState(true);
 
@@ -281,18 +283,7 @@ export default function LandingPage() {
     })),
   };
 
-  useEffect(() => {
-    const saved = localStorage.getItem("tm-theme");
-    if (saved === "dark") setDark(true);
-  }, []);
-
-  const toggleDark = () => {
-    const next = !dark;
-    setDark(next);
-    localStorage.setItem("tm-theme", next ? "dark" : "light");
-  };
-
-  const bg        = dark ? "bg-[#1A1618]"               : "bg-[#FDFBF8]";
+  const faqPageJsonLd = {
   const card      = dark ? "bg-[#242028] border-[#3A3540]" : "bg-white border-[#EDE8E0]";
   const header    = dark ? "bg-[#1A1618]/90 border-[#3A3540]" : "bg-white/80 border-[#EDE8E0]";
   const text      = dark ? "text-[#F0EBE8]"             : "text-[#2A2328]";

@@ -35,9 +35,21 @@ export async function POST(req: Request) {
   if (event.type === "checkout.session.completed") {
     const session = event.data.object as any;
     const userId  = session.metadata?.user_id;
-    const plan    = PLAN_BY_PRICE[session.metadata?.price_id] ?? session.metadata?.plan;
+    // plan is stored directly in metadata by the checkout route
+    const plan = session.metadata?.plan ?? PLAN_BY_PRICE[session.metadata?.price_id ?? ""];
     if (userId && plan) {
       await supabaseAdmin.from("profiles").update({ plan }).eq("id", userId);
+    }
+  }
+
+  if (event.type === "invoice.paid") {
+    // Keep subscription plan active on renewal
+    const invoice = event.data.object as any;
+    const customerId = invoice.customer;
+    const priceId = invoice.lines?.data?.[0]?.price?.id;
+    const plan = priceId ? PLAN_BY_PRICE[priceId] : null;
+    if (customerId && plan) {
+      await supabaseAdmin.from("profiles").update({ plan }).eq("stripe_customer_id", customerId);
     }
   }
 

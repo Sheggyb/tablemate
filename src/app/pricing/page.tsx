@@ -1,6 +1,9 @@
 "use client";
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useDarkMode } from "@/lib/darkmode";
+import DarkModeToggle from "@/components/DarkModeToggle";
+import { useRouter } from "next/navigation";
 
 /* ─── Plan definitions ─────────────────────────────────── */
 const plans = [
@@ -138,14 +141,39 @@ const billingFaqs = [
 
 /* ─── Component ────────────────────────────────────────── */
 export default function PricingPage() {
-  const [dark, setDark] = useState(false);
+  const router = useRouter();
+  const { dark } = useDarkMode();
   const [annual, setAnnual] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
-  useEffect(() => {
-    const saved = localStorage.getItem("tm-theme");
-    if (saved === "dark") setDark(true);
-  }, []);
+  const handleBuy = async (planKey: string) => {
+    if (planKey === "free") { router.push("/signup"); return; }
+    setLoadingPlan(planKey);
+    try {
+      const res = await fetch("/api/stripe/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan: planKey }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else if (res.status === 401) {
+        // Not logged in — send to signup with plan hint
+        router.push(`/signup?plan=${planKey}`);
+      } else {
+        setToast(data.error || "Checkout failed. Please try again.");
+        setTimeout(() => setToast(null), 4000);
+      }
+    } catch {
+      setToast("Network error. Please try again.");
+      setTimeout(() => setToast(null), 4000);
+    } finally {
+      setLoadingPlan(null);
+    }
+  };
 
   const bg           = dark ? "bg-[#1A1618]"                  : "bg-[#FDFBF8]";
   const header       = dark ? "bg-[#1A1618]/90 border-[#3A3540]" : "bg-white/80 border-[#EDE8E0]";
@@ -185,20 +213,7 @@ export default function PricingPage() {
             <span className={`font-playfair text-xl font-semibold ${text}`}>TableMate</span>
           </Link>
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => {
-                const next = !dark;
-                setDark(next);
-                localStorage.setItem("tm-theme", next ? "dark" : "light");
-              }}
-              className={`w-9 h-9 rounded-lg flex items-center justify-center border transition-colors ${
-                dark
-                  ? "border-[#3A3540] bg-[#2A2630] text-yellow-300 hover:bg-[#3A3540]"
-                  : "border-[#EDE8E0] bg-white text-[#6B6068] hover:border-[#C9956E]"
-              }`}
-            >
-              {dark ? "☀️" : "🌙"}
-            </button>
+            <DarkModeToggle />
             <Link href="/login"  className="px-4 py-2 text-sm font-medium rounded-lg border-2 border-[#C9956E] text-[#C9956E] hover:bg-[#C9956E] hover:text-white transition-colors">Sign in</Link>
             <Link href="/signup" className="px-4 py-2 bg-[#C9956E] hover:bg-[#B8845D] text-white text-sm font-medium rounded-lg transition-colors">Get Started Free</Link>
           </div>
@@ -279,9 +294,10 @@ export default function PricingPage() {
                 ))}
               </ul>
 
-              <Link
-                href={plan.ctaHref}
-                className={`block text-center py-3 px-4 rounded-xl text-sm font-semibold transition-colors ${
+              <button
+                onClick={() => handleBuy(plan.key)}
+                disabled={loadingPlan === plan.key}
+                className={`w-full text-center py-3 px-4 rounded-xl text-sm font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${
                   plan.highlight
                     ? "bg-[#C9956E] hover:bg-[#B8845D] text-white"
                     : dark
@@ -289,8 +305,8 @@ export default function PricingPage() {
                     : "bg-[#FAF7F4] hover:bg-[#F0EAE2] text-[#2A2328] border border-[#EDE8E0]"
                 }`}
               >
-                {plan.cta}
-              </Link>
+                {loadingPlan === plan.key ? "Redirecting…" : plan.cta}
+              </button>
             </div>
           ))}
         </div>
@@ -387,6 +403,17 @@ export default function PricingPage() {
           </div>
         </div>
       </footer>
+
+      {toast && (
+        <div style={{
+          position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
+          background: "#2C2628", color: "#EDE8E3", padding: "12px 24px", borderRadius: 12,
+          fontSize: 14, fontWeight: 600, zIndex: 999, whiteSpace: "nowrap",
+          boxShadow: "0 4px 20px rgba(0,0,0,0.4)", border: "1px solid rgba(255,255,255,0.1)",
+        }}>
+          {toast}
+        </div>
+      )}
     </div>
   );
 }
