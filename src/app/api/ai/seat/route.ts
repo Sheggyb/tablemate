@@ -53,7 +53,7 @@ export async function POST(req: Request) {
   const mustWith: Record<string, string[]> = {};
   const mustNotWith: Record<string, string[]> = {};
   for (const r of rules) {
-    if (r.type === "must") {
+    if (r.type === "must_sit_with") {
       (mustWith[r.guest1_id] = mustWith[r.guest1_id] || []).push(r.guest2_id);
       (mustWith[r.guest2_id] = mustWith[r.guest2_id] || []).push(r.guest1_id);
     } else {

@@ -35,6 +35,7 @@ interface Props {
   onToggleDark: () => void;
   isDemo?:  boolean;
   addTable?: (name: string, shape: "round" | "rectangle" | "oval", capacity: number) => void;
+  plan?: string;
 }
 
 type MobileTab = "tables" | "guests" | "rules" | "export" | "wishes";
@@ -77,7 +78,7 @@ function Backdrop({
   );
 }
 
-export default function MobilePlanner({ wedding, tables, guests, groups, rules, dispatch, dark, onToggleDark, isDemo = false, addTable }: Props) {
+export default function MobilePlanner({ wedding, tables, guests, groups, rules, dispatch, dark, onToggleDark, isDemo = false, addTable, plan = "free" }: Props) {
   const supabase = createClient();
   const [activeTab, setActiveTab] = useState<MobileTab>("tables");
   const [expandedTable, setExpandedTable] = useState<string | null>(null);
@@ -189,6 +190,16 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
 
   const addGuest = async () => {
     if (!guestForm.first_name?.trim()) return;
+    if (plan === "free") {
+      const { count } = await supabase
+        .from("guests")
+        .select("*", { count: "exact", head: true })
+        .eq("wedding_id", wedding.id);
+      if (count !== null && count >= 50) {
+        showToast("Free plan limit: 50 guests. Upgrade to add more.");
+        return;
+      }
+    }
     const newGuest: Guest = {
       id: crypto.randomUUID(), wedding_id: wedding.id,
       first_name: guestForm.first_name || "", last_name: guestForm.last_name || null,

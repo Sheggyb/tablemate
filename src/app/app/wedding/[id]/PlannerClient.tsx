@@ -457,6 +457,7 @@ export default function PlannerClient({
           onToggleDark={() => setDarkMode(d => !d)}
           isDemo={isDemo}
           addTable={addTable}
+          plan={plan}
         />
         </div>
       )}
