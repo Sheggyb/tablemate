@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import Link from "next/link";
 import type { Dispatch } from "react";
 import type { Wedding, Table, Guest, Group, Rule, Meal, Rsvp } from "@/lib/types";
@@ -129,6 +129,7 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
   const inputStyle: React.CSSProperties = {
     background: surface2, border: `1px solid ${border}`, color: text,
     borderRadius: 10, padding: "10px 12px", fontSize: 14, width: "100%", outline: "none",
+    appearance: "none",
   };
 
   // ── Violations ──
@@ -145,10 +146,18 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
   const [toast, setToast] = useState<string | null>(null);
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
 
+  // ── Loading & error states ──
+  const [saving, setSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const showError = (msg: string) => { setErrorMsg(msg); setTimeout(() => setErrorMsg(null), 4000); };
+
   // ── Actions ──
   const unseatGuest = async (guestId: string) => {
     dispatch({ type: "UPDATE_GUEST", id: guestId, data: { table_id: null, seat_index: null } });
-    if (!isDemo) await supabase.from("guests").update({ table_id: null, seat_index: null }).eq("id", guestId);
+    if (!isDemo) {
+      const { error } = await supabase.from("guests").update({ table_id: null, seat_index: null }).eq("id", guestId);
+      if (error) showError("Failed to unseat guest — changes may not save.");
+    }
   };
 
   const seatGuestToTable = async (guest: Guest, tableId: string) => {
@@ -157,14 +166,20 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
     const seated = guests.filter(g => g.table_id === tableId).length;
     if (seated >= table.capacity) return;
     dispatch({ type: "UPDATE_GUEST", id: guest.id, data: { table_id: tableId, seat_index: seated } });
-    if (!isDemo) await supabase.from("guests").update({ table_id: tableId, seat_index: seated }).eq("id", guest.id);
+    if (!isDemo) {
+      const { error } = await supabase.from("guests").update({ table_id: tableId, seat_index: seated }).eq("id", guest.id);
+      if (error) showError("Failed to save seat — changes may not persist.");
+    }
     setSeatGuest(null);
     showToast("Guest seated ✓");
   };
 
   const updateGuestRsvp = async (guest: Guest, rsvp: Rsvp) => {
     dispatch({ type: "UPDATE_GUEST", id: guest.id, data: { rsvp } });
-    if (!isDemo) await supabase.from("guests").update({ rsvp }).eq("id", guest.id);
+    if (!isDemo) {
+      const { error } = await supabase.from("guests").update({ rsvp }).eq("id", guest.id);
+      if (error) showError("Failed to update RSVP.");
+    }
   };
 
   const saveEditGuest = async () => {
@@ -178,15 +193,25 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
       allergies:  guestForm.allergies || "",
       notes:      guestForm.notes || "",
     };
+    setSaving(true);
     dispatch({ type: "UPDATE_GUEST", id: editGuest.id, data });
-    if (!isDemo) await supabase.from("guests").update(data).eq("id", editGuest.id);
+    if (!isDemo) {
+      const { error } = await supabase.from("guests").update(data).eq("id", editGuest.id);
+      if (error) { showError("Failed to save guest."); setSaving(false); return; }
+    }
+    setSaving(false);
     setEditGuest(null);
     showToast("Guest saved ✓");
   };
 
   const deleteGuest = async (id: string) => {
+    setSaving(true);
     dispatch({ type: "DELETE_GUEST", id });
-    if (!isDemo) await supabase.from("guests").delete().eq("id", id);
+    if (!isDemo) {
+      const { error } = await supabase.from("guests").delete().eq("id", id);
+      if (error) { showError("Failed to delete guest."); setSaving(false); return; }
+    }
+    setSaving(false);
     setEditGuest(null);
     showToast("Guest removed");
   };
@@ -194,10 +219,11 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
   const addGuest = async () => {
     if (!guestForm.first_name?.trim()) return;
     if (plan === "free") {
-      const { count } = await supabase
+      const { count, error: countError } = await supabase
         .from("guests")
         .select("*", { count: "exact", head: true })
         .eq("wedding_id", wedding.id);
+      if (countError) { showError("Failed to check guest count."); return; }
       if (count !== null && count >= 50) {
         showToast("Free plan limit: 50 guests. Upgrade to add more.");
         return;
@@ -211,8 +237,13 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
       allergies: guestForm.allergies || null, notes: guestForm.notes || null, group_id: null, table_id: null, seat_index: null,
       rsvp_token: crypto.randomUUID(),
     };
+    setSaving(true);
     dispatch({ type: "ADD_GUEST", payload: newGuest });
-    if (!isDemo) await supabase.from("guests").insert(newGuest);
+    if (!isDemo) {
+      const { error } = await supabase.from("guests").insert(newGuest);
+      if (error) { showError("Failed to add guest."); setSaving(false); return; }
+    }
+    setSaving(false);
     setShowAddGuest(false);
     setGuestForm({ first_name: "", last_name: "", email: "", meal: "standard", rsvp: "pending" });
     showToast("Guest added ✓");
@@ -220,15 +251,25 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
 
   const saveTableName = async () => {
     if (!editTable || !tableNameEdit.trim()) return;
+    setSaving(true);
     dispatch({ type: "UPDATE_TABLE", id: editTable.id, data: { name: tableNameEdit.trim() } });
-    if (!isDemo) await supabase.from("tables").update({ name: tableNameEdit.trim() }).eq("id", editTable.id);
+    if (!isDemo) {
+      const { error } = await supabase.from("tables").update({ name: tableNameEdit.trim() }).eq("id", editTable.id);
+      if (error) { showError("Failed to rename table."); setSaving(false); return; }
+    }
+    setSaving(false);
     setEditTable(null);
     showToast("Table renamed ✓");
   };
 
   const deleteTable = async (id: string) => {
+    setSaving(true);
     dispatch({ type: "DELETE_TABLE", id });
-    if (!isDemo) await supabase.from("tables").delete().eq("id", id);
+    if (!isDemo) {
+      const { error } = await supabase.from("tables").delete().eq("id", id);
+      if (error) { showError("Failed to delete table."); setSaving(false); return; }
+    }
+    setSaving(false);
     setEditTable(null);
     setExpandedTable(null);
     showToast("Table removed");
@@ -240,8 +281,13 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
       id: crypto.randomUUID(), wedding_id: wedding.id,
       guest1_id: ruleGuest1, guest2_id: ruleGuest2, type: ruleType,
     };
+    setSaving(true);
     dispatch({ type: "ADD_RULE", payload: newRule });
-    if (!isDemo) await supabase.from("rules").insert(newRule);
+    if (!isDemo) {
+      const { error } = await supabase.from("rules").insert(newRule);
+      if (error) { showError("Failed to add rule."); setSaving(false); return; }
+    }
+    setSaving(false);
     setShowAddRule(false);
     setRuleGuest1(""); setRuleGuest2("");
     showToast("Rule added ✓");
@@ -249,9 +295,38 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
 
   const deleteRule = async (id: string) => {
     dispatch({ type: "DELETE_RULE", id });
-    if (!isDemo) await supabase.from("rules").delete().eq("id", id);
+    if (!isDemo) {
+      const { error } = await supabase.from("rules").delete().eq("id", id);
+      if (error) showError("Failed to delete rule.");
+    }
     showToast("Rule removed");
   };
+
+  // ── CSV Export ──
+  const exportGuestCSV = useCallback(() => {
+    const rows = [
+      ["First Name", "Last Name", "Email", "Meal", "RSVP", "Table", "Allergies", "Notes"],
+      ...guests.map(g => [
+        g.first_name,
+        g.last_name ?? "",
+        g.email ?? "",
+        g.meal ?? "standard",
+        g.rsvp ?? "pending",
+        tables.find(t => t.id === g.table_id)?.name ?? "",
+        g.allergies ?? "",
+        g.notes ?? "",
+      ]),
+    ];
+    const csv = rows.map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${wedding.name.replace(/\s+/g, "_")}_guests.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast("CSV downloaded ✓");
+  }, [guests, tables, wedding.name]);
 
   const filteredGuests = guests.filter(g =>
     `${g.first_name} ${g.last_name}`.toLowerCase().includes(guestSearch.toLowerCase())
@@ -380,8 +455,8 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
                                   <button onClick={() => unseatGuest(g.id)}
                                     style={{ background:"rgba(224,92,106,0.15)", color:danger,
                                       border:`1px solid rgba(224,92,106,0.3)`, borderRadius:8,
-                                      padding:"5px 10px", fontSize:12, cursor:"pointer", fontWeight:600,
-                                      display: isDemo ? "none" : undefined }}>
+                                      padding:"8px 12px", fontSize:12, cursor:"pointer", fontWeight:600,
+                                      minHeight:44, display: isDemo ? "none" : undefined }}>
                                     Remove
                                   </button>
                                 </div>
@@ -471,20 +546,22 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
                             border:`1px solid ${rsvpColor(g.rsvp)}44`, cursor:"pointer", outline:"none" }}>
                           {RSVP_OPTIONS.map(r => <option key={r} value={r}>{RSVP_LABEL[r]}</option>)}
                         </select>
-                        <div style={{ display:"flex", gap:4 }}>
+                        <div style={{ display:"flex", gap:6 }}>
                           {/* Seat button */}
                           {!isDemo && !g.table_id && g.rsvp !== "declined" && (
                             <button onClick={() => setSeatGuest(g)}
-                              style={{ fontSize:11, padding:"3px 8px", borderRadius:6, cursor:"pointer",
-                                background:`${success}22`, color:success, border:`1px solid ${success}44`, fontWeight:600 }}>
+                              style={{ minHeight:44, minWidth:44, fontSize:12, padding:"6px 12px", borderRadius:8, cursor:"pointer",
+                                background:`${success}22`, color:success, border:`1px solid ${success}44`, fontWeight:700,
+                                display:"flex", alignItems:"center", justifyContent:"center" }}>
                               Seat
                             </button>
                           )}
                           {/* Edit */}
                           {!isDemo && (
                             <button onClick={() => { setEditGuest(g); setGuestForm({ ...g }); }}
-                              style={{ fontSize:11, padding:"3px 8px", borderRadius:6, cursor:"pointer",
-                                background:surface2, color:textMid, border:`1px solid ${border}` }}>
+                              style={{ minHeight:44, minWidth:44, fontSize:16, padding:"6px 10px", borderRadius:8, cursor:"pointer",
+                                background:surface2, color:textMid, border:`1px solid ${border}`,
+                                display:"flex", alignItems:"center", justifyContent:"center" }}>
                               ✏️
                             </button>
                           )}
@@ -595,7 +672,7 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
                 <div key={s.label} style={{ background:card, borderRadius:12, border:`1px solid ${border}`,
                   padding:"14px", textAlign:"center" }}>
                   <div style={{ fontSize:24, marginBottom:4 }}>{s.emoji}</div>
-                  <div style={{ fontSize:26, fontWeight:800, color: (s as any).color || text }}>{s.value}</div>
+                  <div style={{ fontSize:26, fontWeight:800, color: (s as { label: string; value: number; emoji: string; color?: string }).color || text }}>{s.value}</div>
                   <div style={{ fontSize:11, color:textMuted, marginTop:2 }}>{s.label}</div>
                 </div>
               ))}
@@ -637,19 +714,26 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
                 </div>
               ) : (
                 <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+                  {/* CSV — works on mobile */}
+                  <button onClick={exportGuestCSV}
+                    style={{ display:"flex", alignItems:"center", justifyContent:"space-between", minHeight:52,
+                      background:surface2, borderRadius:10, padding:"12px 14px", border:"none", cursor:"pointer", color:text, width:"100%" }}>
+                    <span style={{ fontSize:14 }}>📊 Guest List (CSV)</span>
+                    <span style={{ fontSize:12, color:accent, fontWeight:700 }}>⬇ Download</span>
+                  </button>
+                  {/* PDF exports — desktop only */}
                   {[
-                    { label:"Guest List (CSV)",     emoji:"📊" },
-                    { label:"Seating Chart (PDF)",  emoji:"📋" },
-                    { label:"Table Plan (PDF)",     emoji:"🗺️" },
+                    { label:"Seating Chart (PDF)", emoji:"📋" },
+                    { label:"Table Plan (PDF)",    emoji:"🗺️" },
                   ].map(d => (
-                    <div key={d.label} style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
+                    <div key={d.label} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", minHeight:52,
                       background:surface2, borderRadius:10, padding:"12px 14px" }}>
                       <span style={{ fontSize:14, color:text }}>{d.emoji} {d.label}</span>
-                      <span style={{ fontSize:12, color:textMuted }}>Use desktop</span>
+                      <span style={{ fontSize:12, color:textMuted }}>Desktop only</span>
                     </div>
                   ))}
                   <p style={{ fontSize:12, color:textMuted, textAlign:"center", marginTop:4 }}>
-                    Open TableMate on a desktop browser for full export options.
+                    PDF exports require a desktop browser. Guest CSV works everywhere.
                   </p>
                 </div>
               )}
@@ -717,13 +801,13 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
               <div>
                 <label style={{ fontSize:12, color:textMid, display:"block", marginBottom:5 }}>Meal</label>
-                <select value={guestForm.meal||"standard"} onChange={e=>setGuestForm(p=>({...p,meal:e.target.value as Meal}))} style={{ ...inputStyle, appearance:"none" as any }}>
+                <select value={guestForm.meal||"standard"} onChange={e=>setGuestForm(p=>({...p,meal:e.target.value as Meal}))} style={inputStyle}>
                   {MEALS_ALL.map(m=><option key={m} value={m}>{MEAL_ICON[m]??""} {m}</option>)}
                 </select>
               </div>
               <div>
                 <label style={{ fontSize:12, color:textMid, display:"block", marginBottom:5 }}>RSVP</label>
-                <select value={guestForm.rsvp||"pending"} onChange={e=>setGuestForm(p=>({...p,rsvp:e.target.value as Rsvp}))} style={{ ...inputStyle, appearance:"none" as any }}>
+                <select value={guestForm.rsvp||"pending"} onChange={e=>setGuestForm(p=>({...p,rsvp:e.target.value as Rsvp}))} style={inputStyle}>
                   {RSVP_OPTIONS.map(r=><option key={r} value={r}>{RSVP_LABEL[r]}</option>)}
                 </select>
               </div>
@@ -737,9 +821,11 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
               <input type="text" value={guestForm.notes||""} onChange={e=>setGuestForm(p=>({...p,notes:e.target.value}))} placeholder="Any notes…" style={inputStyle}/>
             </div>
             <button onClick={editGuest ? saveEditGuest : addGuest}
+              disabled={saving}
               style={{ background:accent, color:"#fff", border:"none", borderRadius:12,
-                padding:"14px", fontSize:16, fontWeight:700, cursor:"pointer", marginTop:4 }}>
-              {editGuest?"Save Changes":"Add Guest"}
+                padding:"14px", fontSize:16, fontWeight:700, cursor: saving ? "not-allowed" : "pointer",
+                marginTop:4, opacity: saving ? 0.7 : 1 }}>
+              {saving ? "Saving…" : (editGuest?"Save Changes":"Add Guest")}
             </button>
             {editGuest && (
               <button onClick={() => setConfirmModal({ message: "Delete this guest?", onConfirm: () => deleteGuest(editGuest.id) })}
@@ -821,21 +907,21 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
             <div>
               <label style={{ fontSize:12, color:textMid, display:"block", marginBottom:5 }}>Rule type</label>
-              <select value={ruleType} onChange={e=>setRuleType(e.target.value as any)} style={{ ...inputStyle, appearance:"none" as any }}>
+              <select value={ruleType} onChange={e=>setRuleType(e.target.value as "must_sit_with" | "must_not_sit_with")} style={inputStyle}>
                 <option value="must_not_sit_with">🚫 Must NOT sit together</option>
                 <option value="must_sit_with">🤝 Must sit together</option>
               </select>
             </div>
             <div>
               <label style={{ fontSize:12, color:textMid, display:"block", marginBottom:5 }}>Guest 1</label>
-              <select value={ruleGuest1} onChange={e=>setRuleGuest1(e.target.value)} style={{ ...inputStyle, appearance:"none" as any }}>
+              <select value={ruleGuest1} onChange={e=>setRuleGuest1(e.target.value)} style={inputStyle}>
                 <option value="">— Select guest —</option>
                 {guests.map(g=><option key={g.id} value={g.id}>{g.first_name} {g.last_name}</option>)}
               </select>
             </div>
             <div>
               <label style={{ fontSize:12, color:textMid, display:"block", marginBottom:5 }}>Guest 2</label>
-              <select value={ruleGuest2} onChange={e=>setRuleGuest2(e.target.value)} style={{ ...inputStyle, appearance:"none" as any }}>
+              <select value={ruleGuest2} onChange={e=>setRuleGuest2(e.target.value)} style={inputStyle}>
                 <option value="">— Select guest —</option>
                 {guests.filter(g=>g.id!==ruleGuest1).map(g=><option key={g.id} value={g.id}>{g.first_name} {g.last_name}</option>)}
               </select>
@@ -933,6 +1019,34 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
           {toast}
         </div>
       )}
+
+      {/* ── Error Toast ── */}
+      {errorMsg && (
+        <div style={{ position:"fixed", bottom: toast ? 130 : 80, left:"50%", transform:"translateX(-50%)",
+          background:"#5A1A22", color:"#FFB3BB", padding:"12px 20px", borderRadius:12,
+          fontSize:14, fontWeight:600, zIndex:999, whiteSpace:"nowrap",
+          boxShadow:"0 4px 20px rgba(0,0,0,0.4)", border:"1px solid rgba(224,92,106,0.4)",
+          maxWidth:"90vw", textAlign:"center" }}>
+          ⚠️ {errorMsg}
+        </div>
+      )}
+
+      {/* ── Saving overlay (prevent double-tap) ── */}
+      {saving && (
+        <div style={{ position:"fixed", inset:0, zIndex:500, pointerEvents:"all",
+          display:"flex", alignItems:"center", justifyContent:"center" }}>
+          <div style={{ background: dark ? "rgba(44,38,40,0.85)" : "rgba(255,255,255,0.85)",
+            borderRadius:16, padding:"20px 28px", display:"flex", alignItems:"center", gap:12,
+            boxShadow:"0 4px 24px rgba(0,0,0,0.3)", border:`1px solid ${border}` }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" style={{ animation:"spin 0.8s linear infinite" }}>
+              <circle cx="12" cy="12" r="10" stroke={border} strokeWidth="3"/>
+              <path d="M12 2 A10 10 0 0 1 22 12" stroke={accent} strokeWidth="3" strokeLinecap="round"/>
+            </svg>
+            <span style={{ fontSize:14, fontWeight:600, color:text }}>Saving…</span>
+          </div>
+        </div>
+      )}
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
     </div>
   );
