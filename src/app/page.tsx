@@ -2,6 +2,188 @@
 import Link from "next/link";
 import { useState, useEffect } from "react";
 
+/* ── Seating Chart Mockup ── */
+function SeatingChartMockup({ dark }: { dark: boolean }) {
+  const tables = [
+    { id: 1, cx: 130, cy: 120, label: "Table 1", seats: [
+      { angle: 0,   color: "#C9956E" },
+      { angle: 60,  color: "#A8C5A0" },
+      { angle: 120, color: "#C9956E" },
+      { angle: 180, color: "#E8B4A0" },
+      { angle: 240, color: "#A8C5A0" },
+      { angle: 300, color: "#C9956E" },
+    ]},
+    { id: 2, cx: 310, cy: 120, label: "Table 2", seats: [
+      { angle: 0,   color: "#A8C5A0" },
+      { angle: 60,  color: "#C9956E" },
+      { angle: 120, color: "#E8B4A0" },
+      { angle: 180, color: "#C9956E" },
+      { angle: 240, color: "#A8C5A0" },
+      { angle: 300, color: "#E8B4A0" },
+    ]},
+    { id: 3, cx: 130, cy: 270, label: "Table 3", seats: [
+      { angle: 0,   color: "#E8B4A0" },
+      { angle: 60,  color: "#C9956E" },
+      { angle: 120, color: "#A8C5A0" },
+      { angle: 180, color: "#C9956E" },
+      { angle: 240, color: "#E8B4A0" },
+      { angle: 300, color: "#A8C5A0" },
+    ]},
+    { id: 4, cx: 310, cy: 270, label: "Table 4", seats: [
+      { angle: 30,  color: "#C9956E" },
+      { angle: 90,  color: "#A8C5A0" },
+      { angle: 150, color: "#C9956E" },
+      { angle: 210, color: "#E8B4A0" },
+      { angle: 270, color: "#A8C5A0" },
+      { angle: 330, color: "#C9956E" },
+    ]},
+  ];
+
+  const panelBg  = dark ? "#1E1B1F" : "#FDFBF8";
+  const panelBorder = dark ? "#3A3540" : "#EDE8E0";
+  const canvasBg = dark ? "#161316" : "#F5F0EB";
+  const tableFill = dark ? "#2A2630" : "#FFFFFF";
+  const tableStroke = dark ? "#4A4450" : "#DDD7D0";
+  const labelColor = dark ? "#9B9098" : "#6B6068";
+  const tickBg = dark ? "#2A2630" : "#FFFFFF";
+
+  return (
+    <div className="relative w-full max-w-[480px] mx-auto select-none" aria-hidden="true">
+      {/* Browser chrome */}
+      <div
+        className="rounded-2xl overflow-hidden shadow-2xl border"
+        style={{ borderColor: panelBorder, background: panelBg }}
+      >
+        {/* Top bar */}
+        <div className="flex items-center gap-2 px-4 py-3 border-b" style={{ borderColor: panelBorder }}>
+          <span className="w-3 h-3 rounded-full bg-red-400 opacity-80" />
+          <span className="w-3 h-3 rounded-full bg-yellow-400 opacity-80" />
+          <span className="w-3 h-3 rounded-full bg-green-400 opacity-80" />
+          <div className="flex-1 mx-3 h-5 rounded-md text-xs flex items-center px-2 opacity-50" style={{ background: canvasBg, color: labelColor }}>
+            tablemate.app/app/demo
+          </div>
+        </div>
+
+        {/* App chrome: sidebar + canvas */}
+        <div className="flex" style={{ minHeight: 340 }}>
+          {/* Sidebar */}
+          <div className="w-28 border-r flex-shrink-0 p-3 flex flex-col gap-2" style={{ borderColor: panelBorder, background: panelBg }}>
+            <p className="text-xs font-semibold mb-1" style={{ color: labelColor }}>Guest List</p>
+            {[
+              { name: "Alice & Bob",  color: "#C9956E" },
+              { name: "Chen Family", color: "#A8C5A0" },
+              { name: "Rivera +2",   color: "#E8B4A0" },
+              { name: "Patel Party", color: "#C9956E" },
+              { name: "Kim & Lee",   color: "#A8C5A0" },
+            ].map((g, i) => (
+              <div key={i} className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-xs" style={{ background: canvasBg }}>
+                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: g.color }} />
+                <span className="truncate" style={{ color: labelColor }}>{g.name}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Canvas */}
+          <div className="flex-1 relative overflow-hidden" style={{ background: canvasBg }}>
+            <svg viewBox="0 0 440 390" className="w-full h-full" style={{ minHeight: 310 }}>
+              {/* Grid dots */}
+              {Array.from({ length: 10 }).map((_, row) =>
+                Array.from({ length: 14 }).map((_, col) => (
+                  <circle
+                    key={`${row}-${col}`}
+                    cx={col * 34 + 10} cy={row * 40 + 10}
+                    r={1} fill={dark ? "#3A3540" : "#DDD7D0"} opacity={0.5}
+                  />
+                ))
+              )}
+
+              {tables.map((t) => {
+                const R = 36; // table radius
+                const sr = 10; // seat radius offset from table edge
+                return (
+                  <g key={t.id}>
+                    {/* Seats */}
+                    {t.seats.map((s, si) => {
+                      const rad = (s.angle * Math.PI) / 180;
+                      const sx = t.cx + (R + sr) * Math.cos(rad);
+                      const sy = t.cy + (R + sr) * Math.sin(rad);
+                      return (
+                        <circle key={si} cx={sx} cy={sy} r={7} fill={s.color} opacity={0.9}>
+                          <animate
+                            attributeName="opacity"
+                            values="0.9;0.65;0.9"
+                            dur={`${2.4 + si * 0.3}s`}
+                            repeatCount="indefinite"
+                            begin={`${si * 0.15}s`}
+                          />
+                          <animate
+                            attributeName="r"
+                            values="7;7.8;7"
+                            dur={`${2.4 + si * 0.3}s`}
+                            repeatCount="indefinite"
+                            begin={`${si * 0.15}s`}
+                          />
+                        </circle>
+                      );
+                    })}
+                    {/* Table circle */}
+                    <circle cx={t.cx} cy={t.cy} r={R} fill={tableFill} stroke={tableStroke} strokeWidth={1.5} />
+                    <text x={t.cx} y={t.cy - 6} textAnchor="middle" fontSize={9} fill={labelColor} fontWeight="600">{t.label}</text>
+                    <text x={t.cx} y={t.cy + 7} textAnchor="middle" fontSize={8} fill={labelColor} opacity={0.7}>{t.seats.length} seats</text>
+                  </g>
+                );
+              })}
+
+              {/* Dragging guest card animation */}
+              <g>
+                <animateTransform
+                  attributeName="transform"
+                  type="translate"
+                  values="220,330; 230,260; 248,200; 250,145"
+                  keyTimes="0;0.3;0.6;1"
+                  dur="3s"
+                  repeatCount="indefinite"
+                  calcMode="spline"
+                  keySplines="0.4 0 0.2 1; 0.4 0 0.2 1; 0.4 0 0.2 1"
+                />
+                <rect x={-38} y={-14} width={76} height={26} rx={6}
+                  fill={dark ? "#2A2630" : "#FFFFFF"}
+                  stroke="#C9956E" strokeWidth={1.5}
+                  style={{ filter: "drop-shadow(0 2px 6px rgba(201,149,110,0.35))" }}
+                />
+                <circle cx={-22} cy={0} r={5} fill="#C9956E" />
+                <rect x={-12} y={-4} width={38} height={4} rx={2} fill={dark ? "#4A4450" : "#DDD7D0"} />
+                <rect x={-12} y={3} width={24} height={3} rx={1.5} fill={dark ? "#3A3540" : "#EDE8E0"} />
+              </g>
+
+              {/* Tick badge on table 2 */}
+              <g transform="translate(342, 90)">
+                <circle r={11} fill={tickBg} stroke="#A8C5A0" strokeWidth={1.5} />
+                <text textAnchor="middle" y={4} fontSize={11} fill="#A8C5A0">✓</text>
+              </g>
+            </svg>
+          </div>
+        </div>
+
+        {/* Status bar */}
+        <div className="px-4 py-2 border-t flex items-center gap-3 text-xs" style={{ borderColor: panelBorder, color: labelColor }}>
+          <span className="w-2 h-2 rounded-full bg-green-400" />
+          <span>24 / 50 guests seated</span>
+          <span className="ml-auto">4 tables · 2 unassigned</span>
+        </div>
+      </div>
+
+      {/* Floating decorative badge */}
+      <div
+        className="absolute -bottom-4 -left-4 px-3 py-2 rounded-xl border shadow-lg text-xs font-semibold hidden sm:flex items-center gap-2"
+        style={{ background: panelBg, borderColor: panelBorder, color: "#C9956E" }}
+      >
+        🎉 Drag & drop ready
+      </div>
+    </div>
+  );
+}
+
 const BASE_URL = "https://tablemate-beta.vercel.app";
 
 const softwareApplicationJsonLd = {
@@ -83,6 +265,7 @@ const faqs = [
 export default function LandingPage() {
   const [dark, setDark] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [mobileBanner, setMobileBanner] = useState(true);
 
   // Build FAQPage JSON-LD from faqs array
   const faqPageJsonLd = {
@@ -162,28 +345,52 @@ export default function LandingPage() {
         </div>
       </header>
 
+      {/* Mobile desktop banner */}
+      {mobileBanner && (
+        <div className="md:hidden flex items-center justify-between gap-3 px-4 py-2.5 bg-amber-50 border-b border-amber-200 text-amber-800 text-sm">
+          <span>💻 <strong>Best experienced on desktop</strong> — full drag-and-drop on a bigger screen.</span>
+          <button
+            onClick={() => setMobileBanner(false)}
+            className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full hover:bg-amber-200 transition-colors font-bold text-amber-600"
+            aria-label="Dismiss"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* ── Hero ── */}
-      <section className="max-w-6xl mx-auto px-6 pt-24 pb-20 text-center">
-        <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#FDF4EC] border border-[#EDD5BC] rounded-full text-xs text-[#C9956E] font-medium mb-8">
-          ✨ Free to start — no credit card required
+      <section className="max-w-6xl mx-auto px-6 pt-24 pb-20">
+        <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-16">
+          {/* Left: text */}
+          <div className="flex-1 text-center lg:text-left">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#FDF4EC] border border-[#EDD5BC] rounded-full text-xs text-[#C9956E] font-medium mb-8">
+              ✨ Free to start — no credit card required
+            </div>
+            <h1 className={`font-playfair text-5xl md:text-6xl font-bold ${text} leading-tight mb-6`}>
+              Plan Your Perfect Wedding<br/>
+              <span className="text-[#C9956E]">Seating — Free</span>
+            </h1>
+            <p className={`text-lg ${muted} max-w-2xl mx-auto lg:mx-0 mb-10 leading-relaxed`}>
+              Drag-and-drop tables, manage 500+ guests, handle meal preferences,
+              send RSVP invites, and export beautiful printable charts — all in one place.
+            </p>
+            <div className="flex items-center justify-center lg:justify-start gap-4 flex-wrap mb-4">
+              <Link href="/signup"   className="px-8 py-4 bg-[#C9956E] hover:bg-[#B8845D] text-white font-semibold rounded-xl text-lg transition-colors shadow-lg shadow-[#C9956E]/20">
+                Start Planning Free
+              </Link>
+              <Link href="/app/demo" className={`px-8 py-4 border ${dark ? "border-[#3A3540] hover:border-[#C9956E] text-[#F0EBE8]" : "border-[#DDD7D0] hover:border-[#C9956E] text-[#2A2328]"} font-semibold rounded-xl text-lg transition-colors`}>
+                Try the Demo →
+              </Link>
+            </div>
+            <p className={`text-sm ${dark ? "text-[#6B6068]" : "text-[#9B9098]"}`}>Free forever for small weddings · No account needed to try</p>
+          </div>
+
+          {/* Right: animated mockup */}
+          <div className="hidden md:flex flex-1 items-center justify-center lg:justify-end">
+            <SeatingChartMockup dark={dark} />
+          </div>
         </div>
-        <h1 className={`font-playfair text-5xl md:text-6xl font-bold ${text} leading-tight mb-6`}>
-          Plan Your Perfect Wedding<br/>
-          <span className="text-[#C9956E]">Seating — Free</span>
-        </h1>
-        <p className={`text-lg ${muted} max-w-2xl mx-auto mb-10 leading-relaxed`}>
-          Drag-and-drop tables, manage 500+ guests, handle meal preferences,
-          send RSVP invites, and export beautiful printable charts — all in one place.
-        </p>
-        <div className="flex items-center justify-center gap-4 flex-wrap mb-4">
-          <Link href="/signup"   className="px-8 py-4 bg-[#C9956E] hover:bg-[#B8845D] text-white font-semibold rounded-xl text-lg transition-colors shadow-lg shadow-[#C9956E]/20">
-            Start Planning Free
-          </Link>
-          <Link href="/app/demo" className={`px-8 py-4 border ${dark ? "border-[#3A3540] hover:border-[#C9956E] text-[#F0EBE8]" : "border-[#DDD7D0] hover:border-[#C9956E] text-[#2A2328]"} font-semibold rounded-xl text-lg transition-colors`}>
-            Try the Demo →
-          </Link>
-        </div>
-        <p className={`text-sm ${dark ? "text-[#6B6068]" : "text-[#9B9098]"}`}>Free forever for small weddings · No account needed to try</p>
       </section>
 
       {/* ── Social Proof ── */}

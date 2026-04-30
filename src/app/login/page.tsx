@@ -11,6 +11,14 @@ function LoginForm() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [dark, setDark] = useState(false);
+
+  // Forgot password state
+  const [showForgot, setShowForgot] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotError, setForgotError] = useState("");
+  const [forgotSuccess, setForgotSuccess] = useState(false);
+
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirectTo") || "/app";
@@ -48,6 +56,29 @@ function LoginForm() {
     });
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotError("");
+    setForgotLoading(true);
+    const supabase = createClient();
+    const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
+      redirectTo: `${window.location.origin}/auth/callback`,
+    });
+    setForgotLoading(false);
+    if (error) {
+      setForgotError(error.message);
+    } else {
+      setForgotSuccess(true);
+    }
+  };
+
+  const closeForgot = () => {
+    setShowForgot(false);
+    setForgotEmail("");
+    setForgotError("");
+    setForgotSuccess(false);
+  };
+
   const bg = dark ? "#1A1718" : "#FDFBF8";
   const card = dark ? "#2A2328" : "#FFFFFF";
   const border = dark ? "#3D3538" : "#EDE8E0";
@@ -56,6 +87,9 @@ function LoginForm() {
   const inputBg = dark ? "#1A1718" : "#FFFFFF";
   const inputBorder = dark ? "#4D4548" : "#DDD7D0";
   const dividerColor = dark ? "#3D3538" : "#EDE8E0";
+  const overlayBg = dark ? "rgba(0,0,0,0.6)" : "rgba(0,0,0,0.35)";
+  const modalBg = dark ? "#2A2328" : "#FFFFFF";
+  const modalBorder = dark ? "#3D3538" : "#EDE8E0";
 
   return (
     <div style={{ minHeight: "100vh", background: bg, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 1rem", transition: "background 0.2s" }}>
@@ -96,6 +130,12 @@ function LoginForm() {
               <label style={{ display: "block", fontSize: 14, fontWeight: 500, color: textPrimary, marginBottom: 4 }}>Password</label>
               <input type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="••••••••"
                 style={{ width: "100%", padding: "10px 12px", border: `1px solid ${inputBorder}`, borderRadius: 8, fontSize: 14, background: inputBg, color: textPrimary, outline: "none", boxSizing: "border-box" }} />
+              <div style={{ textAlign: "right", marginTop: 6 }}>
+                <button type="button" onClick={() => { setShowForgot(true); setForgotEmail(email); }}
+                  style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "#C9956E", padding: 0, fontWeight: 500 }}>
+                  Forgot password?
+                </button>
+              </div>
             </div>
             <button type="submit" disabled={loading}
               style={{ width: "100%", padding: "12px 0", background: "#C9956E", color: "#fff", fontWeight: 600, fontSize: 14, border: "none", borderRadius: 8, cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.6 : 1, transition: "background 0.2s" }}>
@@ -109,6 +149,54 @@ function LoginForm() {
           </p>
         </div>
       </div>
+
+      {/* Forgot Password Modal */}
+      {showForgot && (
+        <div
+          onClick={e => { if (e.target === e.currentTarget) closeForgot(); }}
+          style={{ position: "fixed", inset: 0, background: overlayBg, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50, padding: "0 1rem" }}
+        >
+          <div style={{ background: modalBg, border: `1px solid ${modalBorder}`, borderRadius: 16, padding: 28, width: "100%", maxWidth: 380, boxShadow: "0 8px 32px rgba(0,0,0,0.18)", position: "relative" }}>
+            {/* Close button */}
+            <button onClick={closeForgot}
+              style={{ position: "absolute", top: 14, right: 14, background: "none", border: "none", cursor: "pointer", fontSize: 20, color: textSecondary, lineHeight: 1, padding: 4 }}
+              aria-label="Close">
+              ×
+            </button>
+
+            <h2 style={{ fontFamily: "Georgia, serif", fontSize: 20, fontWeight: 700, color: textPrimary, margin: "0 0 6px" }}>Reset your password</h2>
+            <p style={{ fontSize: 13, color: textSecondary, margin: "0 0 20px" }}>Enter your email and we&apos;ll send you a reset link.</p>
+
+            {forgotSuccess ? (
+              <div style={{ padding: 12, background: "#dcfce7", border: "1px solid #86efac", borderRadius: 8, fontSize: 14, color: "#166534", textAlign: "center" }}>
+                ✅ Check your inbox — a reset link is on its way!
+              </div>
+            ) : (
+              <form onSubmit={handleForgotPassword} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                {forgotError && (
+                  <div style={{ padding: 10, background: "#fee2e2", border: "1px solid #fca5a5", borderRadius: 8, fontSize: 13, color: "#b91c1c" }}>{forgotError}</div>
+                )}
+                <div>
+                  <label style={{ display: "block", fontSize: 13, fontWeight: 500, color: textPrimary, marginBottom: 4 }}>Email address</label>
+                  <input
+                    type="email"
+                    value={forgotEmail}
+                    onChange={e => setForgotEmail(e.target.value)}
+                    required
+                    placeholder="you@example.com"
+                    autoFocus
+                    style={{ width: "100%", padding: "10px 12px", border: `1px solid ${inputBorder}`, borderRadius: 8, fontSize: 14, background: inputBg, color: textPrimary, outline: "none", boxSizing: "border-box" }}
+                  />
+                </div>
+                <button type="submit" disabled={forgotLoading}
+                  style={{ width: "100%", padding: "11px 0", background: "#C9956E", color: "#fff", fontWeight: 600, fontSize: 14, border: "none", borderRadius: 8, cursor: forgotLoading ? "not-allowed" : "pointer", opacity: forgotLoading ? 0.6 : 1 }}>
+                  {forgotLoading ? "Sending…" : "Send Reset Link"}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
