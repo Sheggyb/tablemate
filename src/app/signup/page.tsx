@@ -5,9 +5,22 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter, useSearchParams } from "next/navigation";
 
+function getPasswordStrength(pw: string): { label: string; color: string; width: string } | null {
+  if (!pw) return null;
+  const hasUpper = /[A-Z]/.test(pw);
+  const hasLower = /[a-z]/.test(pw);
+  const hasDigit = /\d/.test(pw);
+  const hasSpecial = /[^A-Za-z0-9]/.test(pw);
+  const score = [pw.length >= 8, pw.length >= 12, hasUpper, hasLower, hasDigit, hasSpecial].filter(Boolean).length;
+  if (score <= 2) return { label: "Weak", color: "#ef4444", width: "33%" };
+  if (score <= 4) return { label: "Medium", color: "#f59e0b", width: "66%" };
+  return { label: "Strong", color: "#22c55e", width: "100%" };
+}
+
 function SignupForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
@@ -31,6 +44,10 @@ function SignupForm() {
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
     setLoading(true);
     const supabase = createClient();
     const { error } = await supabase.auth.signUp({
@@ -65,6 +82,9 @@ function SignupForm() {
   const inputBg = dark ? "#1A1718" : "#FFFFFF";
   const inputBorder = dark ? "#4D4548" : "#DDD7D0";
   const dividerColor = dark ? "#3D3538" : "#EDE8E0";
+
+  const strength = getPasswordStrength(password);
+  const passwordsMatch = confirmPassword === "" || password === confirmPassword;
 
   if (success) {
     return (
@@ -123,9 +143,26 @@ function SignupForm() {
               <label style={{ display: "block", fontSize: 14, fontWeight: 500, color: textPrimary, marginBottom: 4 }}>Password</label>
               <input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} placeholder="At least 8 characters"
                 style={{ width: "100%", padding: "10px 12px", border: `1px solid ${inputBorder}`, borderRadius: 8, fontSize: 14, background: inputBg, color: textPrimary, outline: "none", boxSizing: "border-box" }} />
+              {/* Password strength indicator */}
+              {strength && (
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ height: 4, borderRadius: 4, background: dark ? "#3D3538" : "#EDE8E0", overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: strength.width, background: strength.color, borderRadius: 4, transition: "width 0.3s, background 0.3s" }} />
+                  </div>
+                  <span style={{ fontSize: 12, color: strength.color, fontWeight: 500, marginTop: 4, display: "inline-block" }}>{strength.label}</span>
+                </div>
+              )}
             </div>
-            <button type="submit" disabled={loading}
-              style={{ width: "100%", padding: "12px 0", background: "#C9956E", color: "#fff", fontWeight: 600, fontSize: 14, border: "none", borderRadius: 8, cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.6 : 1 }}>
+            <div>
+              <label style={{ display: "block", fontSize: 14, fontWeight: 500, color: textPrimary, marginBottom: 4 }}>Confirm password</label>
+              <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required placeholder="Re-enter your password"
+                style={{ width: "100%", padding: "10px 12px", border: `1px solid ${!passwordsMatch ? "#ef4444" : inputBorder}`, borderRadius: 8, fontSize: 14, background: inputBg, color: textPrimary, outline: "none", boxSizing: "border-box" }} />
+              {!passwordsMatch && (
+                <span style={{ fontSize: 12, color: "#ef4444", marginTop: 4, display: "inline-block" }}>Passwords don&apos;t match</span>
+              )}
+            </div>
+            <button type="submit" disabled={loading || !passwordsMatch}
+              style={{ width: "100%", padding: "12px 0", background: "#C9956E", color: "#fff", fontWeight: 600, fontSize: 14, border: "none", borderRadius: 8, cursor: (loading || !passwordsMatch) ? "not-allowed" : "pointer", opacity: (loading || !passwordsMatch) ? 0.6 : 1 }}>
               {loading ? "Creating account…" : "Create Free Account"}
             </button>
           </form>
