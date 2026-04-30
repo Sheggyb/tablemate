@@ -131,12 +131,55 @@ export default function AppDashboard() {
         </div>
 
         {weddings.length === 0 ? (
-          <div className="text-center py-20">
-            <div className="text-6xl mb-4">💍</div>
-            <h2 className={`font-playfair text-2xl font-bold ${text} mb-2`}>Plan your perfect day</h2>
-            <p className={`${muted} mb-8 max-w-sm mx-auto`}>Create your first wedding to start building your seating chart.</p>
-            <Link href="/app/new" className="inline-block px-6 py-3 bg-[#C9956E] hover:bg-[#B8845D] text-white font-semibold rounded-xl transition-colors">
-              Create Your Wedding
+          <div className="flex flex-col items-center text-center py-20 px-4">
+            {/* SVG Illustration – interlocked rings with flowers */}
+            <svg width="180" height="120" viewBox="0 0 180 120" fill="none" className="mb-8 drop-shadow-sm" aria-hidden="true">
+              {/* Left ring */}
+              <circle cx="68" cy="60" r="36" stroke="#C9956E" strokeWidth="6" fill="none" />
+              {/* Right ring */}
+              <circle cx="112" cy="60" r="36" stroke="#D4A882" strokeWidth="6" fill="none" />
+              {/* Tiny flower on left ring */}
+              <g transform="translate(36,30)">
+                {[0,60,120,180,240,300].map((deg, i) => (
+                  <ellipse key={i} cx={Math.cos(deg * Math.PI/180) * 5} cy={Math.sin(deg * Math.PI/180) * 5} rx="4" ry="2.5" fill="#EDD5BC" transform={`rotate(${deg},0,0)`} />
+                ))}
+                <circle cx="0" cy="0" r="3" fill="#C9956E" />
+              </g>
+              {/* Tiny flower on right ring */}
+              <g transform="translate(144,88)">
+                {[0,60,120,180,240,300].map((deg, i) => (
+                  <ellipse key={i} cx={Math.cos(deg * Math.PI/180) * 5} cy={Math.sin(deg * Math.PI/180) * 5} rx="4" ry="2.5" fill="#EDD5BC" transform={`rotate(${deg},0,0)`} />
+                ))}
+                <circle cx="0" cy="0" r="3" fill="#C9956E" />
+              </g>
+              {/* Small hearts */}
+              <text x="86" y="65" fontSize="14" textAnchor="middle" fill="#C9956E">♥</text>
+            </svg>
+
+            <h2 className={`font-playfair text-3xl font-bold ${text} mb-3`}>Plan your perfect day</h2>
+            <p className={`${muted} mb-8 max-w-sm mx-auto text-base leading-relaxed`}>
+              Create your first wedding and let TableMate handle the seating chaos.
+            </p>
+
+            {/* Benefit bullets */}
+            <ul className="mb-10 space-y-3 text-left max-w-xs w-full">
+              {[
+                { icon: "🪑", text: "AI-powered seating that respects your preferences" },
+                { icon: "📩", text: "Beautiful RSVP links your guests will love" },
+                { icon: "⚡", text: "Set up a full seating chart in minutes, not hours" },
+              ].map(b => (
+                <li key={b.icon} className="flex items-start gap-3">
+                  <span className="text-xl leading-tight">{b.icon}</span>
+                  <span className={`text-sm ${muted} leading-snug`}>{b.text}</span>
+                </li>
+              ))}
+            </ul>
+
+            <Link
+              href="/app/new"
+              className="inline-flex items-center gap-2 px-8 py-3.5 bg-[#C9956E] hover:bg-[#B8845D] text-white font-semibold text-base rounded-xl transition-colors shadow-md hover:shadow-lg"
+            >
+              ✨ Create your first wedding
             </Link>
           </div>
         ) : (
