@@ -265,7 +265,7 @@ export default function ChartCanvas({
               </div>
               <div>
                 <label className="text-xs mb-1 block" style={{ color: cs.textMuted }}>Seats: {customCap}</label>
-                <input type="range" min={2} max={10} value={customCap}
+                <input type="range" min={2} max={30} value={customCap}
                   onChange={e => setCustomCap(+e.target.value)} className="w-full"/>
               </div>
               <button onClick={addCustomTable}
@@ -472,7 +472,7 @@ export default function ChartCanvas({
             <div className="px-4 py-2 border-b" style={{ borderColor: cs.border }}>
               <label className="text-xs mb-1 block" style={{ color: cs.textMuted }}>Capacity</label>
               <div className="flex items-center gap-2">
-                <input type="range" min={2} max={10} defaultValue={table.capacity}
+                <input type="range" min={2} max={30} defaultValue={table.capacity}
                   onMouseUp={e => onUpdateTable(table.id, { capacity: +(e.target as HTMLInputElement).value })}
                   className="flex-1"/>
                 <span className="text-xs w-6 text-right" style={{ color: cs.text }}>{table.capacity}</span>
