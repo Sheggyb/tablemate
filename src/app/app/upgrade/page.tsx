@@ -2,8 +2,22 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
 
 const plans = [
+  {
+    key: "free",
+    name: "Free",
+    price: "Free",
+    period: "",
+    desc: "Get started with the basics",
+    features: [
+      "1 wedding",
+      "Up to 50 guests",
+      "Basic seating chart",
+      "Drag & drop tables",
+    ],
+  },
   {
     key: "couple",
     name: "Couple",
@@ -11,6 +25,7 @@ const plans = [
     period: "one-time",
     desc: "Perfect for couples planning their big day",
     features: [
+      "1 wedding",
       "Unlimited guests",
       "Cloud save & sync across devices",
       "Share link with partner/planner",
@@ -40,7 +55,8 @@ const plans = [
     period: "/month",
     desc: "For wedding professionals",
     features: [
-      "Unlimited weddings",
+      "999 weddings",
+      "Unlimited guests",
       "Client portals",
       "White-label option",
       "Multi-wedding dashboard",
@@ -51,10 +67,22 @@ const plans = [
 
 export default function UpgradePage() {
   const [dark, setDark] = useState(false);
+  const [currentPlan, setCurrentPlan] = useState<string>("free");
 
   useEffect(() => {
     const saved = localStorage.getItem("tm-theme");
     if (saved === "dark") setDark(true);
+    // Fetch the user's current plan
+    const supabase = createClient();
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) return;
+      const { data } = await supabase
+        .from("profiles")
+        .select("plan")
+        .eq("id", user.id)
+        .single();
+      if (data?.plan) setCurrentPlan(data.plan);
+    });
   }, []);
 
   const toggleDark = () => {
@@ -67,6 +95,7 @@ export default function UpgradePage() {
   const [toast, setToast] = useState<string | null>(null);
 
   const handleUpgrade = async (plan: string) => {
+    if (plan === "free") return;
     setLoading(plan);
     const res = await fetch("/api/stripe/checkout", {
       method: "POST",
@@ -84,10 +113,8 @@ export default function UpgradePage() {
   const text     = dark ? "text-[#F0EBE8]" : "text-[#2A2328]";
   const muted    = dark ? "text-[#9B9098]" : "text-[#6B6068]";
   const card     = dark ? "bg-[#242028] border-[#3A3540]" : "bg-white border-[#EDE8E0]";
-  const cardHighlight = dark ? "bg-[#242028] border-[#C9956E]" : "bg-white border-[#C9956E]";
   const shadowHighlight = dark ? "shadow-[#C9956E]/10" : "shadow-[#C9956E]/10";
   const featureText = dark ? "text-[#9B9098]" : "text-[#4A4348]";
-  const footerBorder = dark ? "border-[#3A3540]" : "border-[#EDE8E0]";
 
   return (
     <div className={`min-h-screen ${bg} transition-colors duration-200`}>
@@ -95,7 +122,7 @@ export default function UpgradePage() {
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <Link href="/app" className="flex items-center gap-2">
             <span className="text-[#C9956E]">♥</span>
-            <span className="font-playfair font-semibold" style={{ color: text }}>TableMate</span>
+            <span className="font-playfair font-semibold" style={{ color: dark ? "#F0EBE8" : "#2A2328" }}>TableMate</span>
           </Link>
           <div className="flex items-center gap-3">
             <button onClick={toggleDark}
@@ -103,53 +130,84 @@ export default function UpgradePage() {
               style={dark ? { borderColor: "#3A3540", backgroundColor: "#2A2630", color: "#F0EBE8" } : { borderColor: "#EDE8E0", backgroundColor: "white", color: "#6B6068" }}>
               {dark ? "☀️" : "🌙"}
             </button>
-            <Link href="/app" className="text-sm" style={{ color: muted }}>← Back</Link>
+            <Link href="/app" className={`text-sm ${muted}`}>← Back</Link>
           </div>
         </div>
       </header>
 
       <main className="max-w-5xl mx-auto px-6 py-16">
-        <div className="text-center mb-12">
-          <h1 className="font-playfair text-4xl font-bold mb-3" style={{ color: text }}>Upgrade TableMate</h1>
-          <p className={muted + " max-w-lg mx-auto"}>One-time payment. No subscriptions for couples. Secure checkout via Stripe.</p>
+        <div className="text-center mb-4">
+          <h1 className={`font-playfair text-4xl font-bold mb-3 ${text}`}>Upgrade TableMate</h1>
+          <p className={`${muted} max-w-lg mx-auto`}>One-time payment. No subscriptions for couples. Secure checkout via Stripe.</p>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6">
-          {plans.map(plan => (
-            <div key={plan.key} className={`rounded-2xl border p-8 relative ${plan.highlighted ? "border-[#C9956E] shadow-xl " + shadowHighlight : card}`}>
-              {plan.highlighted && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-[#C9956E] text-white text-xs font-bold rounded-full whitespace-nowrap">
-                  ✨ Most Popular
+        {/* Beta notice */}
+        <div className="flex justify-center mb-10">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium"
+            style={{ background: "rgba(201,149,110,0.12)", color: "#C9956E", border: "1px solid rgba(201,149,110,0.3)" }}>
+            🎉 <span><strong>Beta:</strong> all features are currently free for all users</span>
+          </div>
+        </div>
+
+        <div className="grid md:grid-cols-4 gap-5">
+          {plans.map(plan => {
+            const isCurrent = currentPlan === plan.key;
+            const isHighlighted = plan.highlighted;
+            return (
+              <div key={plan.key} className={`rounded-2xl border p-6 relative flex flex-col ${
+                isHighlighted
+                  ? `border-[#C9956E] shadow-xl ${shadowHighlight} ${dark ? "bg-[#242028]" : "bg-white"}`
+                  : card
+              }`}>
+                {isHighlighted && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-[#C9956E] text-white text-xs font-bold rounded-full whitespace-nowrap">
+                    ✨ Most Popular
+                  </div>
+                )}
+                {isCurrent && (
+                  <div className="absolute -top-3 right-4 px-3 py-1 bg-emerald-500 text-white text-xs font-bold rounded-full whitespace-nowrap">
+                    ✓ Current Plan
+                  </div>
+                )}
+                <div className="flex-1">
+                  <h2 className={`font-playfair text-xl font-bold mb-1 ${text}`}>{plan.name}</h2>
+                  <div className="flex items-baseline gap-1 mb-1">
+                    <span className={`text-2xl font-bold ${text}`}>{plan.price}</span>
+                    {plan.period && <span className="text-sm text-[#9B9098]">{plan.period}</span>}
+                  </div>
+                  <p className={`text-sm ${muted} mb-5`}>{plan.desc}</p>
+                  <ul className="space-y-2.5 mb-6">
+                    {plan.features.map(f => (
+                      <li key={f} className={`flex items-start gap-2 text-sm ${featureText}`}>
+                        <span className="text-[#C9956E] mt-0.5 flex-shrink-0">✓</span>
+                        <span>{f}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
-              )}
-              <h2 className="font-playfair text-2xl font-bold mb-1" style={{ color: text }}>{plan.name}</h2>
-              <div className="flex items-baseline gap-1 mb-1">
-                <span className="text-3xl font-bold" style={{ color: text }}>{plan.price}</span>
-                <span className="text-sm text-[#9B9098]">{plan.period}</span>
+                <button
+                  onClick={() => handleUpgrade(plan.key)}
+                  disabled={loading === plan.key || isCurrent || plan.key === "free"}
+                  className={`w-full py-2.5 rounded-xl font-semibold text-sm transition-colors disabled:opacity-60 ${
+                    isCurrent
+                      ? "border"
+                      : isHighlighted
+                        ? "bg-[#C9956E] hover:bg-[#B8845D] text-white"
+                        : "border hover:border-[#C9956E]"
+                  }`}
+                  style={(!isHighlighted || isCurrent) ? { color: dark ? "#F0EBE8" : "#2A2328", borderColor: "#DDD7D0" } : {}}
+                >
+                  {loading === plan.key
+                    ? "Loading…"
+                    : isCurrent
+                      ? "Current Plan"
+                      : plan.key === "free"
+                        ? "Free Forever"
+                        : `Get ${plan.name}`}
+                </button>
               </div>
-              <p className={`text-sm ${muted} mb-6`}>{plan.desc}</p>
-              <ul className="space-y-3 mb-8">
-                {plan.features.map(f => (
-                  <li key={f} className={`flex items-start gap-2 text-sm ${featureText}`}>
-                    <span className="text-[#C9956E] mt-0.5 flex-shrink-0">✓</span>
-                    <span>{f}</span>
-                  </li>
-                ))}
-              </ul>
-              <button
-                onClick={() => handleUpgrade(plan.key)}
-                disabled={loading === plan.key}
-                className={`w-full py-3 rounded-xl font-semibold text-sm transition-colors disabled:opacity-60 ${
-                  plan.highlighted
-                    ? "bg-[#C9956E] hover:bg-[#B8845D] text-white"
-                    : "border hover:border-[#C9956E]"
-                }`}
-                style={!plan.highlighted ? { color: text, borderColor: "#DDD7D0" } : {}}
-              >
-                {loading === plan.key ? "Loading…" : `Get ${plan.name}`}
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <p className="text-center text-xs text-[#9B9098] mt-8">

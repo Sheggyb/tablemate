@@ -40,6 +40,7 @@ export default function GuestPanel({
   onBulkUpdate, onBulkDelete, onImportCsv, onAddGroup, showToast,
 }: Props) {
   const [sendingRsvp, setSendingRsvp] = useState<string | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{ message: string; onConfirm: () => void } | null>(null);
 
   const sendRsvp = async (g: Guest) => {
     if (!g.email) { showToast?.("Guest has no email address.", "error"); return; }
@@ -281,7 +282,7 @@ export default function GuestPanel({
               className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white"
               style={{ background: cs.accent }}>Apply</button>
           )}
-          <button onClick={() => { if (confirm(`Delete ${selected.size} guests?`)) { onBulkDelete([...selected]); clearSel(); } }}
+          <button onClick={() => { setConfirmModal({ message: `Delete ${selected.size} guest${selected.size > 1 ? "s" : ""}?`, onConfirm: () => { onBulkDelete([...selected]); clearSel(); } }); }}
             className="px-3 py-1.5 rounded-lg text-xs font-semibold"
             style={{ color: "var(--danger)", border: "1px solid rgba(224,92,106,0.3)" }}>
             🗑 Delete
@@ -382,7 +383,7 @@ export default function GuestPanel({
                           style={{ color: cs.accent }}>Edit</button>
                       )}
                       {!isDemo && (
-                        <button onClick={() => { if (confirm(`Remove ${g.first_name}?`)) onDeleteGuest(g.id); }}
+                        <button onClick={() => { setConfirmModal({ message: `Remove ${g.first_name}?`, onConfirm: () => onDeleteGuest(g.id) }); }}
                           className="opacity-0 group-hover:opacity-100 text-xs transition-opacity hover:opacity-70"
                           style={{ color: "var(--danger)" }}>✕</button>
                       )}
@@ -475,6 +476,24 @@ export default function GuestPanel({
                 style={{ background: cs.accent }}>
                 {editGuest ? "Save Changes" : "Add Guest"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Modal */}
+      {confirmModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="rounded-2xl p-6 w-full max-w-sm shadow-2xl"
+            style={{ background: cs.surface, border: `1px solid ${cs.border}` }}>
+            <p className="text-sm font-medium mb-5" style={{ color: cs.text }}>{confirmModal.message}</p>
+            <div className="flex gap-3">
+              <button onClick={() => setConfirmModal(null)}
+                className="flex-1 py-2.5 rounded-xl text-sm hover:opacity-80"
+                style={{ border: `1px solid ${cs.borderSoft}`, color: cs.textSoft }}>Cancel</button>
+              <button onClick={() => { confirmModal.onConfirm(); setConfirmModal(null); }}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white hover:opacity-90"
+                style={{ background: "#E05C6A" }}>Delete</button>
             </div>
           </div>
         </div>

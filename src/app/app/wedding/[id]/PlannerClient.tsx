@@ -318,8 +318,15 @@ export default function PlannerClient({
       const data = await res.json();
       if (data.error) { showToast(`AI: ${data.error}`, "error"); }
       else {
+        // Re-fetch guests from DB to get updated table_id + seat_index, then
+        // dispatch individual UPDATE_GUEST actions to avoid overwriting other
+        // state slices with a potentially-stale closure snapshot.
         const { data: fresh } = await supabase.from("guests").select("*").eq("wedding_id", wedding.id).order("last_name");
-        if (fresh) dispatch({ type: "SET_ALL", payload: { ...state, guests: fresh } });
+        if (fresh) {
+          for (const g of fresh) {
+            dispatch({ type: "UPDATE_GUEST", id: g.id, data: { table_id: g.table_id, seat_index: g.seat_index } });
+          }
+        }
         showToast(`🤖 ${data.message}`, "success");
       }
     } catch { showToast("AI request failed", "error"); }
