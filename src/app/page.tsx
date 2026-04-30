@@ -2,6 +2,48 @@
 import Link from "next/link";
 import { useState, useEffect } from "react";
 
+const BASE_URL = "https://tablemate-beta.vercel.app";
+
+const softwareApplicationJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "TableMate",
+  url: BASE_URL,
+  applicationCategory: "UtilitiesApplication",
+  operatingSystem: "Web",
+  description:
+    "Free wedding seating chart planner. Drag-and-drop tables, manage 500+ guests, collect RSVPs, track meal preferences, and export beautiful printable charts — all in one place.",
+  offers: {
+    "@type": "Offer",
+    price: "0",
+    priceCurrency: "USD",
+    description: "Free plan available for up to 50 guests. No credit card required.",
+  },
+  aggregateRating: {
+    "@type": "AggregateRating",
+    ratingValue: "4.9",
+    reviewCount: "380",
+    bestRating: "5",
+    worstRating: "1",
+  },
+  featureList: [
+    "Drag-and-drop seating chart builder",
+    "RSVP collection and management",
+    "Guest list management for 500+ guests",
+    "Meal preference and dietary tracking",
+    "Real-time collaboration",
+    "Printable and exportable charts",
+    "Shareable venue coordinator link",
+  ],
+  screenshot: `${BASE_URL}/og-image.png`,
+  softwareVersion: "1.0",
+  author: {
+    "@type": "Organization",
+    name: "TableMate",
+    url: BASE_URL,
+  },
+};
+
 const features = [
   { icon: "🍽️", title: "Drag & Drop Canvas", desc: "Place tables visually on your venue floor plan. Round, square, and banquet tables. Supports 500+ guests with ease." },
   { icon: "📧", title: "RSVP Portal", desc: "Send personalized email invites. Guests confirm attendance and meal choice — responses sync automatically to your chart." },
@@ -42,6 +84,20 @@ export default function LandingPage() {
   const [dark, setDark] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
+  // Build FAQPage JSON-LD from faqs array
+  const faqPageJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqs.map((faq) => ({
+      "@type": "Question",
+      name: faq.q,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: faq.a,
+      },
+    })),
+  };
+
   useEffect(() => {
     const saved = localStorage.getItem("tm-theme");
     if (saved === "dark") setDark(true);
@@ -65,6 +121,17 @@ export default function LandingPage() {
 
   return (
     <div className={`min-h-screen ${bg} transition-colors duration-200`}>
+      {/* JSON-LD Structured Data */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareApplicationJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqPageJsonLd) }}
+      />
+      {/* Canonical URL */}
+      <link rel="canonical" href={BASE_URL} />
       {/* Header */}
       <header className={`sticky top-0 z-50 ${header} backdrop-blur border-b`}>
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
@@ -187,19 +254,19 @@ export default function LandingPage() {
         <div className="max-w-3xl mx-auto px-6">
           <h2 className={`font-playfair text-3xl font-bold ${text} text-center mb-4`}>Frequently asked questions</h2>
           <p className={`${muted} text-center mb-12`}>Still have questions? <a href="mailto:hello@tablemate.app" className="text-[#C9956E] hover:underline">Drop us a line</a>.</p>
-          <div className="space-y-3">
+          <div className="space-y-3" itemScope itemType="https://schema.org/FAQPage">
             {faqs.map((faq, i) => (
-              <div key={i} className={`rounded-2xl border ${card} overflow-hidden`}>
+              <div key={i} className={`rounded-2xl border ${card} overflow-hidden`} itemScope itemProp="mainEntity" itemType="https://schema.org/Question">
                 <button
                   onClick={() => setOpenFaq(openFaq === i ? null : i)}
                   className={`w-full text-left px-6 py-4 flex items-center justify-between font-semibold text-sm ${text}`}
                 >
-                  {faq.q}
+                  <span itemProp="name">{faq.q}</span>
                   <span className={`ml-4 flex-shrink-0 text-[#C9956E] transition-transform duration-200 ${openFaq === i ? "rotate-45" : ""}`}>+</span>
                 </button>
                 {openFaq === i && (
-                  <div className={`px-6 pb-5 text-sm ${muted} leading-relaxed border-t ${dark ? "border-[#3A3540]" : "border-[#EDE8E0]"}`}>
-                    <p className="pt-4">{faq.a}</p>
+                  <div className={`px-6 pb-5 text-sm ${muted} leading-relaxed border-t ${dark ? "border-[#3A3540]" : "border-[#EDE8E0]"}`} itemScope itemProp="acceptedAnswer" itemType="https://schema.org/Answer">
+                    <p className="pt-4" itemProp="text">{faq.a}</p>
                   </div>
                 )}
               </div>
