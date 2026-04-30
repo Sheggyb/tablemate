@@ -140,6 +140,8 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
     return r.type === "must_sit_with" ? !together : !!together;
   });
 
+  const [confirmModal, setConfirmModal] = useState<{ message: string; onConfirm: () => void } | null>(null);
+
   const [toast, setToast] = useState<string | null>(null);
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
 
@@ -173,6 +175,7 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
       email:      guestForm.email || "",
       meal:       guestForm.meal as Meal,
       rsvp:       guestForm.rsvp as Rsvp,
+      allergies:  guestForm.allergies || "",
       notes:      guestForm.notes || "",
     };
     dispatch({ type: "UPDATE_GUEST", id: editGuest.id, data });
@@ -205,7 +208,7 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
       first_name: guestForm.first_name || "", last_name: guestForm.last_name || null,
       email: guestForm.email || null, phone: null,
       rsvp: (guestForm.rsvp as Rsvp) || "pending", meal: (guestForm.meal as Meal) || "standard",
-      allergies: null, notes: null, group_id: null, table_id: null, seat_index: null,
+      allergies: guestForm.allergies || null, notes: guestForm.notes || null, group_id: null, table_id: null, seat_index: null,
       rsvp_token: crypto.randomUUID(),
     };
     dispatch({ type: "ADD_GUEST", payload: newGuest });
@@ -726,6 +729,10 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
               </div>
             </div>
             <div>
+              <label style={{ fontSize:12, color:textMid, display:"block", marginBottom:5 }}>Allergies / dietary notes</label>
+              <input type="text" value={guestForm.allergies||""} onChange={e=>setGuestForm(p=>({...p,allergies:e.target.value}))} placeholder="Nuts, dairy, shellfish…" style={inputStyle}/>
+            </div>
+            <div>
               <label style={{ fontSize:12, color:textMid, display:"block", marginBottom:5 }}>Notes</label>
               <input type="text" value={guestForm.notes||""} onChange={e=>setGuestForm(p=>({...p,notes:e.target.value}))} placeholder="Any notes…" style={inputStyle}/>
             </div>
@@ -735,7 +742,7 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
               {editGuest?"Save Changes":"Add Guest"}
             </button>
             {editGuest && (
-              <button onClick={() => { if(confirm("Delete this guest?")) deleteGuest(editGuest.id); }}
+              <button onClick={() => setConfirmModal({ message: "Delete this guest?", onConfirm: () => deleteGuest(editGuest.id) })}
                 style={{ background:"rgba(224,92,106,0.12)", color:danger, border:`1px solid rgba(224,92,106,0.3)`,
                   borderRadius:12, padding:"12px", fontSize:14, fontWeight:600, cursor:"pointer" }}>
                 🗑️ Delete Guest
@@ -795,7 +802,7 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
               style={{ background:accent, color:"#fff", border:"none", borderRadius:12, padding:"14px", fontSize:16, fontWeight:700, cursor:"pointer" }}>
               Save Name
             </button>
-            <button onClick={() => { if(confirm(`Delete "${editTable.name}"? All guests will be unseated.`)) deleteTable(editTable.id); }}
+            <button onClick={() => setConfirmModal({ message: `Delete "${editTable.name}"? All guests will be unseated.`, onConfirm: () => deleteTable(editTable.id) })}
               style={{ background:"rgba(224,92,106,0.12)", color:danger, border:`1px solid rgba(224,92,106,0.3)`,
                 borderRadius:12, padding:"12px", fontSize:14, fontWeight:600, cursor:"pointer" }}>
               🗑️ Delete Table
@@ -896,6 +903,25 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
             </button>
           </div>
         </Backdrop>
+      )}
+
+      {/* ── Confirm Modal ── */}
+      {confirmModal && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.6)", zIndex:300, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px" }}>
+          <div style={{ background:card, borderRadius:20, padding:"24px 20px", width:"100%", maxWidth:320, border:`1px solid ${border}`, boxShadow:"0 8px 32px rgba(0,0,0,0.4)" }}>
+            <p style={{ fontSize:15, fontWeight:600, color:text, marginBottom:20, textAlign:"center" }}>{confirmModal.message}</p>
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={() => setConfirmModal(null)}
+                style={{ flex:1, padding:"12px", borderRadius:12, border:`1px solid ${border}`, background:surface2, color:text, fontSize:14, cursor:"pointer" }}>
+                Cancel
+              </button>
+              <button onClick={() => { confirmModal.onConfirm(); setConfirmModal(null); }}
+                style={{ flex:1, padding:"12px", borderRadius:12, border:"none", background:danger, color:"#fff", fontSize:14, fontWeight:700, cursor:"pointer" }}>
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ── Toast ── */}

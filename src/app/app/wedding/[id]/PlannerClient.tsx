@@ -182,14 +182,21 @@ export default function PlannerClient({
 
   /* ── Guest CRUD ── */
   const addGuest = useCallback(async (data: Partial<Guest>) => {
-    if (plan === "free") {
-      const { count } = await supabase
-        .from("guests")
-        .select("*", { count: "exact", head: true })
-        .eq("wedding_id", wedding.id);
-      if (count !== null && count >= 50) {
-        showToast("Free plan limit: 50 guests. Upgrade to add more.", "error");
-        return;
+    // Server-side limit check (enforced for free plan via API route)
+    if (!isDemo && plan === "free") {
+      try {
+        const res = await fetch("/api/guests", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ weddingId: wedding.id }),
+        });
+        if (res.status === 403) {
+          const json = await res.json();
+          showToast(json.error ?? "Free plan limit: 50 guests. Upgrade to add more.", "error");
+          return;
+        }
+      } catch {
+        // Network error — fall through and let Supabase handle it
       }
     }
     const newGuest: Guest = {
@@ -208,13 +215,18 @@ export default function PlannerClient({
       seat_index: null,
       rsvp_token: crypto.randomUUID(),
     };
+    // Optimistic: add to UI immediately
     dispatch({ type: "ADD_GUEST", payload: newGuest });
     showToast("Guest added ✓", "success");
-    // Persist async
+    // Persist — on failure roll back
     if (!isDemo) supabase.from("guests").insert({ ...newGuest }).then(({ error }) => {
-      if (error) console.error("Insert guest failed:", error.message);
+      if (error) {
+        console.error("Insert guest failed:", error.message);
+        dispatch({ type: "DELETE_GUEST", id: newGuest.id });
+        showToast("Failed to save guest. Please try again.", "error");
+      }
     });
-  }, [supabase, wedding.id, showToast, plan]);
+  }, [supabase, wedding.id, showToast, plan, isDemo]);
 
   const updateGuest = useCallback(async (id: string, data: Partial<Guest>) => {
     dispatch({ type: "UPDATE_GUEST", id, data });

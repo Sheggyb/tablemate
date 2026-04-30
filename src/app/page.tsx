@@ -35,8 +35,8 @@ export default function LandingPage() {
             <span className={`font-playfair text-xl font-semibold ${text}`}>TableMate</span>
           </div>
           <nav className={`hidden md:flex items-center gap-8 text-sm ${muted}`}>
-            <a href="#features" className={`hover:${text} transition-colors`}>Features</a>
-            <a href="#pricing" className={`hover:${text} transition-colors`}>Pricing</a>
+            <a href="/#features" className={`hover:${text} transition-colors`}>Features</a>
+            <Link href="/pricing" className={`hover:${text} transition-colors`}>Pricing</Link>
           </nav>
           <div className="flex items-center gap-3">
             <button onClick={toggleDark} className={`w-9 h-9 rounded-lg flex items-center justify-center border transition-colors ${dark ? "border-[#3A3540] bg-[#2A2630] text-yellow-300 hover:bg-[#3A3540]" : "border-[#EDE8E0] bg-white text-[#6B6068] hover:border-[#C9956E]"}`}>
