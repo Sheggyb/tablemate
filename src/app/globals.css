@@ -17,6 +17,9 @@
   --text-soft:   #6B6068;
   --text-muted:  #9B9098;
 
+  /* Shorthand aliases */
+  --card:        #FFFFFF;
+
   --accent:      #C9956E;
   --accent-dark: #B8845D;
   --accent-bg:   #FDF4EC;
@@ -31,7 +34,8 @@
 }
 
 /* ── Dark theme ── */
-[data-theme="dark"] {
+[data-theme="dark"],
+.dark {
   --bg:          #0f0e11;
   --surface:     #1a1820;
   --surface2:    #231f2e;
@@ -41,6 +45,9 @@
   --text-mid:    #cbc8d8;
   --text-soft:   #9991b8;
   --text-muted:  #5c5578;
+
+  /* Shorthand aliases */
+  --card:        #1a1820;
 
   --accent:      #c9a96e;
   --accent-dark: #b8935a;
