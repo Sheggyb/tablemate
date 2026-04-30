@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/server";
  *   403 { allowed: false, error: string }          – limit reached
  *   401 { error: string }                          – not authenticated
  */
+// TODO: add rate limiting (e.g. 60 req/min per user to prevent enumeration/abuse)
 export async function POST(req: Request) {
   const supabase = await createClient();
 
