@@ -18,7 +18,7 @@ interface Props {
   onBulkDelete:  (ids: string[]) => void;
   onImportCsv:   (text: string) => Promise<string>;
   onAddGroup:    (name: string) => void;
-  showToast?:    (msg: string, type?: "success" | "error" | "info") => void;
+  showToast:     (msg: string, type?: "success" | "error" | "info") => void;
 }
 
 type SortKey = "name" | "rsvp" | "meal" | "table" | "party";
@@ -43,7 +43,7 @@ export default function GuestPanel({
   const [confirmModal, setConfirmModal] = useState<{ message: string; onConfirm: () => void } | null>(null);
 
   const sendRsvp = async (g: Guest) => {
-    if (!g.email) { showToast?.("Guest has no email address.", "error"); return; }
+    if (!g.email) { showToast("Guest has no email address.", "error"); return; }
     setSendingRsvp(g.id);
     try {
       const res = await fetch("/api/rsvp/send", {
@@ -53,9 +53,9 @@ export default function GuestPanel({
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed");
-      showToast?.(`RSVP sent to ${g.email}`, "success");
+      showToast(`RSVP sent to ${g.email}`, "success");
     } catch (e: any) {
-      showToast?.(`Failed to send: ${e.message}`, "error");
+      showToast(`Failed to send: ${e.message}`, "error");
     } finally {
       setSendingRsvp(null);
     }
@@ -139,7 +139,10 @@ export default function GuestPanel({
   const openEdit = (g: Guest) => { setForm({ ...g }); setEditGuest(g); setShowAdd(true); };
 
   const handleSave = () => {
-    if (!form.first_name?.trim()) return;
+    if (!form.first_name?.trim()) {
+      showToast("First name is required.", "error");
+      return;
+    }
     if (editGuest) onUpdateGuest(editGuest.id, form);
     else           onAddGuest(form);
     setShowAdd(false);
@@ -148,11 +151,16 @@ export default function GuestPanel({
   const handleCsv = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const text = await file.text();
-    const msg = await onImportCsv(text);
-    setCsvMsg(msg);
-    setTimeout(() => setCsvMsg(""), 4000);
-    e.target.value = "";
+    try {
+      const text = await file.text();
+      const msg = await onImportCsv(text);
+      setCsvMsg(msg);
+      setTimeout(() => setCsvMsg(""), 4000);
+    } catch (err: any) {
+      showToast(`CSV import failed: ${err.message ?? "Unknown error"}`, "error");
+    } finally {
+      e.target.value = "";
+    }
   };
 
   const sortToggle = (key: SortKey) => {

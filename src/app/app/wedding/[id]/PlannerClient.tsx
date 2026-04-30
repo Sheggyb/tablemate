@@ -327,23 +327,41 @@ export default function PlannerClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ weddingId: wedding.id, venueId: activeVenueId }),
       });
+      if (!res.ok) {
+        let errMsg = `AI request failed (${res.status})`;
+        try { const j = await res.json(); errMsg = j.error ?? errMsg; } catch { /* ignore parse error */ }
+        showToast(`AI: ${errMsg}`, "error");
+        return;
+      }
       const data = await res.json();
-      if (data.error) { showToast(`AI: ${data.error}`, "error"); }
-      else {
+      if (data.error) {
+        showToast(`AI: ${data.error}`, "error");
+      } else {
         // Re-fetch guests from DB to get updated table_id + seat_index, then
         // dispatch individual UPDATE_GUEST actions to avoid overwriting other
         // state slices with a potentially-stale closure snapshot.
-        const { data: fresh } = await supabase.from("guests").select("*").eq("wedding_id", wedding.id).order("last_name");
-        if (fresh) {
+        const { data: fresh, error: fetchErr } = await supabase
+          .from("guests")
+          .select("*")
+          .eq("wedding_id", wedding.id)
+          .order("last_name");
+        if (fetchErr) {
+          console.error("Failed to re-fetch guests after AI seating:", fetchErr.message);
+          showToast("AI seated guests but failed to refresh. Please reload.", "error");
+        } else if (fresh) {
           for (const g of fresh) {
             dispatch({ type: "UPDATE_GUEST", id: g.id, data: { table_id: g.table_id, seat_index: g.seat_index } });
           }
+          showToast(`🤖 ${data.message ?? "AI seating complete!"}`, "success");
         }
-        showToast(`🤖 ${data.message}`, "success");
       }
-    } catch { showToast("AI request failed", "error"); }
-    setAiLoading(false);
-  }, [supabase, wedding.id, activeVenueId, plan, state, showToast]);
+    } catch (err: any) {
+      console.error("runAiSeating error:", err);
+      showToast("AI request failed. Please try again.", "error");
+    } finally {
+      setAiLoading(false);
+    }
+  }, [supabase, wedding.id, activeVenueId, plan, showToast]);
 
   /* ── Auto-seat (simple greedy, no AI) ── */
   const autoSeat = useCallback(() => {
