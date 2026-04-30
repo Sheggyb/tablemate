@@ -369,12 +369,13 @@ export default function LandingPage() {
               ✨ Free to start — no credit card required
             </div>
             <h1 className={`font-playfair text-5xl md:text-6xl font-bold ${text} leading-tight mb-6`}>
-              Plan Your Perfect Wedding<br/>
-              <span className="text-[#C9956E]">Seating — Free</span>
+              Seat Every Guest Perfectly.<br/>
+              <span className="text-[#C9956E]">No Stress. No Spreadsheets.</span>
             </h1>
             <p className={`text-lg ${muted} max-w-2xl mx-auto lg:mx-0 mb-10 leading-relaxed`}>
-              Drag-and-drop tables, manage 500+ guests, handle meal preferences,
-              send RSVP invites, and export beautiful printable charts — all in one place.
+              Turn the most dreaded part of wedding planning into a 10-minute task.
+              Drag guests into tables, track dietary needs, collect RSVPs, and share
+              export-ready charts with your venue — all free.
             </p>
             <div className="flex items-center justify-center lg:justify-start gap-4 flex-wrap mb-4">
               <Link href="/signup"   className="px-8 py-4 bg-[#C9956E] hover:bg-[#B8845D] text-white font-semibold rounded-xl text-lg transition-colors shadow-lg shadow-[#C9956E]/20">
