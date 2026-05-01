@@ -203,13 +203,7 @@ const softwareApplicationJsonLd = {
     priceCurrency: "USD",
     description: "Free plan available for up to 50 guests. No credit card required.",
   },
-  aggregateRating: {
-    "@type": "AggregateRating",
-    ratingValue: "4.9",
-    reviewCount: "380",
-    bestRating: "5",
-    worstRating: "1",
-  },
+
   featureList: [
     "Drag-and-drop seating chart builder",
     "RSVP collection and management",
@@ -235,11 +229,7 @@ const features = [
   { icon: "🖨️", title: "Beautiful Exports", desc: "Print-ready seating charts, place cards, and table assignments. Share a PDF with your caterer or venue in one click." },
 ];
 
-const reviews = [
-  { quote: "TableMate made our 280-person wedding feel totally manageable. We had our chart done in an afternoon!", author: "Sophie & James", location: "London, UK" },
-  { quote: "The drag-and-drop is so intuitive. We rearranged tables a dozen times and it never felt like a chore.", author: "Maria & Carlos", location: "Madrid, Spain" },
-  { quote: "Our wedding planner was blown away when we showed her the printable chart. Absolutely worth it.", author: "Priya & Rohan", location: "Toronto, Canada" },
-];
+
 
 const faqs = [
   {
@@ -315,7 +305,7 @@ export default function LandingPage() {
           </div>
           <nav className={`hidden md:flex items-center gap-8 text-sm ${muted}`}>
             <a href="/#features" className="hover:text-[#C9956E] transition-colors">Features</a>
-            <a href="/#reviews"  className="hover:text-[#C9956E] transition-colors">Reviews</a>
+            <a href="/#reviews"  className="hover:text-[#C9956E] transition-colors">Early Access</a>
             <a href="/#faq"      className="hover:text-[#C9956E] transition-colors">FAQ</a>
             <Link href="/pricing" className="hover:text-[#C9956E] transition-colors">Pricing</Link>
             <Link href="/blog"    className="hover:text-[#C9956E] transition-colors">Blog</Link>
@@ -377,33 +367,21 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── Social Proof ── */}
+      {/* ── Early Access ── */}
       <section id="reviews" className={`${sectionBg} py-20 border-y`}>
-        <div className="max-w-6xl mx-auto px-6 text-center">
-          <p className="text-[#C9956E] font-semibold text-sm uppercase tracking-widest mb-3">Loved by couples worldwide</p>
-          <h2 className={`font-playfair text-3xl font-bold ${text} mb-2`}>2,400+ couples already planning</h2>
-          <p className={`${muted} mb-12`}>Join thousands of soon-to-be-weds who said goodbye to spreadsheet chaos.</p>
-
-          {/* Stars + count */}
-          <div className="flex items-center justify-center gap-2 mb-12">
-            <span className="text-yellow-400 text-xl tracking-tight">★★★★★</span>
-            <span className={`text-sm font-semibold ${text}`}>4.9 / 5</span>
-            <span className={`text-sm ${muted}`}>from 380+ reviews</span>
-          </div>
-
-          {/* Review cards */}
-          <div className="grid md:grid-cols-3 gap-6">
-            {reviews.map(r => (
-              <div key={r.author} className={`p-6 rounded-2xl border ${card} text-left`}>
-                <div className="text-yellow-400 text-sm mb-3">★★★★★</div>
-                <p className={`text-sm ${muted} leading-relaxed mb-4`}>&ldquo;{r.quote}&rdquo;</p>
-                <div>
-                  <p className={`text-sm font-semibold ${text}`}>{r.author}</p>
-                  <p className={`text-xs ${muted}`}>{r.location}</p>
-                </div>
-              </div>
-            ))}
-          </div>
+        <div className="max-w-3xl mx-auto px-6 text-center">
+          <p className="text-[#C9956E] font-semibold text-sm uppercase tracking-widest mb-3">Early Access</p>
+          <h2 className={`font-playfair text-3xl font-bold ${text} mb-4`}>We&apos;re just getting started</h2>
+          <p className={`${muted} text-base leading-relaxed mb-8`}>
+            TableMate is in early access. We&apos;re building in public and making it better every week.
+            Try it free — no credit card, no fluff. If you love it, tell us.
+          </p>
+          <a
+            href="/app/sign-up"
+            className="inline-block bg-[#C9956E] hover:bg-[#B8845D] text-white font-semibold px-8 py-3 rounded-full transition-colors"
+          >
+            Try it free →
+          </a>
         </div>
       </section>
 
