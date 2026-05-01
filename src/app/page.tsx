@@ -305,7 +305,7 @@ export default function LandingPage() {
           </div>
           <nav className={`hidden md:flex items-center gap-8 text-sm ${muted}`}>
             <a href="/#features" className="hover:text-[#C9956E] transition-colors">Features</a>
-            <a href="/#reviews"  className="hover:text-[#C9956E] transition-colors">Early Access</a>
+
             <a href="/#faq"      className="hover:text-[#C9956E] transition-colors">FAQ</a>
             <Link href="/pricing" className="hover:text-[#C9956E] transition-colors">Pricing</Link>
             <Link href="/blog"    className="hover:text-[#C9956E] transition-colors">Blog</Link>
@@ -367,23 +367,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── Early Access ── */}
-      <section id="reviews" className={`${sectionBg} py-20 border-y`}>
-        <div className="max-w-3xl mx-auto px-6 text-center">
-          <p className="text-[#C9956E] font-semibold text-sm uppercase tracking-widest mb-3">Early Access</p>
-          <h2 className={`font-playfair text-3xl font-bold ${text} mb-4`}>We&apos;re just getting started</h2>
-          <p className={`${muted} text-base leading-relaxed mb-8`}>
-            TableMate is in early access. We&apos;re building in public and making it better every week.
-            Try it free — no credit card, no fluff. If you love it, tell us.
-          </p>
-          <a
-            href="/app/sign-up"
-            className="inline-block bg-[#C9956E] hover:bg-[#B8845D] text-white font-semibold px-8 py-3 rounded-full transition-colors"
-          >
-            Try it free →
-          </a>
-        </div>
-      </section>
+
 
       {/* ── Features Grid ── */}
       <section id="features" className={`py-20 ${bg}`}>

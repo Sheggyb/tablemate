@@ -214,7 +214,7 @@ export default function PricingPage() {
           </Link>
           <nav className={`hidden md:flex items-center gap-8 text-sm ${muted}`}>
             <a href="/#features" className="hover:text-[#C9956E] transition-colors">Features</a>
-            <a href="/#reviews"  className="hover:text-[#C9956E] transition-colors">Early Access</a>
+
             <a href="/#faq"      className="hover:text-[#C9956E] transition-colors">FAQ</a>
             <Link href="/pricing" className="text-[#C9956E] font-medium">Pricing</Link>
             <Link href="/blog"    className="hover:text-[#C9956E] transition-colors">Blog</Link>
