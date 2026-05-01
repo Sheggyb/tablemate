@@ -258,6 +258,7 @@ export default function PlannerClient({
   /* ── Table CRUD ── */
   const addTable = useCallback(async (name: string, shape: "round" | "rectangle" | "oval", capacity: number) => {
     if (!activeVenueId) return;
+    if (isDemo && tables.length >= 4) { showToast("Demo limited to 4 tables — sign up for unlimited!", "error"); return; }
     const newTable: Table = {
       id: crypto.randomUUID(),
       wedding_id: wedding.id,
