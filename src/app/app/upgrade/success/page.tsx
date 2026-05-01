@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -10,7 +10,7 @@ const PLAN_NAMES: Record<string, string> = {
   planner: "Planner Pro",
 };
 
-export default function UpgradeSuccessPage() {
+function SuccessContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const plan = searchParams.get("plan") ?? "couple";
@@ -19,7 +19,6 @@ export default function UpgradeSuccessPage() {
   const [dark, setDark] = useState(false);
   useEffect(() => {
     if (localStorage.getItem("tm-theme") === "dark") setDark(true);
-    // Auto-redirect after 6 seconds
     const t = setTimeout(() => router.push("/app"), 6000);
     return () => clearTimeout(t);
   }, [router]);
@@ -67,5 +66,13 @@ export default function UpgradeSuccessPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function UpgradeSuccessPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#FDFBF8] flex items-center justify-center"><div className="text-2xl">🎉</div></div>}>
+      <SuccessContent />
+    </Suspense>
   );
 }
