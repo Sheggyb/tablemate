@@ -15,6 +15,7 @@ interface Props {
   onDeleteTable: (id: string) => void;
   onSeatGuest:   (guestId: string, tableId: string | null, seatIndex: number | null) => void;
   onAutoSeat:    () => void;
+  isDemo?:       boolean;
 }
 
 const GROUP_COLORS = ["#c9a96e","#7B9E87","#8B7BA8","#C97B6E","#6E9EC9","#B8A86E","#e8b4cb","#9EC9A6"];
@@ -50,7 +51,7 @@ function snapToGrid(v: number): number {
 
 export default function ChartCanvas({
   tables, guests, groups, rules, darkMode,
-  onAddTable, onUpdateTable, onDeleteTable, onSeatGuest, onAutoSeat
+  onAddTable, onUpdateTable, onDeleteTable, onSeatGuest, onAutoSeat, isDemo = false
 }: Props) {
   const canvasRef   = useRef<HTMLDivElement>(null);
   const [offset, setOffset]     = useState({ x: 40, y: 40 });
@@ -60,7 +61,7 @@ export default function ChartCanvas({
   const [selected, setSelected] = useState<string | null>(null);
   const [dragging, setDragging] = useState<{ id: string; ox: number; oy: number } | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
-  const [sideTab, setSideTab]   = useState<SideTab>("add");
+  const [sideTab, setSideTab]   = useState<SideTab>(isDemo ? "guests" : "add");
   const [customShape, setCustomShape] = useState<"round"|"rectangle"|"oval">("round");
   const [customCap, setCustomCap] = useState(8);
   const [customName, setCustomName] = useState("");

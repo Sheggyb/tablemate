@@ -657,6 +657,7 @@ export default function PlannerClient({
             onDeleteTable={deleteTable}
             onSeatGuest={seatGuest}
             onAutoSeat={autoSeat}
+            isDemo={isDemo}
           />
         )}
         {activeTab === "guests" && (
