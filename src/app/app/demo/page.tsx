@@ -1,292 +1,373 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import Link from "next/link";
 
-// ── Demo mock data ─────────────────────────────────────────────────────────────
-const DEMO_TABLES = [
-  { id: "t1", name: "Table 1 — Bride's Family", x: 120, y: 130, seats: 8, shape: "round" },
-  { id: "t2", name: "Table 2 — Groom's Family", x: 340, y: 130, seats: 8, shape: "round" },
-  { id: "t3", name: "Table 3 — College Friends", x: 560, y: 130, seats: 6, shape: "round" },
-  { id: "t4", name: "Table 4 — Work Colleagues", x: 120, y: 340, seats: 10, shape: "round" },
-  { id: "t5", name: "Table 5 — Childhood Friends", x: 340, y: 340, seats: 8, shape: "round" },
-  { id: "t6", name: "Head Table", x: 340, y: 540, seats: 12, shape: "banquet" },
+// ── Types ────────────────────────────────────────────────────────────────────
+interface Table {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  seats: number;
+  shape: "round" | "rectangle";
+}
+interface Guest {
+  id: string;
+  name: string;
+  meal: "chicken" | "fish" | "vegan" | "halal";
+  rsvp: "confirmed" | "pending";
+  tableId: string | null;
+}
+
+// ── Initial data ─────────────────────────────────────────────────────────────
+const INITIAL_TABLES: Table[] = [
+  { id: "t1", name: "Bride's Family",  x: 160, y: 180, seats: 8,  shape: "round" },
+  { id: "t2", name: "Groom's Family",  x: 420, y: 180, seats: 8,  shape: "round" },
+  { id: "t3", name: "Friends",         x: 160, y: 420, seats: 8,  shape: "round" },
+  { id: "t4", name: "Work Colleagues", x: 420, y: 420, seats: 10, shape: "rectangle" },
 ];
 
-const DEMO_GUESTS = [
-  { id: "g1", name: "Emma Johnson", table: "t1", meal: "chicken", rsvp: "confirmed" },
-  { id: "g2", name: "James Johnson", table: "t1", meal: "fish", rsvp: "confirmed" },
-  { id: "g3", name: "Sophie Brown", table: "t1", meal: "vegan", rsvp: "confirmed" },
-  { id: "g4", name: "Oliver Brown", table: "t1", meal: "chicken", rsvp: "confirmed" },
-  { id: "g5", name: "Mia Davis", table: "t2", meal: "chicken", rsvp: "confirmed" },
-  { id: "g6", name: "Noah Davis", table: "t2", meal: "fish", rsvp: "confirmed" },
-  { id: "g7", name: "Ava Wilson", table: "t2", meal: "chicken", rsvp: "pending" },
-  { id: "g8", name: "Liam Wilson", table: "t2", meal: "vegan", rsvp: "confirmed" },
-  { id: "g9", name: "Isabella Moore", table: "t3", meal: "fish", rsvp: "confirmed" },
-  { id: "g10", name: "Lucas Taylor", table: "t3", meal: "chicken", rsvp: "confirmed" },
-  { id: "g11", name: "Charlotte Anderson", table: "t3", meal: "chicken", rsvp: "declined" },
-  { id: "g12", name: "Ethan Thomas", table: "t4", meal: "chicken", rsvp: "confirmed" },
-  { id: "g13", name: "Amelia Jackson", table: "t4", meal: "vegan", rsvp: "confirmed" },
-  { id: "g14", name: "Benjamin White", table: "t4", meal: "fish", rsvp: "pending" },
-  { id: "g15", name: "Harper Harris", table: "t5", meal: "chicken", rsvp: "confirmed" },
-  { id: "g16", name: "Alexander Martin", table: "t5", meal: "chicken", rsvp: "confirmed" },
-  { id: "g17", name: "Evelyn Thompson", table: "t6", meal: "chicken", rsvp: "confirmed" },
-  { id: "g18", name: "Daniel Garcia", table: "t6", meal: "fish", rsvp: "confirmed" },
+const INITIAL_GUESTS: Guest[] = [
+  { id: "g1",  name: "Emma Johnson",   meal: "chicken", rsvp: "confirmed", tableId: null },
+  { id: "g2",  name: "James Johnson",  meal: "fish",    rsvp: "confirmed", tableId: null },
+  { id: "g3",  name: "Sophie Davis",   meal: "vegan",   rsvp: "confirmed", tableId: null },
+  { id: "g4",  name: "Oliver Davis",   meal: "chicken", rsvp: "confirmed", tableId: null },
+  { id: "g5",  name: "Mia Taylor",     meal: "halal",   rsvp: "confirmed", tableId: null },
+  { id: "g6",  name: "Noah Taylor",    meal: "chicken", rsvp: "pending",   tableId: null },
+  { id: "g7",  name: "Ava Wilson",     meal: "fish",    rsvp: "confirmed", tableId: null },
+  { id: "g8",  name: "Liam Chen",      meal: "chicken", rsvp: "confirmed", tableId: null },
+  { id: "g9",  name: "Isabella Chen",  meal: "vegan",   rsvp: "confirmed", tableId: null },
+  { id: "g10", name: "Lucas Martin",   meal: "chicken", rsvp: "confirmed", tableId: null },
 ];
 
-const mealColors: Record<string, string> = {
-  chicken: "#C9956E",
-  fish: "#6E9EC9",
-  vegan: "#6EC98A",
-};
-const rsvpColors: Record<string, string> = {
-  confirmed: "#6EC98A",
-  pending: "#E8C96E",
-  declined: "#C96E6E",
-};
+const mealEmoji: Record<string, string> = { chicken: "🍗", fish: "🐟", vegan: "🌿", halal: "🥩" };
+const mealColor: Record<string, string> = { chicken: "#C9956E", fish: "#6E9EC9", vegan: "#6EC98A", halal: "#9E8AC9" };
+let nextTableId = 5;
 
+// ── Component ─────────────────────────────────────────────────────────────────
 export default function DemoPage() {
-  const [tables, setTables] = useState(DEMO_TABLES);
-  const [guests] = useState(DEMO_GUESTS);
-  const [activeTab, setActiveTab] = useState<"chart" | "guests">("chart");
-  const [dragging, setDragging] = useState<string | null>(null);
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
-  const [selectedTable, setSelectedTable] = useState<string | null>(null);
+  const [dark, setDark] = useState(false);
+  const [tables, setTables] = useState<Table[]>(INITIAL_TABLES);
+  const [guests, setGuests] = useState<Guest[]>(INITIAL_GUESTS);
+
+  // Table drag state
+  const [draggingTable, setDraggingTable] = useState<string | null>(null);
+  const [tableOffset, setTableOffset] = useState({ x: 0, y: 0 });
+
+  // Guest drag state
+  const [draggingGuest, setDraggingGuest] = useState<string | null>(null);
+  const [guestPos, setGuestPos] = useState({ x: 0, y: 0 });
+  const [hoveredTable, setHoveredTable] = useState<string | null>(null);
+
   const svgRef = useRef<SVGSVGElement>(null);
 
-  const handleMouseDown = useCallback((e: React.MouseEvent, id: string) => {
+  // Inherit theme from landing page
+  useEffect(() => {
+    const saved = localStorage.getItem("tm-theme");
+    const isDark = saved === "dark";
+    setDark(isDark);
+    document.documentElement.classList.toggle("dark", isDark);
+  }, []);
+
+  const toggleDark = () => {
+    const next = !dark;
+    setDark(next);
+    localStorage.setItem("tm-theme", next ? "dark" : "light");
+    document.documentElement.classList.toggle("dark", next);
+  };
+
+  // ── Table drag ──────────────────────────────────────────────────────────────
+  const onTableMouseDown = useCallback((e: React.MouseEvent, id: string) => {
+    if (draggingGuest) return;
     e.preventDefault();
     const svg = svgRef.current;
     if (!svg) return;
     const rect = svg.getBoundingClientRect();
     const tbl = tables.find(t => t.id === id)!;
-    setDragging(id);
-    setOffset({ x: e.clientX - rect.left - tbl.x, y: e.clientY - rect.top - tbl.y });
-    setSelectedTable(id);
-  }, [tables]);
+    setDraggingTable(id);
+    setTableOffset({ x: e.clientX - rect.left - tbl.x, y: e.clientY - rect.top - tbl.y });
+  }, [tables, draggingGuest]);
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!dragging || !svgRef.current) return;
-    const rect = svgRef.current.getBoundingClientRect();
-    const nx = Math.max(40, Math.min(720, e.clientX - rect.left - offset.x));
-    const ny = Math.max(40, Math.min(620, e.clientY - rect.top - offset.y));
-    setTables(prev => prev.map(t => t.id === dragging ? { ...t, x: nx, y: ny } : t));
-  }, [dragging, offset]);
+  const onSvgMouseMove = useCallback((e: React.MouseEvent) => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
 
-  const handleMouseUp = useCallback(() => setDragging(null), []);
+    if (draggingTable) {
+      const nx = Math.max(60, Math.min(700, mx - tableOffset.x));
+      const ny = Math.max(60, Math.min(560, my - tableOffset.y));
+      setTables(prev => prev.map(t => t.id === draggingTable ? { ...t, x: nx, y: ny } : t));
+    }
 
-  const confirmed = guests.filter(g => g.rsvp === "confirmed").length;
-  const pending = guests.filter(g => g.rsvp === "pending").length;
-  const declined = guests.filter(g => g.rsvp === "declined").length;
+    if (draggingGuest) {
+      setGuestPos({ x: mx, y: my });
+      // detect hover over table
+      const hit = tables.find(t => {
+        const dx = mx - t.x, dy = my - t.y;
+        return t.shape === "round"
+          ? dx * dx + dy * dy < 58 * 58
+          : Math.abs(dx) < 80 && Math.abs(dy) < 40;
+      });
+      setHoveredTable(hit?.id ?? null);
+    }
+  }, [draggingTable, tableOffset, draggingGuest, tables]);
 
-  const selectedGuests = selectedTable ? guests.filter(g => g.table === selectedTable) : [];
-  const selectedTbl = tables.find(t => t.id === selectedTable);
+  const onSvgMouseUp = useCallback(() => {
+    setDraggingTable(null);
+
+    if (draggingGuest && hoveredTable) {
+      const tbl = tables.find(t => t.id === hoveredTable)!;
+      const seated = guests.filter(g => g.tableId === hoveredTable).length;
+      if (seated < tbl.seats) {
+        setGuests(prev => prev.map(g => g.id === draggingGuest ? { ...g, tableId: hoveredTable } : g));
+      }
+    }
+    setDraggingGuest(null);
+    setHoveredTable(null);
+  }, [draggingGuest, hoveredTable, tables, guests]);
+
+  // ── Guest drag from sidebar ─────────────────────────────────────────────────
+  const onGuestMouseDown = useCallback((e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    const svg = svgRef.current;
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    setDraggingGuest(id);
+    setGuestPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+  }, []);
+
+  // Remove guest from table (click seated guest in sidebar)
+  const unseatGuest = (id: string) => {
+    setGuests(prev => prev.map(g => g.id === id ? { ...g, tableId: null } : g));
+  };
+
+  // Add / remove tables
+  const addTable = () => {
+    setTables(prev => [...prev, {
+      id: `t${nextTableId++}`,
+      name: `Table ${nextTableId - 1}`,
+      x: 280, y: 300,
+      seats: 8,
+      shape: "round",
+    }]);
+  };
+  const removeTable = (id: string) => {
+    setTables(prev => prev.filter(t => t.id !== id));
+    setGuests(prev => prev.map(g => g.tableId === id ? { ...g, tableId: null } : g));
+  };
+
+  const unassigned = guests.filter(g => g.tableId === null);
+  const bg   = dark ? "#1A1720" : "#F8F4F0";
+  const card = dark ? "#26222D" : "#FFFFFF";
+  const border = dark ? "#3A3540" : "#EDE8E0";
+  const text  = dark ? "#F0EBE8" : "#2A2328";
+  const sub   = dark ? "#9B9098" : "#6B6068";
+  const canvasBg = dark ? "#1E1A25" : "#FDFBF8";
 
   return (
-    <div className="min-h-screen bg-[#FDFBF8] flex flex-col">
+    <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", fontFamily: "Inter, sans-serif" }}>
+
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-[#EDE8E0] px-6 h-14 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="text-[#C9956E]">♥</span>
-            <span className="font-playfair font-semibold text-[#2A2328]">TableMate</span>
+      <header style={{ background: card, borderBottom: `1px solid ${border}`, padding: "0 24px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 50 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <Link href="/" style={{ display: "flex", alignItems: "center", gap: 6, textDecoration: "none" }}>
+            <span style={{ color: "#C9956E", fontSize: 18 }}>♥</span>
+            <span style={{ fontFamily: "Georgia, serif", fontWeight: 600, color: text, fontSize: 16 }}>TableMate</span>
           </Link>
-          <span className="text-[#DDD7D0]">·</span>
-          <span className="text-sm text-[#C9956E] font-medium bg-[#FDF4EC] border border-[#EDD5BC] px-2 py-0.5 rounded-full">Demo Mode</span>
-          <span className="text-sm text-[#6B6068] hidden md:block">— Sarah & Tom's Wedding</span>
+          <span style={{ color: border }}>·</span>
+          <span style={{ fontSize: 12, color: "#C9956E", fontWeight: 500, background: dark ? "#2A1F18" : "#FDF4EC", border: `1px solid ${dark ? "#5A3525" : "#EDD5BC"}`, padding: "2px 10px", borderRadius: 999 }}>Demo Mode</span>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-[#9B9098] hidden md:block">Changes don't save in demo</span>
-          <Link href="/signup" className="px-4 py-2 bg-[#C9956E] hover:bg-[#B8845D] text-white text-sm font-medium rounded-lg transition-colors">
-            Create My Wedding →
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={toggleDark} style={{ background: "none", border: `1px solid ${border}`, borderRadius: 8, padding: "5px 12px", cursor: "pointer", color: sub, fontSize: 13 }}>
+            {dark ? "☀️ Light" : "🌙 Dark"}
+          </button>
+          <Link href="/auth/signup" style={{ padding: "7px 16px", background: "#C9956E", color: "#fff", borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: "none" }}>
+            Sign up free →
           </Link>
         </div>
       </header>
 
-      {/* Stats bar */}
-      <div className="bg-white border-b border-[#EDE8E0] px-6 py-3 flex gap-6 overflow-x-auto">
-        {[
-          { label: "Guests", value: guests.length, color: "#2A2328" },
-          { label: "Confirmed", value: confirmed, color: "#6EC98A" },
-          { label: "Pending", value: pending, color: "#E8C96E" },
-          { label: "Declined", value: declined, color: "#C96E6E" },
-          { label: "Tables", value: tables.length, color: "#C9956E" },
-          { label: "Seated", value: guests.filter(g => g.table).length, color: "#6E9EC9" },
-        ].map(s => (
-          <div key={s.label} className="flex flex-col items-center min-w-[60px]">
-            <span className="text-xl font-bold" style={{ color: s.color }}>{s.value}</span>
-            <span className="text-xs text-[#9B9098]">{s.label}</span>
-          </div>
-        ))}
+      {/* Demo hint banner */}
+      <div style={{ background: dark ? "#2A1F18" : "#FDF4EC", borderBottom: `1px solid ${dark ? "#5A3525" : "#EDD5BC"}`, padding: "8px 24px", fontSize: 13, color: dark ? "#E8C9A0" : "#9B6040", textAlign: "center" }}>
+        👋 <strong>Try it out:</strong> Drag guests from the sidebar onto the tables · Add or remove tables · No account needed
       </div>
 
-      {/* Tab bar */}
-      <div className="bg-white border-b border-[#EDE8E0] px-6 flex gap-1">
-        {(["chart", "guests"] as const).map(tab => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors capitalize ${
-              activeTab === tab
-                ? "border-[#C9956E] text-[#C9956E]"
-                : "border-transparent text-[#6B6068] hover:text-[#2A2328]"
-            }`}
-          >
-            {tab === "chart" ? "🪑 Seating Chart" : "👥 Guest List"}
-          </button>
-        ))}
-      </div>
+      {/* Main layout */}
+      <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
 
-      {/* Main content */}
-      <div className="flex-1 flex overflow-hidden">
-        {activeTab === "chart" ? (
-          <div className="flex-1 flex overflow-hidden">
-            {/* Canvas */}
-            <div className="flex-1 overflow-auto p-4 bg-[#F8F4F0]">
-              <div className="relative bg-white rounded-2xl border border-[#EDE8E0] shadow-sm overflow-hidden" style={{ height: 680 }}>
-                <div className="absolute inset-0 opacity-20" style={{ backgroundImage: "radial-gradient(circle, #DDD7D0 1px, transparent 1px)", backgroundSize: "32px 32px" }} />
-                <svg
-                  ref={svgRef}
-                  className="w-full h-full cursor-default select-none"
-                  onMouseMove={handleMouseMove}
-                  onMouseUp={handleMouseUp}
-                  onMouseLeave={handleMouseUp}
-                >
-                  {/* Stage */}
-                  <rect x="290" y="20" width="200" height="50" rx="8" fill="#FDF4EC" stroke="#EDD5BC" strokeWidth="1.5" />
-                  <text x="390" y="51" textAnchor="middle" fontSize="12" fill="#9B9098" fontFamily="Georgia, serif">Stage / Dance Floor</text>
+        {/* Canvas */}
+        <div style={{ flex: 1, padding: 16, overflow: "auto", position: "relative" }}>
+          <div style={{ background: canvasBg, borderRadius: 16, border: `1px solid ${border}`, position: "relative", height: 640, overflow: "hidden" }}>
+            {/* Dot grid */}
+            <div style={{ position: "absolute", inset: 0, opacity: 0.15, backgroundImage: `radial-gradient(circle, ${dark ? "#888" : "#DDD7D0"} 1px, transparent 1px)`, backgroundSize: "32px 32px" }} />
 
-                  {tables.map(tbl => {
-                    const tGuests = guests.filter(g => g.table === tbl.id);
-                    const isSelected = selectedTable === tbl.id;
-                    const isBanquet = tbl.shape === "banquet";
-                    const r = isBanquet ? undefined : 52;
-                    return (
-                      <g
-                        key={tbl.id}
-                        transform={`translate(${tbl.x},${tbl.y})`}
-                        onMouseDown={e => handleMouseDown(e, tbl.id)}
-                        style={{ cursor: dragging === tbl.id ? "grabbing" : "grab" }}
-                      >
-                        {isBanquet ? (
-                          <rect x={-90} y={-30} width={180} height={60} rx="8"
-                            fill={isSelected ? "#FDF4EC" : "white"}
-                            stroke={isSelected ? "#C9956E" : "#DDD7D0"}
-                            strokeWidth={isSelected ? 2 : 1.5}
-                          />
-                        ) : (
-                          <circle cx={0} cy={0} r={r}
-                            fill={isSelected ? "#FDF4EC" : "white"}
-                            stroke={isSelected ? "#C9956E" : "#DDD7D0"}
-                            strokeWidth={isSelected ? 2 : 1.5}
-                          />
-                        )}
-                        <text textAnchor="middle" y={-8} fontSize="11" fontWeight="600" fill="#2A2328" fontFamily="Georgia, serif">
-                          {tbl.name.split("—")[0].trim()}
-                        </text>
-                        <text textAnchor="middle" y={8} fontSize="10" fill="#9B9098">
-                          {tGuests.length}/{tbl.seats} guests
-                        </text>
-                        {/* Meal dots */}
-                        <g transform="translate(-20, 20)">
-                          {tGuests.slice(0, 5).map((g, i) => (
-                            <circle key={g.id} cx={i * 10} cy={0} r={4} fill={mealColors[g.meal] ?? "#DDD7D0"} />
-                          ))}
-                        </g>
-                      </g>
-                    );
-                  })}
-                </svg>
-              </div>
-              <p className="text-xs text-[#9B9098] text-center mt-2">Drag tables to rearrange · Dots = meal type 🍗 🐟 🌿</p>
-            </div>
+            <svg
+              ref={svgRef}
+              style={{ width: "100%", height: "100%", cursor: "default", userSelect: "none" }}
+              onMouseMove={onSvgMouseMove}
+              onMouseUp={onSvgMouseUp}
+              onMouseLeave={onSvgMouseUp}
+            >
+              {/* Stage */}
+              <rect x="240" y="16" width="220" height="44" rx="8" fill={dark ? "#2A2030" : "#FDF4EC"} stroke={dark ? "#5A3525" : "#EDD5BC"} strokeWidth="1.5" />
+              <text x="350" y="44" textAnchor="middle" fontSize="12" fill={sub} fontFamily="Georgia, serif">Stage / Dance Floor</text>
 
-            {/* Sidebar */}
-            <div className="w-64 border-l border-[#EDE8E0] bg-white overflow-y-auto p-4 flex flex-col gap-4">
-              {selectedTbl ? (
-                <>
-                  <div>
-                    <h3 className="font-semibold text-[#2A2328] text-sm mb-1">{selectedTbl.name}</h3>
-                    <p className="text-xs text-[#9B9098]">{selectedGuests.length} of {selectedTbl.seats} seats filled</p>
-                  </div>
-                  <div className="space-y-1">
-                    {selectedGuests.map(g => (
-                      <div key={g.id} className="flex items-center justify-between p-2 rounded-lg bg-[#FDFBF8] border border-[#EDE8E0]">
-                        <span className="text-xs font-medium text-[#2A2328]">{g.name}</span>
-                        <span className="text-xs px-1.5 py-0.5 rounded-full text-white" style={{ backgroundColor: rsvpColors[g.rsvp] }}>
-                          {g.rsvp}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              ) : (
-                <div className="text-center py-8 text-[#9B9098]">
-                  <div className="text-3xl mb-2">🪑</div>
-                  <p className="text-xs">Click a table to see its guests</p>
-                </div>
-              )}
+              {/* Tables */}
+              {tables.map(tbl => {
+                const seated = guests.filter(g => g.tableId === tbl.id);
+                const isHovered = hoveredTable === tbl.id;
+                const isRound = tbl.shape === "round";
+                const fill = dark ? (isHovered ? "#3A2A1F" : "#26222D") : (isHovered ? "#FDF4EC" : "#FFFFFF");
+                const stroke = isHovered ? "#C9956E" : (dark ? "#4A4050" : "#DDD7D0");
+                return (
+                  <g key={tbl.id} transform={`translate(${tbl.x},${tbl.y})`}
+                    onMouseDown={e => onTableMouseDown(e, tbl.id)}
+                    style={{ cursor: draggingTable === tbl.id ? "grabbing" : "grab" }}>
+                    {isRound ? (
+                      <circle cx={0} cy={0} r={54} fill={fill} stroke={stroke} strokeWidth={isHovered ? 2.5 : 1.5} />
+                    ) : (
+                      <rect x={-80} y={-38} width={160} height={76} rx="10" fill={fill} stroke={stroke} strokeWidth={isHovered ? 2.5 : 1.5} />
+                    )}
+                    <text textAnchor="middle" y={-10} fontSize="11" fontWeight="600" fill={text} fontFamily="Georgia, serif">{tbl.name}</text>
+                    <text textAnchor="middle" y={6} fontSize="10" fill={sub}>{seated.length}/{tbl.seats} guests</text>
+                    {/* Meal dots */}
+                    <g transform={`translate(${-Math.min(seated.length, 6) * 5},20)`}>
+                      {seated.slice(0, 6).map((g, i) => (
+                        <circle key={g.id} cx={i * 10} cy={0} r={4} fill={mealColor[g.meal] ?? "#DDD7D0"} />
+                      ))}
+                    </g>
+                    {/* Remove button */}
+                    <g transform={isRound ? "translate(40,-40)" : "translate(72,-30)"} style={{ cursor: "pointer" }}
+                      onMouseDown={e => { e.stopPropagation(); removeTable(tbl.id); }}>
+                      <circle cx={0} cy={0} r={10} fill={dark ? "#3A2A2A" : "#FEE2E2"} stroke={dark ? "#C96E6E" : "#FECACA"} strokeWidth="1" />
+                      <text textAnchor="middle" y={4} fontSize="11" fill="#C96E6E">×</text>
+                    </g>
+                  </g>
+                );
+              })}
 
-              <div className="mt-auto pt-4 border-t border-[#EDE8E0]">
-                <p className="text-xs text-[#9B9098] mb-3 font-medium">Meal Legend</p>
-                {Object.entries(mealColors).map(([meal, color]) => (
-                  <div key={meal} className="flex items-center gap-2 text-xs text-[#4A4348] mb-1">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
-                    <span className="capitalize">{meal}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+              {/* Dragging ghost */}
+              {draggingGuest && (() => {
+                const g = guests.find(x => x.id === draggingGuest);
+                if (!g) return null;
+                return (
+                  <g transform={`translate(${guestPos.x},${guestPos.y})`} style={{ pointerEvents: "none" }}>
+                    <rect x={-50} y={-14} width={100} height={28} rx="6" fill={dark ? "#3A2A1F" : "#FDF4EC"} stroke="#C9956E" strokeWidth="2" />
+                    <text textAnchor="middle" y={4} fontSize="11" fontWeight="600" fill={text}>{g.name.split(" ")[0]}</text>
+                  </g>
+                );
+              })()}
+            </svg>
+
+            {/* Add table button */}
+            <button onClick={addTable} style={{
+              position: "absolute", bottom: 16, left: 16,
+              background: dark ? "#2A2030" : "#fff", border: `1px solid ${border}`,
+              borderRadius: 10, padding: "8px 16px", cursor: "pointer",
+              fontSize: 13, color: text, fontWeight: 500,
+              boxShadow: "0 1px 4px rgba(0,0,0,0.08)"
+            }}>
+              + Add Table
+            </button>
           </div>
-        ) : (
-          /* Guest list */
-          <div className="flex-1 overflow-auto p-6">
-            <div className="max-w-3xl mx-auto">
-              <div className="bg-white rounded-2xl border border-[#EDE8E0] overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-[#FDFBF8] border-b border-[#EDE8E0]">
-                    <tr>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-[#6B6068]">Guest</th>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-[#6B6068]">Table</th>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-[#6B6068]">Meal</th>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-[#6B6068]">RSVP</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {guests.map((g, i) => {
-                      const tbl = tables.find(t => t.id === g.table);
-                      return (
-                        <tr key={g.id} className={`border-b border-[#EDE8E0] last:border-0 ${i % 2 === 0 ? "" : "bg-[#FDFBF8]"}`}>
-                          <td className="px-4 py-3 font-medium text-[#2A2328]">{g.name}</td>
-                          <td className="px-4 py-3 text-[#6B6068]">{tbl?.name.split("—")[0].trim() ?? "—"}</td>
-                          <td className="px-4 py-3">
-                            <span className="px-2 py-0.5 rounded-full text-white text-xs capitalize" style={{ backgroundColor: mealColors[g.meal] }}>
-                              {g.meal}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className="px-2 py-0.5 rounded-full text-white text-xs capitalize" style={{ backgroundColor: rsvpColors[g.rsvp] }}>
-                              {g.rsvp}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* CTA banner */}
-      <div className="bg-[#C9956E] px-6 py-4 flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <p className="text-white font-semibold">Ready to plan your own wedding?</p>
-          <p className="text-white/80 text-sm">Sign up free — no credit card required</p>
+          <p style={{ textAlign: "center", fontSize: 12, color: sub, marginTop: 8 }}>
+            Drag tables to rearrange · Drag guests from sidebar to seat them · Click × to remove a table
+          </p>
         </div>
-        <Link href="/signup" className="px-6 py-2.5 bg-white text-[#C9956E] font-semibold rounded-lg text-sm hover:bg-[#FDF4EC] transition-colors">
+
+        {/* Sidebar */}
+        <div style={{ width: 240, borderLeft: `1px solid ${border}`, background: card, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <div style={{ padding: "12px 16px", borderBottom: `1px solid ${border}` }}>
+            <p style={{ fontSize: 13, fontWeight: 600, color: text, margin: 0 }}>
+              👥 Unassigned Guests
+            </p>
+            <p style={{ fontSize: 12, color: sub, margin: "2px 0 0" }}>
+              {unassigned.length} of {guests.length} remaining
+            </p>
+          </div>
+
+          <div style={{ flex: 1, overflowY: "auto", padding: "8px 12px" }}>
+            {unassigned.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "32px 0", color: sub }}>
+                <div style={{ fontSize: 28, marginBottom: 6 }}>🎉</div>
+                <p style={{ fontSize: 12 }}>All guests seated!</p>
+              </div>
+            ) : (
+              unassigned.map(g => (
+                <div
+                  key={g.id}
+                  onMouseDown={e => onGuestMouseDown(e, g.id)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 8,
+                    padding: "8px 10px", marginBottom: 4,
+                    background: draggingGuest === g.id ? (dark ? "#3A2A1F" : "#FDF4EC") : (dark ? "#1E1A25" : "#FDFBF8"),
+                    border: `1px solid ${draggingGuest === g.id ? "#C9956E" : border}`,
+                    borderRadius: 8, cursor: "grab",
+                    transition: "border-color 0.15s"
+                  }}
+                >
+                  <span style={{ fontSize: 14 }}>{mealEmoji[g.meal]}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{g.name}</p>
+                    <p style={{ margin: 0, fontSize: 11, color: g.rsvp === "confirmed" ? "#6EC98A" : "#E8C96E" }}>{g.rsvp}</p>
+                  </div>
+                  <span style={{ fontSize: 10, color: sub }}>⠿</span>
+                </div>
+              ))
+            )}
+
+            {/* Seated guests section */}
+            {guests.filter(g => g.tableId !== null).length > 0 && (
+              <>
+                <div style={{ borderTop: `1px solid ${border}`, margin: "12px 0 8px", paddingTop: 8 }}>
+                  <p style={{ fontSize: 12, color: sub, margin: 0, fontWeight: 600 }}>Seated</p>
+                </div>
+                {guests.filter(g => g.tableId !== null).map(g => {
+                  const tbl = tables.find(t => t.id === g.tableId);
+                  return (
+                    <div key={g.id} style={{
+                      display: "flex", alignItems: "center", gap: 8,
+                      padding: "7px 10px", marginBottom: 4,
+                      background: dark ? "#1E1A25" : "#FDFBF8",
+                      border: `1px solid ${border}`,
+                      borderRadius: 8, opacity: 0.8
+                    }}>
+                      <span style={{ fontSize: 13 }}>{mealEmoji[g.meal]}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{g.name}</p>
+                        <p style={{ margin: 0, fontSize: 11, color: sub }}>{tbl?.name ?? "—"}</p>
+                      </div>
+                      <button onClick={() => unseatGuest(g.id)} style={{ background: "none", border: "none", cursor: "pointer", color: sub, fontSize: 14, padding: "0 2px", lineHeight: 1 }} title="Move back to unassigned">↩</button>
+                    </div>
+                  );
+                })}
+              </>
+            )}
+          </div>
+
+          {/* Meal legend */}
+          <div style={{ padding: "12px 16px", borderTop: `1px solid ${border}` }}>
+            <p style={{ fontSize: 11, color: sub, margin: "0 0 6px", fontWeight: 600 }}>MEAL LEGEND</p>
+            {Object.entries(mealEmoji).map(([meal, emoji]) => (
+              <div key={meal} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+                <span style={{ fontSize: 12 }}>{emoji}</span>
+                <span style={{ fontSize: 11, color: sub, textTransform: "capitalize" }}>{meal}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom CTA */}
+      <div style={{ background: "#C9956E", padding: "14px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+        <div>
+          <p style={{ margin: 0, color: "#fff", fontWeight: 600, fontSize: 14 }}>Ready to plan your own wedding?</p>
+          <p style={{ margin: 0, color: "rgba(255,255,255,0.8)", fontSize: 12 }}>Sign up free — no credit card required</p>
+        </div>
+        <Link href="/auth/signup" style={{ padding: "9px 20px", background: "#fff", color: "#C9956E", borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: "none" }}>
           Get Started Free →
         </Link>
       </div>
