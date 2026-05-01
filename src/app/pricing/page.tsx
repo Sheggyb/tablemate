@@ -212,6 +212,13 @@ export default function PricingPage() {
             <span className="text-[#C9956E] text-xl">♥</span>
             <span className={`font-playfair text-xl font-semibold ${text}`}>TableMate</span>
           </Link>
+          <nav className={`hidden md:flex items-center gap-8 text-sm ${muted}`}>
+            <a href="/#features" className="hover:text-[#C9956E] transition-colors">Features</a>
+            <a href="/#reviews"  className="hover:text-[#C9956E] transition-colors">Reviews</a>
+            <a href="/#faq"      className="hover:text-[#C9956E] transition-colors">FAQ</a>
+            <Link href="/pricing" className="text-[#C9956E] font-medium">Pricing</Link>
+            <Link href="/blog"    className="hover:text-[#C9956E] transition-colors">Blog</Link>
+          </nav>
           <div className="flex items-center gap-3">
             <DarkModeToggle />
             <Link href="/login"  className="px-4 py-2 text-sm font-medium rounded-lg border-2 border-[#C9956E] text-[#C9956E] hover:bg-[#C9956E] hover:text-white transition-colors">Sign in</Link>

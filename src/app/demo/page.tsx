@@ -59,6 +59,12 @@ const GUESTS: Guest[] = [
   { id: "g18", wedding_id: "demo-wedding", table_id: "t6", group_id: null,   seat_index: 1, first_name: "Daniel",      last_name: "Garcia",   email: null,                 rsvp: "confirmed", meal: "halal",        rsvp_token: "tok18" },
   { id: "g19", wedding_id: "demo-wedding", table_id: null, group_id: "grp1", seat_index: null, first_name: "Grace",    last_name: "Johnson",  email: "grace@example.com",  rsvp: "confirmed", meal: "vegan",        rsvp_token: "tok19" },
   { id: "g20", wedding_id: "demo-wedding", table_id: null, group_id: null,   seat_index: null, first_name: "Henry",    last_name: "Smith",    email: "henry@example.com",  rsvp: "pending",   meal: "standard",     rsvp_token: "tok20" },
+  { id: "g21", wedding_id: "demo-wedding", table_id: null, group_id: "grp2", seat_index: null, first_name: "Julia",    last_name: "Davis",    email: null,                 rsvp: "confirmed", meal: "vegetarian",   rsvp_token: "tok21" },
+  { id: "g22", wedding_id: "demo-wedding", table_id: null, group_id: "grp3", seat_index: null, first_name: "Kevin",    last_name: "Lee",      email: null,                 rsvp: "confirmed", meal: "standard",     rsvp_token: "tok22" },
+  { id: "g23", wedding_id: "demo-wedding", table_id: null, group_id: "grp4", seat_index: null, first_name: "Laura",    last_name: "Chen",     email: null,                 rsvp: "confirmed", meal: "gluten-free",  rsvp_token: "tok23" },
+  { id: "g24", wedding_id: "demo-wedding", table_id: null, group_id: "grp1", seat_index: null, first_name: "Marcus",   last_name: "Brown",    email: null,                 rsvp: "confirmed", meal: "halal",        rsvp_token: "tok24" },
+  { id: "g25", wedding_id: "demo-wedding", table_id: null, group_id: "grp2", seat_index: null, first_name: "Nina",     last_name: "Wilson",   email: null,                 rsvp: "pending",   meal: "standard",     rsvp_token: "tok25" },
+  { id: "g26", wedding_id: "demo-wedding", table_id: null, group_id: "grp3", seat_index: null, first_name: "Oscar",    last_name: "Taylor",   email: null,                 rsvp: "confirmed", meal: "vegan",        rsvp_token: "tok26" },
 ];
 
 const RULES: Rule[] = [

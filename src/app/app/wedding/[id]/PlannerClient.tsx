@@ -130,7 +130,9 @@ export default function PlannerClient({
   }, []);
 
   useEffect(() => {
-    document.documentElement.setAttribute("data-theme", darkMode ? "dark" : "light");
+    const root = document.documentElement;
+    root.setAttribute("data-theme", darkMode ? "dark" : "light");
+    if (darkMode) root.classList.add("dark"); else root.classList.remove("dark");
     localStorage.setItem("tm-theme", darkMode ? "dark" : "light");
   }, [darkMode]);
 
