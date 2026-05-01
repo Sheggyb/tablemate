@@ -14,7 +14,6 @@ export default function BlogHeader({ activeSlug }: { activeSlug?: string }) {
         </Link>
         <nav className="hidden md:flex items-center gap-8 text-sm text-[#6B6068] dark:text-[#9B9098]">
           <a href="/#features" className="hover:text-[#C9956E] transition-colors">Features</a>
-          <a href="/#reviews"  className="hover:text-[#C9956E] transition-colors">Reviews</a>
           <a href="/#faq"      className="hover:text-[#C9956E] transition-colors">FAQ</a>
           <Link href="/pricing" className="hover:text-[#C9956E] transition-colors">Pricing</Link>
           <Link href="/blog" className="text-[#C9956E] font-medium">Blog</Link>
