@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import Link from "next/link";
 
-// ── Types ────────────────────────────────────────────────────────────────────
+// ── Types ─────────────────────────────────────────────────────────────────────
 interface Table {
   id: string;
   name: string;
@@ -20,7 +20,7 @@ interface Guest {
   tableId: string | null;
 }
 
-// ── Initial data ─────────────────────────────────────────────────────────────
+// ── Initial data ──────────────────────────────────────────────────────────────
 const INITIAL_TABLES: Table[] = [
   { id: "t1", name: "Bride's Family",  x: 160, y: 180, seats: 8,  shape: "round" },
   { id: "t2", name: "Groom's Family",  x: 420, y: 180, seats: 8,  shape: "round" },
@@ -45,22 +45,27 @@ const mealEmoji: Record<string, string> = { chicken: "🍗", fish: "🐟", vegan
 const mealColor: Record<string, string> = { chicken: "#C9956E", fish: "#6E9EC9", vegan: "#6EC98A", halal: "#9E8AC9" };
 let nextTableId = 5;
 
-// ── Component ─────────────────────────────────────────────────────────────────
+// ── Component ──────────────────────────────────────────────────────────────────
 export default function DemoPage() {
   const [dark, setDark] = useState(false);
   const [tables, setTables] = useState<Table[]>(INITIAL_TABLES);
   const [guests, setGuests] = useState<Guest[]>(INITIAL_GUESTS);
 
-  // Table drag state
-  const [draggingTable, setDraggingTable] = useState<string | null>(null);
-  const [tableOffset, setTableOffset] = useState({ x: 0, y: 0 });
+  // Table drag (SVG-local)
+  const draggingTableRef = useRef<string | null>(null);
+  const tableOffsetRef   = useRef({ x: 0, y: 0 });
 
-  // Guest drag state
-  const [draggingGuest, setDraggingGuest] = useState<string | null>(null);
-  const [guestPos, setGuestPos] = useState({ x: 0, y: 0 });
-  const [hoveredTable, setHoveredTable] = useState<string | null>(null);
+  // Guest drag (window-level)
+  const draggingGuestRef = useRef<string | null>(null);
+  const [draggingGuestId, setDraggingGuestId] = useState<string | null>(null);
+  const [guestPos, setGuestPos]               = useState({ x: 0, y: 0 });
+  const [hoveredTable, setHoveredTable]        = useState<string | null>(null);
 
-  const svgRef = useRef<SVGSVGElement>(null);
+  const svgRef      = useRef<SVGSVGElement>(null);
+  const tablesRef   = useRef(tables);
+  const guestsRef   = useRef(guests);
+  tablesRef.current = tables;
+  guestsRef.current = guests;
 
   // Inherit theme from landing page
   useEffect(() => {
@@ -77,74 +82,93 @@ export default function DemoPage() {
     document.documentElement.classList.toggle("dark", next);
   };
 
-  // ── Table drag ──────────────────────────────────────────────────────────────
-  const onTableMouseDown = useCallback((e: React.MouseEvent, id: string) => {
-    if (draggingGuest) return;
-    e.preventDefault();
-    const svg = svgRef.current;
-    if (!svg) return;
-    const rect = svg.getBoundingClientRect();
-    const tbl = tables.find(t => t.id === id)!;
-    setDraggingTable(id);
-    setTableOffset({ x: e.clientX - rect.left - tbl.x, y: e.clientY - rect.top - tbl.y });
-  }, [tables, draggingGuest]);
+  // ── Window-level mouse events for guest drag ──────────────────────────────
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!draggingGuestRef.current) return;
+      setGuestPos({ x: e.clientX, y: e.clientY });
 
-  const onSvgMouseMove = useCallback((e: React.MouseEvent) => {
-    const svg = svgRef.current;
-    if (!svg) return;
-    const rect = svg.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
-
-    if (draggingTable) {
-      const nx = Math.max(60, Math.min(700, mx - tableOffset.x));
-      const ny = Math.max(60, Math.min(560, my - tableOffset.y));
-      setTables(prev => prev.map(t => t.id === draggingTable ? { ...t, x: nx, y: ny } : t));
-    }
-
-    if (draggingGuest) {
-      setGuestPos({ x: mx, y: my });
-      // detect hover over table
-      const hit = tables.find(t => {
+      // check if hovering over a table in SVG
+      const svg = svgRef.current;
+      if (!svg) return;
+      const rect = svg.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      const hit = tablesRef.current.find(t => {
         const dx = mx - t.x, dy = my - t.y;
         return t.shape === "round"
           ? dx * dx + dy * dy < 58 * 58
           : Math.abs(dx) < 80 && Math.abs(dy) < 40;
       });
       setHoveredTable(hit?.id ?? null);
-    }
-  }, [draggingTable, tableOffset, draggingGuest, tables]);
+    };
 
-  const onSvgMouseUp = useCallback(() => {
-    setDraggingTable(null);
+    const onUp = () => {
+      if (!draggingGuestRef.current) return;
+      const gid = draggingGuestRef.current;
+      const hovered = hoveredTable;
+      // need to read latest hoveredTable via ref trick — use setter
+      setHoveredTable(prev => {
+        if (prev) {
+          const tbl = tablesRef.current.find(t => t.id === prev)!;
+          const seated = guestsRef.current.filter(g => g.tableId === prev).length;
+          if (seated < tbl.seats) {
+            setGuests(gs => gs.map(g => g.id === gid ? { ...g, tableId: prev } : g));
+          }
+        }
+        return null;
+      });
+      draggingGuestRef.current = null;
+      setDraggingGuestId(null);
+    };
 
-    if (draggingGuest && hoveredTable) {
-      const tbl = tables.find(t => t.id === hoveredTable)!;
-      const seated = guests.filter(g => g.tableId === hoveredTable).length;
-      if (seated < tbl.seats) {
-        setGuests(prev => prev.map(g => g.id === draggingGuest ? { ...g, tableId: hoveredTable } : g));
-      }
-    }
-    setDraggingGuest(null);
-    setHoveredTable(null);
-  }, [draggingGuest, hoveredTable, tables, guests]);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, []); // only mount once — reads via refs
 
-  // ── Guest drag from sidebar ─────────────────────────────────────────────────
-  const onGuestMouseDown = useCallback((e: React.MouseEvent, id: string) => {
+  // ── Table drag (SVG-local, fine to keep here) ─────────────────────────────
+  const onTableMouseDown = useCallback((e: React.MouseEvent, id: string) => {
+    if (draggingGuestRef.current) return;
     e.preventDefault();
     const svg = svgRef.current;
     if (!svg) return;
     const rect = svg.getBoundingClientRect();
-    setDraggingGuest(id);
-    setGuestPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+    const tbl = tablesRef.current.find(t => t.id === id)!;
+    draggingTableRef.current = id;
+    tableOffsetRef.current = { x: e.clientX - rect.left - tbl.x, y: e.clientY - rect.top - tbl.y };
   }, []);
 
-  // Remove guest from table (click seated guest in sidebar)
-  const unseatGuest = (id: string) => {
-    setGuests(prev => prev.map(g => g.id === id ? { ...g, tableId: null } : g));
-  };
+  const onSvgMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!draggingTableRef.current) return;
+    const svg = svgRef.current;
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const nx = Math.max(60, Math.min(700, mx - tableOffsetRef.current.x));
+    const ny = Math.max(60, Math.min(560, my - tableOffsetRef.current.y));
+    setTables(prev => prev.map(t => t.id === draggingTableRef.current ? { ...t, x: nx, y: ny } : t));
+  }, []);
 
-  // Add / remove tables
+  const onSvgMouseUp = useCallback(() => {
+    draggingTableRef.current = null;
+  }, []);
+
+  // ── Guest drag start ───────────────────────────────────────────────────────
+  const onGuestMouseDown = useCallback((e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    draggingGuestRef.current = id;
+    setDraggingGuestId(id);
+    setGuestPos({ x: e.clientX, y: e.clientY });
+  }, []);
+
+  const unseatGuest = (id: string) =>
+    setGuests(prev => prev.map(g => g.id === id ? { ...g, tableId: null } : g));
+
   const addTable = () => {
     setTables(prev => [...prev, {
       id: `t${nextTableId++}`,
@@ -160,15 +184,34 @@ export default function DemoPage() {
   };
 
   const unassigned = guests.filter(g => g.tableId === null);
-  const bg   = dark ? "#1A1720" : "#F8F4F0";
-  const card = dark ? "#26222D" : "#FFFFFF";
-  const border = dark ? "#3A3540" : "#EDE8E0";
-  const text  = dark ? "#F0EBE8" : "#2A2328";
-  const sub   = dark ? "#9B9098" : "#6B6068";
+  const bg       = dark ? "#1A1720" : "#F8F4F0";
+  const card     = dark ? "#26222D" : "#FFFFFF";
+  const border   = dark ? "#3A3540" : "#EDE8E0";
+  const text     = dark ? "#F0EBE8" : "#2A2328";
+  const sub      = dark ? "#9B9098" : "#6B6068";
   const canvasBg = dark ? "#1E1A25" : "#FDFBF8";
 
   return (
-    <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", fontFamily: "Inter, sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", fontFamily: "Inter, sans-serif", userSelect: "none" }}>
+
+      {/* Drag ghost — fixed to cursor, full-page overlay pointer-events none */}
+      {draggingGuestId && (() => {
+        const g = guests.find(x => x.id === draggingGuestId);
+        if (!g) return null;
+        return (
+          <div style={{
+            position: "fixed", left: guestPos.x - 50, top: guestPos.y - 14,
+            width: 100, height: 28, borderRadius: 6, zIndex: 9999,
+            background: dark ? "#3A2A1F" : "#FDF4EC",
+            border: "2px solid #C9956E",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 12, fontWeight: 700, color: text,
+            pointerEvents: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
+          }}>
+            {mealEmoji[g.meal]} {g.name.split(" ")[0]}
+          </div>
+        );
+      })()}
 
       {/* Header */}
       <header style={{ background: card, borderBottom: `1px solid ${border}`, padding: "0 24px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 50 }}>
@@ -192,7 +235,7 @@ export default function DemoPage() {
 
       {/* Demo hint banner */}
       <div style={{ background: dark ? "#2A1F18" : "#FDF4EC", borderBottom: `1px solid ${dark ? "#5A3525" : "#EDD5BC"}`, padding: "8px 24px", fontSize: 13, color: dark ? "#E8C9A0" : "#9B6040", textAlign: "center" }}>
-        👋 <strong>Try it out:</strong> Drag guests from the sidebar onto the tables · Add or remove tables · No account needed
+        👋 <strong>Try it out:</strong> Drag guests from the sidebar onto tables · Drag tables to rearrange · Click × to remove · + Add Table
       </div>
 
       {/* Main layout */}
@@ -206,7 +249,7 @@ export default function DemoPage() {
 
             <svg
               ref={svgRef}
-              style={{ width: "100%", height: "100%", cursor: "default", userSelect: "none" }}
+              style={{ width: "100%", height: "100%", cursor: draggingTableRef.current ? "grabbing" : "default" }}
               onMouseMove={onSvgMouseMove}
               onMouseUp={onSvgMouseUp}
               onMouseLeave={onSvgMouseUp}
@@ -217,15 +260,15 @@ export default function DemoPage() {
 
               {/* Tables */}
               {tables.map(tbl => {
-                const seated = guests.filter(g => g.tableId === tbl.id);
+                const seated   = guests.filter(g => g.tableId === tbl.id);
                 const isHovered = hoveredTable === tbl.id;
-                const isRound = tbl.shape === "round";
-                const fill = dark ? (isHovered ? "#3A2A1F" : "#26222D") : (isHovered ? "#FDF4EC" : "#FFFFFF");
+                const isRound  = tbl.shape === "round";
+                const fill   = dark ? (isHovered ? "#3A2A1F" : "#26222D") : (isHovered ? "#FDF4EC" : "#FFFFFF");
                 const stroke = isHovered ? "#C9956E" : (dark ? "#4A4050" : "#DDD7D0");
                 return (
                   <g key={tbl.id} transform={`translate(${tbl.x},${tbl.y})`}
                     onMouseDown={e => onTableMouseDown(e, tbl.id)}
-                    style={{ cursor: draggingTable === tbl.id ? "grabbing" : "grab" }}>
+                    style={{ cursor: "grab" }}>
                     {isRound ? (
                       <circle cx={0} cy={0} r={54} fill={fill} stroke={stroke} strokeWidth={isHovered ? 2.5 : 1.5} />
                     ) : (
@@ -248,18 +291,6 @@ export default function DemoPage() {
                   </g>
                 );
               })}
-
-              {/* Dragging ghost */}
-              {draggingGuest && (() => {
-                const g = guests.find(x => x.id === draggingGuest);
-                if (!g) return null;
-                return (
-                  <g transform={`translate(${guestPos.x},${guestPos.y})`} style={{ pointerEvents: "none" }}>
-                    <rect x={-50} y={-14} width={100} height={28} rx="6" fill={dark ? "#3A2A1F" : "#FDF4EC"} stroke="#C9956E" strokeWidth="2" />
-                    <text textAnchor="middle" y={4} fontSize="11" fontWeight="600" fill={text}>{g.name.split(" ")[0]}</text>
-                  </g>
-                );
-              })()}
             </svg>
 
             {/* Add table button */}
@@ -303,10 +334,11 @@ export default function DemoPage() {
                   style={{
                     display: "flex", alignItems: "center", gap: 8,
                     padding: "8px 10px", marginBottom: 4,
-                    background: draggingGuest === g.id ? (dark ? "#3A2A1F" : "#FDF4EC") : (dark ? "#1E1A25" : "#FDFBF8"),
-                    border: `1px solid ${draggingGuest === g.id ? "#C9956E" : border}`,
+                    background: draggingGuestId === g.id ? (dark ? "#3A2A1F" : "#FDF4EC") : (dark ? "#1E1A25" : "#FDFBF8"),
+                    border: `1px solid ${draggingGuestId === g.id ? "#C9956E" : border}`,
                     borderRadius: 8, cursor: "grab",
-                    transition: "border-color 0.15s"
+                    transition: "border-color 0.15s",
+                    opacity: draggingGuestId === g.id ? 0.4 : 1,
                   }}
                 >
                   <span style={{ fontSize: 14 }}>{mealEmoji[g.meal]}</span>
@@ -323,7 +355,7 @@ export default function DemoPage() {
             {guests.filter(g => g.tableId !== null).length > 0 && (
               <>
                 <div style={{ borderTop: `1px solid ${border}`, margin: "12px 0 8px", paddingTop: 8 }}>
-                  <p style={{ fontSize: 12, color: sub, margin: 0, fontWeight: 600 }}>Seated</p>
+                  <p style={{ fontSize: 12, color: sub, margin: 0, fontWeight: 600 }}>Seated ✓</p>
                 </div>
                 {guests.filter(g => g.tableId !== null).map(g => {
                   const tbl = tables.find(t => t.id === g.tableId);
