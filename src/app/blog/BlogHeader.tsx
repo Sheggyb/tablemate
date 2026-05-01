@@ -22,7 +22,7 @@ export default function BlogHeader({ activeSlug }: { activeSlug?: string }) {
         <div className="flex items-center gap-3">
           <DarkModeToggle />
           <Link href="/login"  className="px-4 py-2 text-sm font-medium rounded-lg border-2 border-[#C9956E] text-[#C9956E] hover:bg-[#C9956E] hover:text-white transition-colors">Sign in</Link>
-          <Link href="/signup" className="px-4 py-2 bg-[#C9956E] hover:bg-[#B8845D] text-white text-sm font-medium rounded-lg transition-colors">Get Started Free</Link>
+          <Link href="/signup" className="px-4 py-2 bg-[#C9956E] hover:bg-[#B8845D] text-white text-sm font-medium rounded-lg transition-colors">Get Started</Link>
         </div>
       </div>
     </header>

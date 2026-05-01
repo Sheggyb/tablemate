@@ -94,13 +94,13 @@ export default async function BlogPostPage({ params }: Props) {
             Plan your seating chart with TableMate
           </h2>
           <p className="text-[#6B6068] dark:text-[#9B9098] mb-6 max-w-md mx-auto">
-            Free for up to 50 guests. Drag-and-drop tables, RSVP collection, meal tracking, and printable exports.
+            Professional seating charts. Drag-and-drop tables, RSVP collection, meal tracking, and printable exports.
           </p>
           <Link
             href="/signup"
             className="inline-flex items-center gap-2 px-8 py-3 bg-[#C9956E] hover:bg-[#B8845D] text-white font-semibold rounded-xl transition-colors"
           >
-            Try TableMate free ♥
+            Try TableMate ♥
           </Link>
         </div>
 

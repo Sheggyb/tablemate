@@ -18,14 +18,14 @@ const BASE_URL = "https://tablemate-beta.vercel.app";
 export const metadata: Metadata = {
   metadataBase: new URL(BASE_URL),
   title: {
-    default: "TableMate — Free Wedding Seating Chart Planner",
+    default: "TableMate — Professional Wedding Seating Chart Planner",
     template: "%s | TableMate",
   },
   description:
-    "Plan your perfect wedding seating chart for free. Drag-and-drop tables, manage 500+ guests, collect RSVPs, track meal preferences, and export beautiful printable charts — all in one place.",
+    "Plan your perfect wedding seating chart. Drag-and-drop tables, manage 500+ guests, collect RSVPs, track meal preferences, and export beautiful printable charts — all in one place.",
   keywords: [
     "wedding seating chart",
-    "free wedding seating chart",
+    "wedding seating chart",
     "wedding seating chart maker",
     "wedding table planner",
     "wedding RSVP",
@@ -43,9 +43,9 @@ export const metadata: Metadata = {
     canonical: BASE_URL,
   },
   openGraph: {
-    title: "TableMate — Free Wedding Seating Chart Planner",
+    title: "TableMate — Professional Wedding Seating Chart Planner",
     description:
-      "Drag-and-drop tables, manage 500+ guests, collect RSVPs, and export beautiful printable charts. Free to start — no credit card required.",
+      "Drag-and-drop tables, manage 500+ guests, collect RSVPs, and export beautiful printable charts.",
     url: BASE_URL,
     siteName: "TableMate",
     type: "website",
@@ -55,15 +55,15 @@ export const metadata: Metadata = {
         url: `${BASE_URL}/og-image.png`,
         width: 1200,
         height: 630,
-        alt: "TableMate — Free Wedding Seating Chart Planner",
+        alt: "TableMate — Professional Wedding Seating Chart Planner",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "TableMate — Free Wedding Seating Chart Planner",
+    title: "TableMate — Professional Wedding Seating Chart Planner",
     description:
-      "Drag-and-drop wedding seating charts. Manage guests, collect RSVPs, export beautiful charts. Free to start.",
+      "Drag-and-drop wedding seating charts. Manage guests, collect RSVPs, export beautiful charts.",
     images: [`${BASE_URL}/og-image.png`],
     creator: "@tablemateapp",
   },

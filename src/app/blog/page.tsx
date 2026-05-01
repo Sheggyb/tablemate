@@ -82,13 +82,13 @@ export default function BlogIndex() {
             Ready to plan your perfect seating chart?
           </h2>
           <p className="text-[#6B6068] dark:text-[#9B9098] mb-8 max-w-xl mx-auto">
-            TableMate is free for up to 50 guests — drag-and-drop tables, RSVP collection, meal tracking, and beautiful printable exports.
+            TableMate is a professional wedding seating chart planner — drag-and-drop tables, RSVP collection, meal tracking, and beautiful printable exports.
           </p>
           <Link
             href="/signup"
             className="inline-flex items-center gap-2 px-8 py-3 bg-[#C9956E] hover:bg-[#B8845D] text-white font-semibold rounded-xl transition-colors"
           >
-            Start planning free ♥
+            Start planning ♥
           </Link>
         </div>
       </main>

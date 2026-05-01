@@ -96,7 +96,7 @@ export default function DemoPage() {
           href="/auth/signup"
           style={{ color: "#fff", textDecoration: "underline", fontWeight: 700 }}
         >
-          Sign up free →
+          Sign up →
         </a>
       </div>
 

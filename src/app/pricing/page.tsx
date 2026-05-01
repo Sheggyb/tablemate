@@ -123,7 +123,7 @@ const comparisonRows: { label: string; free: string | boolean; couple: string | 
 const billingFaqs = [
   {
     q: "What does 'one-time payment' mean?",
-    a: "For the Free, Couple and Premium plans you pay a single fee and own the plan forever — including all future updates. No recurring charges.",
+    a: "For the Couple and Premium plans you pay a single fee and own the plan forever — including all future updates. No recurring charges.",
   },
   {
     q: "How does the annual discount work?",
@@ -131,7 +131,7 @@ const billingFaqs = [
   },
   {
     q: "Can I upgrade after purchasing?",
-    a: "Yes. You can upgrade from Free → Couple → Premium at any time. You only pay the difference in price.",
+    a: "Yes. You can upgrade from Couple → Premium at any time. You only pay the difference in price.",
   },
   {
     q: "What is your refund policy?",
@@ -222,7 +222,7 @@ export default function PricingPage() {
           <div className="flex items-center gap-3">
             <DarkModeToggle />
             <Link href="/login"  className="px-4 py-2 text-sm font-medium rounded-lg border-2 border-[#C9956E] text-[#C9956E] hover:bg-[#C9956E] hover:text-white transition-colors">Sign in</Link>
-            <Link href="/signup" className="px-4 py-2 bg-[#C9956E] hover:bg-[#B8845D] text-white text-sm font-medium rounded-lg transition-colors">Get Started Free</Link>
+            <Link href="/signup" className="px-4 py-2 bg-[#C9956E] hover:bg-[#B8845D] text-white text-sm font-medium rounded-lg transition-colors">Get Started</Link>
           </div>
         </div>
       </header>
@@ -383,7 +383,7 @@ export default function PricingPage() {
           </p>
           <div className="flex flex-wrap justify-center gap-6 text-sm">
             {[
-              { q: "Can I try before buying?", a: "Yes — the free plan and demo are always available." },
+              { q: "Can I try before buying?", a: "Yes — the interactive demo is always available, no account needed." },
               { q: "Is there a refund policy?",  a: "30-day money-back guarantee, no questions asked." },
               { q: "Do prices include VAT?",     a: "Prices shown exclude VAT where applicable." },
             ].map(item => (

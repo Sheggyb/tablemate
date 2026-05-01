@@ -196,12 +196,12 @@ const softwareApplicationJsonLd = {
   applicationCategory: "UtilitiesApplication",
   operatingSystem: "Web",
   description:
-    "Free wedding seating chart planner. Drag-and-drop tables, manage 500+ guests, collect RSVPs, track meal preferences, and export beautiful printable charts — all in one place.",
+    "Professional wedding seating chart planner. Drag-and-drop tables, manage 500+ guests, collect RSVPs, track meal preferences, and export beautiful printable charts — all in one place.",
   offers: {
     "@type": "Offer",
     price: "0",
     priceCurrency: "USD",
-    description: "Free plan available for up to 50 guests. No credit card required.",
+    description: "Plans available for every wedding size.",
   },
 
   featureList: [
@@ -233,12 +233,12 @@ const features = [
 
 const faqs = [
   {
-    q: "Is TableMate really free to start?",
-    a: "Yes — the free plan supports up to 50 guests with no credit card required. You can plan your entire wedding and only upgrade if you need more.",
+    q: "What plans does TableMate offer?",
+    a: "TableMate offers plans for every wedding size — from intimate gatherings to large celebrations. See our pricing page for full details.",
   },
   {
     q: "How many guests can I manage?",
-    a: "The free tier supports up to 50 guests. Paid plans unlock unlimited guests, multiple venue floors, CSV import, and advanced export options.",
+    a: "Plans vary in guest capacity, export options, and advanced features like AI Smart Seating, CSV import, and multiple venue floors. See pricing for a full breakdown.",
   },
   {
     q: "Can my partner or wedding planner collaborate with me?",
@@ -313,7 +313,7 @@ export default function LandingPage() {
           <div className="flex items-center gap-3">
             <DarkModeToggle />
             <Link href="/login"  className="px-4 py-2 text-sm font-medium rounded-lg border-2 border-[#C9956E] text-[#C9956E] hover:bg-[#C9956E] hover:text-white transition-colors">Sign in</Link>
-            <Link href="/signup" className="px-4 py-2 bg-[#C9956E] hover:bg-[#B8845D] text-white text-sm font-medium rounded-lg transition-colors">Get Started Free</Link>
+            <Link href="/signup" className="px-4 py-2 bg-[#C9956E] hover:bg-[#B8845D] text-white text-sm font-medium rounded-lg transition-colors">Get Started</Link>
           </div>
         </div>
       </header>
@@ -338,7 +338,7 @@ export default function LandingPage() {
           {/* Left: text */}
           <div className="flex-1 text-center lg:text-left">
             <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#FDF4EC] border border-[#EDD5BC] rounded-full text-xs text-[#C9956E] font-medium mb-8">
-              ✨ Free to start — no credit card required
+              ✨ No spreadsheets, no chaos — just your perfect seating plan
             </div>
             <h1 className={`font-playfair text-5xl md:text-6xl font-bold ${text} leading-tight mb-6`}>
               Seat Every Guest Perfectly.<br/>
@@ -351,13 +351,13 @@ export default function LandingPage() {
             </p>
             <div className="flex items-center justify-center lg:justify-start gap-4 flex-wrap mb-4">
               <Link href="/signup"   className="px-8 py-4 bg-[#C9956E] hover:bg-[#B8845D] text-white font-semibold rounded-xl text-lg transition-colors shadow-lg shadow-[#C9956E]/20">
-                Start Planning Free
+                Start Planning
               </Link>
               <Link href="/app/demo" className={`px-8 py-4 border ${dark ? "border-[#3A3540] hover:border-[#C9956E] text-[#F0EBE8]" : "border-[#DDD7D0] hover:border-[#C9956E] text-[#2A2328]"} font-semibold rounded-xl text-lg transition-colors`}>
                 Try the Demo →
               </Link>
             </div>
-            <p className={`text-sm ${dark ? "text-[#6B6068]" : "text-[#9B9098]"}`}>Free forever for small weddings · No account needed to try</p>
+            <p className={`text-sm ${dark ? "text-[#6B6068]" : "text-[#9B9098]"}`}>Try the demo — no account needed</p>
           </div>
 
           {/* Right: animated mockup */}
@@ -390,7 +390,7 @@ export default function LandingPage() {
       <section className={`${sectionBg} border-y py-16`}>
         <div className="max-w-2xl mx-auto px-6 text-center">
           <h2 className={`font-playfair text-3xl font-bold ${text} mb-4`}>Ready to seat your guests in style?</h2>
-          <p className={`${muted} mb-8`}>Start for free — upgrade only when you need more. No credit card required.</p>
+          <p className={`${muted} mb-8`}>Plans designed for every wedding size.</p>
           <div className="flex items-center justify-center gap-4 flex-wrap">
             <Link href="/signup"   className="px-8 py-4 bg-[#C9956E] hover:bg-[#B8845D] text-white font-semibold rounded-xl text-lg transition-colors shadow-lg shadow-[#C9956E]/20">
               Get Started Free

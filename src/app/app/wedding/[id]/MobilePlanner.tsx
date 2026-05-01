@@ -709,7 +709,7 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
                   <p style={{ fontSize:14, color:textMuted, marginBottom:16 }}>Sign up to download your guest list, seating chart, and more.</p>
                   <a href="/signup" style={{ background:accent, color:"#fff", borderRadius:12,
                     padding:"12px 28px", fontSize:15, fontWeight:700, textDecoration:"none", display:"inline-block" }}>
-                    Create Free Account →
+                    Create Account →
                   </a>
                 </div>
               ) : (

@@ -113,7 +113,7 @@ function SignupForm() {
             <span style={{ fontFamily: "Georgia, serif", fontSize: 20, fontWeight: 600, color: textPrimary }}>TableMate</span>
           </Link>
           <h1 style={{ fontFamily: "Georgia, serif", fontSize: 24, fontWeight: 700, color: textPrimary, margin: 0 }}>Create your account</h1>
-          <p style={{ color: textSecondary, fontSize: 14, marginTop: 4 }}>Free forever · No credit card needed</p>
+          <p style={{ color: textSecondary, fontSize: 14, marginTop: 4 }}>Professional wedding seating made simple</p>
         </div>
 
         <div style={{ background: card, borderRadius: 16, border: `1px solid ${border}`, padding: 32, boxShadow: "0 2px 12px rgba(0,0,0,0.08)" }}>
@@ -163,7 +163,7 @@ function SignupForm() {
             </div>
             <button type="submit" disabled={loading || !passwordsMatch}
               style={{ width: "100%", padding: "12px 0", background: "#C9956E", color: "#fff", fontWeight: 600, fontSize: 14, border: "none", borderRadius: 8, cursor: (loading || !passwordsMatch) ? "not-allowed" : "pointer", opacity: (loading || !passwordsMatch) ? 0.6 : 1 }}>
-              {loading ? "Creating account…" : "Create Free Account"}
+              {loading ? "Creating account…" : "Create Account"}
             </button>
           </form>
 

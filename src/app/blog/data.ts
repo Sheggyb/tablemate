@@ -65,7 +65,7 @@ export const posts: BlogPost[] = [
 <p>A spreadsheet gets the job done, but it doesn't let you see the whole picture. A drag-and-drop seating chart tool lets you visualise the room, spot problems instantly, and make changes without copy-pasting rows.</p>
 
 <div class="cta-box">
-  <p><strong>Ready to build your perfect seating chart?</strong> TableMate is a free wedding seating chart planner with drag-and-drop tables, RSVP collection, and beautiful printable exports. <a href="/signup">Try TableMate free →</a></p>
+  <p><strong>Ready to build your perfect seating chart?</strong> TableMate is a professional wedding seating chart planner with drag-and-drop tables, RSVP collection, and beautiful printable exports. <a href="/signup">Try TableMate →</a></p>
 </div>
     `,
   },
@@ -92,7 +92,7 @@ export const posts: BlogPost[] = [
   <li>Dietary restriction tracking</li>
   <li>Automated reminders</li>
 </ul>
-<p>TableMate's free plan covers up to 50 guests with full RSVP functionality — no credit card required. For smaller weddings (under 50 guests), this is genuinely all you need.</p>
+<p>TableMate covers full RSVP functionality with drag-and-drop seating for any wedding size.</p>
 
 <h3>Budget Tracking: Google Sheets Wins</h3>
 <p>For budget tracking, a well-structured Google Sheet beats most dedicated apps. The reason: wedding budgets are deeply personal and variable. Generic apps often force you into categories that don't match your priorities. A spreadsheet lets you track exactly what matters to you.</p>
@@ -122,7 +122,7 @@ export const posts: BlogPost[] = [
 <p>Start free, upgrade only when you hit a real limitation. Most couples can plan a beautiful wedding using free tools for 80% of their tasks. The 20% where paid tools earn their cost: large guest management, seating chart visualisation, and professional-quality exports.</p>
 
 <div class="cta-box">
-  <p><strong>TableMate is free for up to 50 guests</strong> — with drag-and-drop seating, RSVP collection, meal tracking, and printable exports. No credit card needed. <a href="/signup">Start planning free →</a></p>
+  <p><strong>Plan your wedding with TableMate</strong> — drag-and-drop seating, RSVP collection, meal tracking, and printable exports. <a href="/signup">Start planning →</a></p>
 </div>
     `,
   },
@@ -172,7 +172,7 @@ export const posts: BlogPost[] = [
 <p>Most of these wedding seating mistakes are easy to spot — but only when you can see the full picture. A visual, drag-and-drop seating tool lets you check for dietary conflicts, accessibility issues, and awkward pairings at a glance. Changes that would take 20 minutes in a spreadsheet take 30 seconds when you can simply drag a name to a new seat.</p>
 
 <div class="cta-box">
-  <p><strong>Avoid every one of these mistakes with TableMate.</strong> Our free wedding seating chart planner includes RSVP collection, meal tracking, and drag-and-drop layout tools — so you can see and fix problems before the big day. <a href="/signup">Try TableMate free →</a></p>
+  <p><strong>Avoid every one of these mistakes with TableMate.</strong> Our professional wedding seating chart planner includes RSVP collection, meal tracking, and drag-and-drop layout tools — so you can see and fix problems before the big day. <a href="/signup">Try TableMate →</a></p>
 </div>
     `,
   },
