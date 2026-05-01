@@ -1,31 +1,16 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-interface Table {
-  id: string;
-  name: string;
-  x: number;
-  y: number;
-  seats: number;
-  shape: "round" | "rectangle";
-}
-interface Guest {
-  id: string;
-  name: string;
-  meal: "chicken" | "fish" | "vegan" | "halal";
-  rsvp: "confirmed" | "pending";
-  tableId: string | null;
-}
+interface Table { id: string; name: string; x: number; y: number; seats: number; shape: "round" | "rectangle"; }
+interface Guest { id: string; name: string; meal: "chicken" | "fish" | "vegan" | "halal"; rsvp: "confirmed" | "pending"; tableId: string | null; }
 
-// ── Initial data ──────────────────────────────────────────────────────────────
 const INITIAL_TABLES: Table[] = [
-  { id: "t1", name: "Bride's Family",  x: 160, y: 180, seats: 8,  shape: "round" },
-  { id: "t2", name: "Groom's Family",  x: 420, y: 180, seats: 8,  shape: "round" },
-  { id: "t3", name: "Friends",         x: 160, y: 420, seats: 8,  shape: "round" },
-  { id: "t4", name: "Work Colleagues", x: 420, y: 420, seats: 10, shape: "rectangle" },
+  { id: "t1", name: "Bride's Family",  x: 160, y: 200, seats: 8,  shape: "round" },
+  { id: "t2", name: "Groom's Family",  x: 430, y: 200, seats: 8,  shape: "round" },
+  { id: "t3", name: "Friends",         x: 160, y: 430, seats: 8,  shape: "round" },
+  { id: "t4", name: "Work Colleagues", x: 430, y: 430, seats: 10, shape: "rectangle" },
 ];
 
 const INITIAL_GUESTS: Guest[] = [
@@ -41,33 +26,33 @@ const INITIAL_GUESTS: Guest[] = [
   { id: "g10", name: "Lucas Martin",   meal: "chicken", rsvp: "confirmed", tableId: null },
 ];
 
-const mealEmoji: Record<string, string> = { chicken: "🍗", fish: "🐟", vegan: "🌿", halal: "🥩" };
-const mealColor: Record<string, string> = { chicken: "#C9956E", fish: "#6E9EC9", vegan: "#6EC98A", halal: "#9E8AC9" };
-let nextTableId = 5;
+const MEAL_EMOJI: Record<string, string> = { chicken: "🍗", fish: "🐟", vegan: "🌿", halal: "🥩" };
+const MEAL_COLOR: Record<string, string> = { chicken: "#C9956E", fish: "#6E9EC9", vegan: "#6EC98A", halal: "#9E8AC9" };
+let nextId = 5;
 
-// ── Component ──────────────────────────────────────────────────────────────────
 export default function DemoPage() {
-  const [dark, setDark] = useState(false);
+  const [dark, setDark]     = useState(false);
   const [tables, setTables] = useState<Table[]>(INITIAL_TABLES);
   const [guests, setGuests] = useState<Guest[]>(INITIAL_GUESTS);
 
-  // Table drag (SVG-local)
-  const draggingTableRef = useRef<string | null>(null);
-  const tableOffsetRef   = useRef({ x: 0, y: 0 });
+  // ── Unified drag state (all via window events) ────────────────────────────
+  type DragState =
+    | { type: "none" }
+    | { type: "table"; id: string; offX: number; offY: number }
+    | { type: "guest"; id: string };
 
-  // Guest drag (window-level)
-  const draggingGuestRef = useRef<string | null>(null);
-  const [draggingGuestId, setDraggingGuestId] = useState<string | null>(null);
-  const [guestPos, setGuestPos]               = useState({ x: 0, y: 0 });
-  const [hoveredTable, setHoveredTable]        = useState<string | null>(null);
+  const dragRef    = useRef<DragState>({ type: "none" });
+  const [ghostPos, setGhostPos]       = useState({ x: 0, y: 0 });
+  const [draggingGuest, setDraggingGuest] = useState<string | null>(null);
+  const [hoveredTable, setHoveredTable]   = useState<string | null>(null);
 
-  const svgRef      = useRef<SVGSVGElement>(null);
-  const tablesRef   = useRef(tables);
-  const guestsRef   = useRef(guests);
+  const svgRef    = useRef<SVGSVGElement>(null);
+  const tablesRef = useRef(tables);
   tablesRef.current = tables;
+  const guestsRef = useRef(guests);
   guestsRef.current = guests;
 
-  // Inherit theme from landing page
+  // Inherit theme
   useEffect(() => {
     const saved = localStorage.getItem("tm-theme");
     const isDark = saved === "dark";
@@ -82,108 +67,106 @@ export default function DemoPage() {
     document.documentElement.classList.toggle("dark", next);
   };
 
-  // ── Window-level mouse events for guest drag ──────────────────────────────
+  // ── Window-level drag events ───────────────────────────────────────────────
   useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      if (!draggingGuestRef.current) return;
-      setGuestPos({ x: e.clientX, y: e.clientY });
-
-      // check if hovering over a table in SVG
+    const getSvgPoint = (e: MouseEvent) => {
       const svg = svgRef.current;
-      if (!svg) return;
-      const rect = svg.getBoundingClientRect();
-      const mx = e.clientX - rect.left;
-      const my = e.clientY - rect.top;
-      const hit = tablesRef.current.find(t => {
-        const dx = mx - t.x, dy = my - t.y;
-        return t.shape === "round"
-          ? dx * dx + dy * dy < 58 * 58
-          : Math.abs(dx) < 80 && Math.abs(dy) < 40;
-      });
-      setHoveredTable(hit?.id ?? null);
+      if (!svg) return null;
+      const r = svg.getBoundingClientRect();
+      return { x: e.clientX - r.left, y: e.clientY - r.top };
     };
 
-    const onUp = () => {
-      if (!draggingGuestRef.current) return;
-      const gid = draggingGuestRef.current;
-      const hovered = hoveredTable;
-      // need to read latest hoveredTable via ref trick — use setter
-      setHoveredTable(prev => {
-        if (prev) {
-          const tbl = tablesRef.current.find(t => t.id === prev)!;
-          const seated = guestsRef.current.filter(g => g.tableId === prev).length;
-          if (seated < tbl.seats) {
-            setGuests(gs => gs.map(g => g.id === gid ? { ...g, tableId: prev } : g));
+    const getHitTable = (px: number, py: number) =>
+      tablesRef.current.find(t => {
+        const dx = px - t.x, dy = py - t.y;
+        return t.shape === "round"
+          ? dx * dx + dy * dy < 56 * 56
+          : Math.abs(dx) < 82 && Math.abs(dy) < 42;
+      });
+
+    const onMove = (e: MouseEvent) => {
+      const d = dragRef.current;
+      if (d.type === "none") return;
+
+      if (d.type === "table") {
+        const pt = getSvgPoint(e);
+        if (!pt) return;
+        const nx = Math.max(70, Math.min(650, pt.x - d.offX));
+        const ny = Math.max(70, Math.min(560, pt.y - d.offY));
+        setTables(prev => prev.map(t => t.id === d.id ? { ...t, x: nx, y: ny } : t));
+      }
+
+      if (d.type === "guest") {
+        setGhostPos({ x: e.clientX, y: e.clientY });
+        const pt = getSvgPoint(e);
+        const hit = pt ? getHitTable(pt.x, pt.y) : undefined;
+        setHoveredTable(hit?.id ?? null);
+      }
+    };
+
+    const onUp = (e: MouseEvent) => {
+      const d = dragRef.current;
+      if (d.type === "guest") {
+        const pt = getSvgPoint(e);
+        if (pt) {
+          const hit = getHitTable(pt.x, pt.y);
+          if (hit) {
+            const seated = guestsRef.current.filter(g => g.tableId === hit.id).length;
+            if (seated < hit.seats) {
+              setGuests(gs => gs.map(g => g.id === (d as { type:"guest"; id:string }).id ? { ...g, tableId: hit.id } : g));
+            }
           }
         }
-        return null;
-      });
-      draggingGuestRef.current = null;
-      setDraggingGuestId(null);
+        setDraggingGuest(null);
+        setHoveredTable(null);
+      }
+      dragRef.current = { type: "none" };
     };
 
     window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
+    window.addEventListener("mouseup",   onUp);
     return () => {
       window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
+      window.removeEventListener("mouseup",   onUp);
     };
-  }, []); // only mount once — reads via refs
+  }, []);
 
-  // ── Table drag (SVG-local, fine to keep here) ─────────────────────────────
-  const onTableMouseDown = useCallback((e: React.MouseEvent, id: string) => {
-    if (draggingGuestRef.current) return;
+  // ── Handlers ──────────────────────────────────────────────────────────────
+  const startTableDrag = (e: React.MouseEvent, id: string) => {
     e.preventDefault();
+    e.stopPropagation();
     const svg = svgRef.current;
     if (!svg) return;
-    const rect = svg.getBoundingClientRect();
+    const r = svg.getBoundingClientRect();
     const tbl = tablesRef.current.find(t => t.id === id)!;
-    draggingTableRef.current = id;
-    tableOffsetRef.current = { x: e.clientX - rect.left - tbl.x, y: e.clientY - rect.top - tbl.y };
-  }, []);
+    dragRef.current = { type: "table", id, offX: e.clientX - r.left - tbl.x, offY: e.clientY - r.top - tbl.y };
+  };
 
-  const onSvgMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!draggingTableRef.current) return;
-    const svg = svgRef.current;
-    if (!svg) return;
-    const rect = svg.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
-    const nx = Math.max(60, Math.min(700, mx - tableOffsetRef.current.x));
-    const ny = Math.max(60, Math.min(560, my - tableOffsetRef.current.y));
-    setTables(prev => prev.map(t => t.id === draggingTableRef.current ? { ...t, x: nx, y: ny } : t));
-  }, []);
-
-  const onSvgMouseUp = useCallback(() => {
-    draggingTableRef.current = null;
-  }, []);
-
-  // ── Guest drag start ───────────────────────────────────────────────────────
-  const onGuestMouseDown = useCallback((e: React.MouseEvent, id: string) => {
+  const startGuestDrag = (e: React.MouseEvent, id: string) => {
     e.preventDefault();
-    draggingGuestRef.current = id;
-    setDraggingGuestId(id);
-    setGuestPos({ x: e.clientX, y: e.clientY });
-  }, []);
+    dragRef.current = { type: "guest", id };
+    setDraggingGuest(id);
+    setGhostPos({ x: e.clientX, y: e.clientY });
+  };
+
+  const removeTable = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setTables(prev => prev.filter(t => t.id !== id));
+    setGuests(prev => prev.map(g => g.tableId === id ? { ...g, tableId: null } : g));
+  };
 
   const unseatGuest = (id: string) =>
     setGuests(prev => prev.map(g => g.id === id ? { ...g, tableId: null } : g));
 
   const addTable = () => {
     setTables(prev => [...prev, {
-      id: `t${nextTableId++}`,
-      name: `Table ${nextTableId - 1}`,
-      x: 280, y: 300,
-      seats: 8,
-      shape: "round",
+      id: `t${nextId++}`, name: `Table ${nextId - 1}`,
+      x: 280, y: 310, seats: 8, shape: "round",
     }]);
   };
-  const removeTable = (id: string) => {
-    setTables(prev => prev.filter(t => t.id !== id));
-    setGuests(prev => prev.map(g => g.tableId === id ? { ...g, tableId: null } : g));
-  };
 
-  const unassigned = guests.filter(g => g.tableId === null);
+  // ── Theme colours ─────────────────────────────────────────────────────────
   const bg       = dark ? "#1A1720" : "#F8F4F0";
   const card     = dark ? "#26222D" : "#FFFFFF";
   const border   = dark ? "#3A3540" : "#EDE8E0";
@@ -191,27 +174,25 @@ export default function DemoPage() {
   const sub      = dark ? "#9B9098" : "#6B6068";
   const canvasBg = dark ? "#1E1A25" : "#FDFBF8";
 
+  const unassigned = guests.filter(g => g.tableId === null);
+  const seated     = guests.filter(g => g.tableId !== null);
+  const draggingGuestObj = guests.find(g => g.id === draggingGuest);
+
   return (
     <div style={{ minHeight: "100vh", background: bg, display: "flex", flexDirection: "column", fontFamily: "Inter, sans-serif", userSelect: "none" }}>
 
-      {/* Drag ghost — fixed to cursor, full-page overlay pointer-events none */}
-      {draggingGuestId && (() => {
-        const g = guests.find(x => x.id === draggingGuestId);
-        if (!g) return null;
-        return (
-          <div style={{
-            position: "fixed", left: guestPos.x - 50, top: guestPos.y - 14,
-            width: 100, height: 28, borderRadius: 6, zIndex: 9999,
-            background: dark ? "#3A2A1F" : "#FDF4EC",
-            border: "2px solid #C9956E",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 12, fontWeight: 700, color: text,
-            pointerEvents: "none", boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
-          }}>
-            {mealEmoji[g.meal]} {g.name.split(" ")[0]}
-          </div>
-        );
-      })()}
+      {/* Drag ghost */}
+      {draggingGuestObj && (
+        <div style={{
+          position: "fixed", left: ghostPos.x - 52, top: ghostPos.y - 16, zIndex: 9999,
+          padding: "4px 12px", borderRadius: 8, pointerEvents: "none",
+          background: dark ? "#3A2A1F" : "#FDF4EC", border: "2px solid #C9956E",
+          fontSize: 12, fontWeight: 700, color: text, boxShadow: "0 4px 16px rgba(0,0,0,0.25)",
+          whiteSpace: "nowrap",
+        }}>
+          {MEAL_EMOJI[draggingGuestObj.meal]} {draggingGuestObj.name.split(" ")[0]}
+        </div>
+      )}
 
       {/* Header */}
       <header style={{ background: card, borderBottom: `1px solid ${border}`, padding: "0 24px", height: 56, display: "flex", alignItems: "center", justifyContent: "space-between", position: "sticky", top: 0, zIndex: 50 }}>
@@ -221,7 +202,9 @@ export default function DemoPage() {
             <span style={{ fontFamily: "Georgia, serif", fontWeight: 600, color: text, fontSize: 16 }}>TableMate</span>
           </Link>
           <span style={{ color: border }}>·</span>
-          <span style={{ fontSize: 12, color: "#C9956E", fontWeight: 500, background: dark ? "#2A1F18" : "#FDF4EC", border: `1px solid ${dark ? "#5A3525" : "#EDD5BC"}`, padding: "2px 10px", borderRadius: 999 }}>Demo Mode</span>
+          <span style={{ fontSize: 12, color: "#C9956E", fontWeight: 500, background: dark ? "#2A1F18" : "#FDF4EC", border: `1px solid ${dark ? "#5A3525" : "#EDD5BC"}`, padding: "2px 10px", borderRadius: 999 }}>
+            ✨ Demo Mode
+          </span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button onClick={toggleDark} style={{ background: "none", border: `1px solid ${border}`, borderRadius: 8, padding: "5px 12px", cursor: "pointer", color: sub, fontSize: 13 }}>
@@ -233,131 +216,126 @@ export default function DemoPage() {
         </div>
       </header>
 
-      {/* Demo hint banner */}
+      {/* Hint banner */}
       <div style={{ background: dark ? "#2A1F18" : "#FDF4EC", borderBottom: `1px solid ${dark ? "#5A3525" : "#EDD5BC"}`, padding: "8px 24px", fontSize: 13, color: dark ? "#E8C9A0" : "#9B6040", textAlign: "center" }}>
-        👋 <strong>Try it out:</strong> Drag guests from the sidebar onto tables · Drag tables to rearrange · Click × to remove · + Add Table
+        👋 <strong>Drag guests</strong> from the sidebar onto tables · <strong>Drag tables</strong> to rearrange · <strong>×</strong> to remove · <strong>+ Add Table</strong>
       </div>
 
-      {/* Main layout */}
+      {/* Main */}
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
 
         {/* Canvas */}
-        <div style={{ flex: 1, padding: 16, overflow: "auto", position: "relative" }}>
+        <div style={{ flex: 1, padding: 16, overflow: "auto" }}>
           <div style={{ background: canvasBg, borderRadius: 16, border: `1px solid ${border}`, position: "relative", height: 640, overflow: "hidden" }}>
             {/* Dot grid */}
             <div style={{ position: "absolute", inset: 0, opacity: 0.15, backgroundImage: `radial-gradient(circle, ${dark ? "#888" : "#DDD7D0"} 1px, transparent 1px)`, backgroundSize: "32px 32px" }} />
 
-            <svg
-              ref={svgRef}
-              style={{ width: "100%", height: "100%", cursor: draggingTableRef.current ? "grabbing" : "default" }}
-              onMouseMove={onSvgMouseMove}
-              onMouseUp={onSvgMouseUp}
-              onMouseLeave={onSvgMouseUp}
-            >
+            <svg ref={svgRef} style={{ width: "100%", height: "100%", display: "block" }}>
               {/* Stage */}
-              <rect x="240" y="16" width="220" height="44" rx="8" fill={dark ? "#2A2030" : "#FDF4EC"} stroke={dark ? "#5A3525" : "#EDD5BC"} strokeWidth="1.5" />
+              <rect x="230" y="16" width="240" height="44" rx="8" fill={dark ? "#2A2030" : "#FDF4EC"} stroke={dark ? "#5A3525" : "#EDD5BC"} strokeWidth="1.5" />
               <text x="350" y="44" textAnchor="middle" fontSize="12" fill={sub} fontFamily="Georgia, serif">Stage / Dance Floor</text>
 
               {/* Tables */}
               {tables.map(tbl => {
-                const seated   = guests.filter(g => g.tableId === tbl.id);
-                const isHovered = hoveredTable === tbl.id;
+                const tSeated  = guests.filter(g => g.tableId === tbl.id);
+                const isHov    = hoveredTable === tbl.id;
                 const isRound  = tbl.shape === "round";
-                const fill   = dark ? (isHovered ? "#3A2A1F" : "#26222D") : (isHovered ? "#FDF4EC" : "#FFFFFF");
-                const stroke = isHovered ? "#C9956E" : (dark ? "#4A4050" : "#DDD7D0");
+                const fill     = dark ? (isHov ? "#3A2A1F" : "#26222D") : (isHov ? "#FDF4EC" : "#FFFFFF");
+                const stroke   = isHov ? "#C9956E" : (dark ? "#4A4050" : "#DDD7D0");
+
                 return (
-                  <g key={tbl.id} transform={`translate(${tbl.x},${tbl.y})`}
-                    onMouseDown={e => onTableMouseDown(e, tbl.id)}
+                  <g key={tbl.id}
+                    transform={`translate(${tbl.x},${tbl.y})`}
+                    onMouseDown={e => startTableDrag(e, tbl.id)}
                     style={{ cursor: "grab" }}>
-                    {isRound ? (
-                      <circle cx={0} cy={0} r={54} fill={fill} stroke={stroke} strokeWidth={isHovered ? 2.5 : 1.5} />
-                    ) : (
-                      <rect x={-80} y={-38} width={160} height={76} rx="10" fill={fill} stroke={stroke} strokeWidth={isHovered ? 2.5 : 1.5} />
-                    )}
+
+                    {isRound
+                      ? <circle cx={0} cy={0} r={54} fill={fill} stroke={stroke} strokeWidth={isHov ? 2.5 : 1.5} />
+                      : <rect x={-82} y={-40} width={164} height={80} rx="10" fill={fill} stroke={stroke} strokeWidth={isHov ? 2.5 : 1.5} />}
+
                     <text textAnchor="middle" y={-10} fontSize="11" fontWeight="600" fill={text} fontFamily="Georgia, serif">{tbl.name}</text>
-                    <text textAnchor="middle" y={6} fontSize="10" fill={sub}>{seated.length}/{tbl.seats} guests</text>
+                    <text textAnchor="middle" y={6}   fontSize="10" fill={sub}>{tSeated.length}/{tbl.seats} guests</text>
+
                     {/* Meal dots */}
-                    <g transform={`translate(${-Math.min(seated.length, 6) * 5},20)`}>
-                      {seated.slice(0, 6).map((g, i) => (
-                        <circle key={g.id} cx={i * 10} cy={0} r={4} fill={mealColor[g.meal] ?? "#DDD7D0"} />
+                    <g transform={`translate(${-Math.min(tSeated.length, 6) * 5},22)`}>
+                      {tSeated.slice(0, 6).map((g, i) => (
+                        <circle key={g.id} cx={i * 10} cy={0} r={4} fill={MEAL_COLOR[g.meal] ?? "#DDD7D0"} />
                       ))}
                     </g>
-                    {/* Remove button */}
-                    <g transform={isRound ? "translate(40,-40)" : "translate(72,-30)"} style={{ cursor: "pointer" }}
-                      onMouseDown={e => { e.stopPropagation(); removeTable(tbl.id); }}>
-                      <circle cx={0} cy={0} r={10} fill={dark ? "#3A2A2A" : "#FEE2E2"} stroke={dark ? "#C96E6E" : "#FECACA"} strokeWidth="1" />
-                      <text textAnchor="middle" y={4} fontSize="11" fill="#C96E6E">×</text>
+
+                    {/* Remove × */}
+                    <g
+                      transform={isRound ? "translate(42,-42)" : "translate(74,-32)"}
+                      onMouseDown={e => removeTable(e, tbl.id)}
+                      style={{ cursor: "pointer" }}>
+                      <circle cx={0} cy={0} r={11} fill={dark ? "#3A2A2A" : "#FEE2E2"} stroke={dark ? "#C96E6E" : "#FECACA"} strokeWidth="1" />
+                      <text textAnchor="middle" dominantBaseline="central" fontSize="13" fill="#C96E6E" fontWeight="bold">×</text>
                     </g>
                   </g>
                 );
               })}
             </svg>
 
-            {/* Add table button */}
+            {/* Add Table */}
             <button onClick={addTable} style={{
               position: "absolute", bottom: 16, left: 16,
               background: dark ? "#2A2030" : "#fff", border: `1px solid ${border}`,
               borderRadius: 10, padding: "8px 16px", cursor: "pointer",
               fontSize: 13, color: text, fontWeight: 500,
-              boxShadow: "0 1px 4px rgba(0,0,0,0.08)"
+              boxShadow: "0 1px 4px rgba(0,0,0,0.08)",
             }}>
               + Add Table
             </button>
           </div>
           <p style={{ textAlign: "center", fontSize: 12, color: sub, marginTop: 8 }}>
-            Drag tables to rearrange · Drag guests from sidebar to seat them · Click × to remove a table
+            Drag guests from the right sidebar → drop onto a table to seat them
           </p>
         </div>
 
         {/* Sidebar */}
         <div style={{ width: 240, borderLeft: `1px solid ${border}`, background: card, display: "flex", flexDirection: "column", overflow: "hidden" }}>
           <div style={{ padding: "12px 16px", borderBottom: `1px solid ${border}` }}>
-            <p style={{ fontSize: 13, fontWeight: 600, color: text, margin: 0 }}>
-              👥 Unassigned Guests
-            </p>
-            <p style={{ fontSize: 12, color: sub, margin: "2px 0 0" }}>
-              {unassigned.length} of {guests.length} remaining
-            </p>
+            <p style={{ fontSize: 13, fontWeight: 600, color: text, margin: 0 }}>👥 Guest List</p>
+            <p style={{ fontSize: 12, color: sub, margin: "2px 0 0" }}>{unassigned.length} unassigned · {seated.length} seated</p>
           </div>
 
           <div style={{ flex: 1, overflowY: "auto", padding: "8px 12px" }}>
+            {/* Unassigned */}
             {unassigned.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "32px 0", color: sub }}>
+              <div style={{ textAlign: "center", padding: "24px 0", color: sub }}>
                 <div style={{ fontSize: 28, marginBottom: 6 }}>🎉</div>
-                <p style={{ fontSize: 12 }}>All guests seated!</p>
+                <p style={{ fontSize: 12, margin: 0 }}>All guests seated!</p>
               </div>
             ) : (
               unassigned.map(g => (
-                <div
-                  key={g.id}
-                  onMouseDown={e => onGuestMouseDown(e, g.id)}
+                <div key={g.id}
+                  onMouseDown={e => startGuestDrag(e, g.id)}
                   style={{
                     display: "flex", alignItems: "center", gap: 8,
                     padding: "8px 10px", marginBottom: 4,
-                    background: draggingGuestId === g.id ? (dark ? "#3A2A1F" : "#FDF4EC") : (dark ? "#1E1A25" : "#FDFBF8"),
-                    border: `1px solid ${draggingGuestId === g.id ? "#C9956E" : border}`,
+                    background: draggingGuest === g.id ? (dark ? "#3A2A1F" : "#FDF4EC") : (dark ? "#1E1A25" : "#FDFBF8"),
+                    border: `1px solid ${draggingGuest === g.id ? "#C9956E" : border}`,
                     borderRadius: 8, cursor: "grab",
-                    transition: "border-color 0.15s",
-                    opacity: draggingGuestId === g.id ? 0.4 : 1,
-                  }}
-                >
-                  <span style={{ fontSize: 14 }}>{mealEmoji[g.meal]}</span>
+                    opacity: draggingGuest === g.id ? 0.35 : 1,
+                    transition: "opacity 0.1s, border-color 0.1s",
+                  }}>
+                  <span style={{ fontSize: 15 }}>{MEAL_EMOJI[g.meal]}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{g.name}</p>
+                    <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.name}</p>
                     <p style={{ margin: 0, fontSize: 11, color: g.rsvp === "confirmed" ? "#6EC98A" : "#E8C96E" }}>{g.rsvp}</p>
                   </div>
-                  <span style={{ fontSize: 10, color: sub }}>⠿</span>
+                  <span style={{ fontSize: 11, color: sub, letterSpacing: 1 }}>⠿</span>
                 </div>
               ))
             )}
 
-            {/* Seated guests section */}
-            {guests.filter(g => g.tableId !== null).length > 0 && (
+            {/* Seated */}
+            {seated.length > 0 && (
               <>
                 <div style={{ borderTop: `1px solid ${border}`, margin: "12px 0 8px", paddingTop: 8 }}>
                   <p style={{ fontSize: 12, color: sub, margin: 0, fontWeight: 600 }}>Seated ✓</p>
                 </div>
-                {guests.filter(g => g.tableId !== null).map(g => {
+                {seated.map(g => {
                   const tbl = tables.find(t => t.id === g.tableId);
                   return (
                     <div key={g.id} style={{
@@ -365,14 +343,14 @@ export default function DemoPage() {
                       padding: "7px 10px", marginBottom: 4,
                       background: dark ? "#1E1A25" : "#FDFBF8",
                       border: `1px solid ${border}`,
-                      borderRadius: 8, opacity: 0.8
+                      borderRadius: 8, opacity: 0.85,
                     }}>
-                      <span style={{ fontSize: 13 }}>{mealEmoji[g.meal]}</span>
+                      <span style={{ fontSize: 13 }}>{MEAL_EMOJI[g.meal]}</span>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{g.name}</p>
+                        <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.name}</p>
                         <p style={{ margin: 0, fontSize: 11, color: sub }}>{tbl?.name ?? "—"}</p>
                       </div>
-                      <button onClick={() => unseatGuest(g.id)} style={{ background: "none", border: "none", cursor: "pointer", color: sub, fontSize: 14, padding: "0 2px", lineHeight: 1 }} title="Move back to unassigned">↩</button>
+                      <button onClick={() => unseatGuest(g.id)} title="Move back" style={{ background: "none", border: "none", cursor: "pointer", color: sub, fontSize: 14, padding: "0 2px", lineHeight: 1 }}>↩</button>
                     </div>
                   );
                 })}
@@ -383,7 +361,7 @@ export default function DemoPage() {
           {/* Meal legend */}
           <div style={{ padding: "12px 16px", borderTop: `1px solid ${border}` }}>
             <p style={{ fontSize: 11, color: sub, margin: "0 0 6px", fontWeight: 600 }}>MEAL LEGEND</p>
-            {Object.entries(mealEmoji).map(([meal, emoji]) => (
+            {Object.entries(MEAL_EMOJI).map(([meal, emoji]) => (
               <div key={meal} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
                 <span style={{ fontSize: 12 }}>{emoji}</span>
                 <span style={{ fontSize: 11, color: sub, textTransform: "capitalize" }}>{meal}</span>
