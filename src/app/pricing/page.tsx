@@ -25,7 +25,7 @@ const plans = [
       "Export guest list (CSV)",
       "Wishing Wall",
     ],
-    cta: "Get Started Free",
+    cta: "Get Started",
     ctaHref: "/signup",
     highlight: false,
   },

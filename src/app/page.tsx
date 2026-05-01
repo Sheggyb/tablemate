@@ -389,11 +389,11 @@ export default function LandingPage() {
       {/* ── Mid-page CTA ── */}
       <section className={`${sectionBg} border-y py-16`}>
         <div className="max-w-2xl mx-auto px-6 text-center">
-          <h2 className={`font-playfair text-3xl font-bold ${text} mb-4`}>Ready to seat your guests in style?</h2>
-          <p className={`${muted} mb-8`}>Plans designed for every wedding size.</p>
+          <h2 className={`font-playfair text-3xl font-bold ${text} mb-4`}>Ready to plan your perfect seating chart?</h2>
+          <p className={`${muted} mb-8`}>Professional tools for every wedding size.</p>
           <div className="flex items-center justify-center gap-4 flex-wrap">
-            <Link href="/signup"   className="px-8 py-4 bg-[#C9956E] hover:bg-[#B8845D] text-white font-semibold rounded-xl text-lg transition-colors shadow-lg shadow-[#C9956E]/20">
-              Get Started Free
+            <Link href="/signup" className="px-8 py-4 bg-[#C9956E] hover:bg-[#B8845D] text-white font-semibold rounded-xl text-lg transition-colors shadow-lg shadow-[#C9956E]/20">
+              Get Started
             </Link>
             <Link href="/app/demo" className={`px-8 py-4 border ${dark ? "border-[#3A3540] hover:border-[#C9956E] text-[#F0EBE8]" : "border-[#DDD7D0] hover:border-[#C9956E] text-[#2A2328]"} font-semibold rounded-xl text-lg transition-colors`}>
               Try the Demo →
