@@ -5,7 +5,6 @@ import type { Wedding, Guest, Table, Group, Venue, Rule } from "@/lib/types";
 import { EXPORT_THEMES, DEFAULT_THEME, type ThemeKey } from "@/lib/exportThemes";
 import {
   exportSeatingChartPDF,
-  exportVenueChartPDF,
   exportPlaceCardsPDF,
   exportEscortCardsPDF,
   exportTableCardsPDF,
@@ -140,13 +139,6 @@ export default function ExportPanel({ wedding, guests, tables, groups, venues, r
       title: "Table Cards",
       desc: "One card per table with full guest list. Place on each table at the venue.",
       fn: () => exportTableCardsPDF(wedding.name, tables, guests, theme),
-    },
-    {
-      id: "venue-chart",
-      icon: "🗺",
-      title: "Floor Plan",
-      desc: "Visual floor plan using actual table positions. Shows table shapes and fill.",
-      fn: () => exportVenueChartPDF(wedding.name, tables, guests, theme),
     },
     {
       id: "kitchen-sheet",
@@ -315,7 +307,6 @@ export default function ExportPanel({ wedding, guests, tables, groups, venues, r
             <li>• <strong style={{ color: cs.textMid }}>Seating Chart & Escort Cards</strong> — Print on A4/Letter, frame or mount on foam board at venue entrance</li>
             <li>• <strong style={{ color: cs.textMid }}>Place Cards</strong> — Print on 200–300gsm card stock, cut on dotted lines, fold at center line</li>
             <li>• <strong style={{ color: cs.textMid }}>Table Cards</strong> — Print and place on each table before guests arrive</li>
-            <li>• <strong style={{ color: cs.textMid }}>Floor Plan</strong> — Great for coordinators and vendors — print A3 for best visibility</li>
             <li>• <strong style={{ color: cs.textMid }}>Kitchen Sheet</strong> — Print for catering manager — A4, one sided</li>
           </ul>
         </div>

@@ -84,7 +84,7 @@ function sectionBar(doc: Doc, t: ExportTheme, label: string, y: number, ml: numb
 }
 
 // ─── 1. Seating Chart PDF ────────────────────────────────────────────────────
-// Two-column alphabetical layout — classic wedding seating display style
+// Grouped by table — each table is a section with its guests listed below
 
 export async function exportSeatingChartPDF(
   weddingName: string,
@@ -97,6 +97,8 @@ export async function exportSeatingChartPDF(
   const t = theme;
   const PAGE_W = 210, PAGE_H = 297, ML = 16, MR = 16;
   const CW = PAGE_W - ML - MR;
+  const COL_GAP = 6;
+  const colW = (CW - COL_GAP) / 2;
 
   const dateStr = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
   let y = drawHeader(doc, t, weddingName, `Seating Chart · ${dateStr}`, PAGE_W, ML, MR);
@@ -122,145 +124,101 @@ export async function exportSeatingChartPDF(
   });
   y += 22;
 
-  // Two-column alphabetical guest list  (industry-standard seating chart layout)
-  y = sectionBar(doc, t, "Guests — Alphabetical by Last Name", y, ML, CW);
-  const colW = (CW - 6) / 2;
-  const sortedGuests = [...guests].filter(g => !!g.table_id).sort((a, b) => {
-    const la = (a.last_name ?? "").toLowerCase(), lb = (b.last_name ?? "").toLowerCase();
-    return la < lb ? -1 : la > lb ? 1 : 0;
-  });
-  const half = Math.ceil(sortedGuests.length / 2);
-  const leftCol = sortedGuests.slice(0, half);
-  const rightCol = sortedGuests.slice(half);
+  // Build two columns of table blocks
+  // Collect table blocks: { header height + rows }
+  const ROW_H = 7;
+  const HEADER_H = 10;
+  const TABLE_GAP = 5;
 
-  const drawGuestRow = (g: Guest, col: number, row: number) => {
-    const x = ML + col * (colW + 6);
-    const ry = y + row * 7;
-    if (ry + 7 > PAGE_H - 18) return false; // overflow guard
-    if (row % 2 === 0) {
-      doc.setFillColor(...(t.surface as RGB)); doc.rect(x, ry, colW, 7, "F");
+  type TableBlock = { table: Table; tableGuests: Guest[] };
+  const blocks: TableBlock[] = tables.map(tbl => ({
+    table: tbl,
+    tableGuests: [...guests]
+      .filter(g => g.table_id === tbl.id)
+      .sort((a, b) => (a.last_name ?? a.first_name).localeCompare(b.last_name ?? b.first_name)),
+  }));
+
+  // Split blocks into two columns (left-right balanced by total rows)
+  const leftBlocks: TableBlock[] = [];
+  const rightBlocks: TableBlock[] = [];
+  let leftHeight = 0, rightHeight = 0;
+  for (const b of blocks) {
+    const bh = HEADER_H + Math.max(b.tableGuests.length, 1) * ROW_H + TABLE_GAP;
+    if (leftHeight <= rightHeight) { leftBlocks.push(b); leftHeight += bh; }
+    else { rightBlocks.push(b); rightHeight += bh; }
+  }
+
+  const drawTableBlock = (b: TableBlock, col: number, startY: number): number => {
+    const x = col === 0 ? ML : ML + colW + COL_GAP;
+    let cy = startY;
+
+    // Table header bar
+    doc.setFillColor(...(t.accentLight as RGB));
+    doc.setDrawColor(...(t.border as RGB)); doc.setLineWidth(0.2);
+    doc.roundedRect(x, cy, colW, HEADER_H, 1.5, 1.5, "FD");
+    // accent left strip
+    doc.setFillColor(...(t.accent as RGB));
+    doc.rect(x, cy, 3, HEADER_H, "F");
+    doc.setFont("times", "bold"); doc.setFontSize(9.5); doc.setTextColor(...(t.text as RGB));
+    doc.text(b.table.name, x + 7, cy + 6.5);
+    doc.setFont("times", "italic"); doc.setFontSize(7.5); doc.setTextColor(...(t.muted as RGB));
+    doc.text(`${b.tableGuests.length} / ${b.table.capacity}`, x + colW - 2, cy + 6.5, { align: "right" });
+    cy += HEADER_H;
+
+    if (b.tableGuests.length === 0) {
+      doc.setFont("times", "italic"); doc.setFontSize(7.5); doc.setTextColor(...(t.muted as RGB));
+      doc.text("No guests assigned", x + 4, cy + 5);
+      cy += ROW_H;
+    } else {
+      b.tableGuests.forEach((g, idx) => {
+        if (idx % 2 === 0) {
+          doc.setFillColor(...(t.surface as RGB));
+          doc.rect(x, cy, colW, ROW_H, "F");
+        }
+        // small dot
+        doc.setFillColor(...(t.accent as RGB));
+        doc.circle(x + 4, cy + ROW_H / 2, 1, "F");
+        doc.setFont("times", "normal"); doc.setFontSize(8.5); doc.setTextColor(...(t.text as RGB));
+        doc.text(guestName(g), x + 8, cy + 5);
+        if (g.meal && g.meal !== "standard") {
+          doc.setFont("times", "italic"); doc.setFontSize(7); doc.setTextColor(...(t.muted as RGB));
+          doc.text(mealLabel(g.meal), x + colW - 2, cy + 5, { align: "right" });
+        }
+        cy += ROW_H;
+      });
     }
-    doc.setFont("times", "normal"); doc.setFontSize(8.5); doc.setTextColor(...(t.text as RGB));
-    doc.text(guestName(g), x + 3, ry + 5);
-    const tbl = tables.find(tt => tt.id === g.table_id);
-    if (tbl) {
-      doc.setFont("times", "italic"); doc.setFontSize(8); doc.setTextColor(...(t.accent as RGB));
-      doc.text(tbl.name, x + colW - 2, ry + 5, { align: "right" });
-    }
-    return true;
+
+    return cy + TABLE_GAP;
   };
 
-  // Draw rows until overflow, then paginate
-  let row = 0;
-  let lIdx = 0, rIdx = 0;
-  const rowsPerPage = Math.floor((PAGE_H - y - 20) / 7);
+  // Render two columns in parallel, paginating each independently
+  let lY = y, rY = y;
+  let lI = 0, rI = 0;
+  const newPage = () => {
+    doc.addPage();
+    drawBg(doc, t, PAGE_W, PAGE_H);
+    return 20;
+  };
 
-  while (lIdx < leftCol.length || rIdx < rightCol.length) {
-    if (row >= rowsPerPage) {
-      doc.addPage();
-      drawBg(doc, t, PAGE_W, PAGE_H);
-      y = 20; row = 0;
+  while (lI < leftBlocks.length || rI < rightBlocks.length) {
+    if (lI < leftBlocks.length) {
+      const b = leftBlocks[lI];
+      const bh = HEADER_H + Math.max(b.tableGuests.length, 1) * ROW_H + TABLE_GAP;
+      if (lY + bh > PAGE_H - 18) { lY = newPage(); rY = lY; }
+      lY = drawTableBlock(b, 0, lY);
+      lI++;
     }
-    if (lIdx < leftCol.length) { drawGuestRow(leftCol[lIdx], 0, row); lIdx++; }
-    if (rIdx < rightCol.length) { drawGuestRow(rightCol[rIdx], 1, row); rIdx++; }
-    row++;
+    if (rI < rightBlocks.length) {
+      const b = rightBlocks[rI];
+      const bh = HEADER_H + Math.max(b.tableGuests.length, 1) * ROW_H + TABLE_GAP;
+      if (rY + bh > PAGE_H - 18) { rY = newPage(); lY = rY; }
+      rY = drawTableBlock(b, 1, rY);
+      rI++;
+    }
   }
 
   drawFooters(doc, t, `${weddingName} — Seating Chart`, PAGE_W, PAGE_H, ML, MR);
   doc.save(`seating-chart-${weddingName.replace(/\s+/g, "-")}.pdf`);
-}
-
-// ─── 2. Venue Chart PDF ──────────────────────────────────────────────────────
-// Renders actual table positions from canvas coordinates as a floor plan
-
-export async function exportVenueChartPDF(
-  weddingName: string,
-  tables: Table[],
-  guests: Guest[],
-  theme: ExportTheme,
-): Promise<void> {
-  const { jsPDF } = await import("jspdf");
-  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
-  const t = theme;
-  const PAGE_W = 297, PAGE_H = 210, ML = 14, MR = 14, MT = 14, MB = 18;
-
-  drawBg(doc, t, PAGE_W, PAGE_H);
-
-  // Compact landscape header
-  doc.setDrawColor(...(t.border as RGB)); doc.setLineWidth(0.25);
-  doc.line(ML, 8, PAGE_W - MR, 8);
-  doc.setDrawColor(...(t.accent as RGB)); doc.setLineWidth(0.7);
-  doc.line(ML, 9.5, PAGE_W - MR, 9.5);
-
-  doc.setFont("times", "bold"); doc.setFontSize(20); doc.setTextColor(...(t.text as RGB));
-  doc.text(weddingName, PAGE_W / 2, 22, { align: "center" });
-  doc.setFont("times", "italic"); doc.setFontSize(9); doc.setTextColor(...(t.muted as RGB));
-  doc.text("Venue Floor Plan", PAGE_W / 2, 30, { align: "center" });
-
-  doc.setDrawColor(...(t.accent as RGB)); doc.setLineWidth(0.7);
-  doc.line(ML, 34, PAGE_W - MR, 34);
-  doc.setDrawColor(...(t.border as RGB)); doc.setLineWidth(0.25);
-  doc.line(ML, 35.5, PAGE_W - MR, 35.5);
-
-  // Floor plan area
-  const floorX = ML, floorY = MT + 26;
-  const floorW = PAGE_W - ML - MR;
-  const floorH = PAGE_H - floorY - MB;
-
-  // Floor plan background
-  doc.setFillColor(...(t.surface as RGB));
-  doc.setDrawColor(...(t.border as RGB)); doc.setLineWidth(0.4);
-  doc.roundedRect(floorX, floorY, floorW, floorH, 2, 2, "FD");
-
-  // Map canvas coordinates to floor plan
-  if (tables.length > 0) {
-    const xs = tables.map(t => t.x ?? 0);
-    const ys = tables.map(t => t.y ?? 0);
-    const minX = Math.min(...xs), maxX = Math.max(...xs);
-    const minY = Math.min(...ys), maxY = Math.max(...ys);
-    const rangeX = Math.max(maxX - minX, 200);
-    const rangeY = Math.max(maxY - minY, 200);
-    const PAD = 12;
-    const scaleX = (floorW - PAD * 2) / rangeX;
-    const scaleY = (floorH - PAD * 2) / rangeY;
-    const scale = Math.min(scaleX, scaleY);
-
-    tables.forEach((tbl) => {
-      const tg = guests.filter(g => g.table_id === tbl.id);
-      const px = floorX + PAD + ((tbl.x ?? 0) - minX) * scale;
-      const py = floorY + PAD + ((tbl.y ?? 0) - minY) * scale;
-      const r = 10 + Math.min(tg.length / (tbl.capacity || 8), 1) * 4;
-
-      // Draw table shape
-      doc.setFillColor(...(t.white as RGB));
-      doc.setDrawColor(...(t.accent as RGB)); doc.setLineWidth(0.6);
-      if (tbl.shape === "round" || !tbl.shape) {
-        doc.circle(px, py, r, "FD");
-      } else if (tbl.shape === "oval") {
-        doc.ellipse(px, py, r, r * 0.65, "FD");
-      } else {
-        doc.roundedRect(px - r, py - r * 0.65, r * 2, r * 1.3, 1.5, 1.5, "FD");
-      }
-
-      // Table name
-      const nameLines = doc.splitTextToSize(tbl.name, r * 1.8);
-      doc.setFont("times", "bold"); doc.setFontSize(6.5); doc.setTextColor(...(t.text as RGB));
-      doc.text(nameLines[0], px, py - 1, { align: "center" });
-
-      // Guest count
-      doc.setFont("times", "normal"); doc.setFontSize(6); doc.setTextColor(...(t.muted as RGB));
-      doc.text(`${tg.length}/${tbl.capacity}`, px, py + 5, { align: "center" });
-    });
-  }
-
-  // Footer
-  doc.setDrawColor(...(t.border as RGB)); doc.setLineWidth(0.25);
-  doc.line(ML, PAGE_H - 10, PAGE_W - MR, PAGE_H - 10);
-  doc.setFont("times", "italic"); doc.setFontSize(7); doc.setTextColor(...(t.muted as RGB));
-  doc.text(`${weddingName} — Venue Floor Plan`, ML, PAGE_H - 5);
-  doc.text(`${tables.length} tables · ${guests.filter(g => !!g.table_id).length} seated guests`, PAGE_W - MR, PAGE_H - 5, { align: "right" });
-
-  doc.save(`venue-chart-${weddingName.replace(/\s+/g, "-")}.pdf`);
 }
 
 // ─── 3. Place Cards PDF ──────────────────────────────────────────────────────
