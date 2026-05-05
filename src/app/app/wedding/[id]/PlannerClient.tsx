@@ -11,8 +11,9 @@ import RulesPanel from "./RulesPanel";
 import ExportPanel from "./ExportPanel";
 import MobilePlanner from "./MobilePlanner";
 import WishingWall from "./WishingWall";
+import OverviewPanel from "./OverviewPanel";
 
-type Tab = "chart" | "guests" | "rules" | "export" | "wishes";
+type Tab = "overview" | "chart" | "guests" | "rules" | "export" | "wishes";
 
 interface Props {
   wedding:       Wedding;
@@ -84,7 +85,7 @@ export default function PlannerClient({
 }: Props) {
   const supabase = createClient();
   const [isMobile, setIsMobile] = useState(false);
-  const [activeTab, setActiveTab] = useState<Tab>("chart");
+  const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [activeVenueId, setActiveVenueId] = useState<string | null>(initialVenues[0]?.id ?? null);
   const [aiLoading, setAiLoading] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type?: "success" | "error" | "info" } | null>(null);
@@ -616,7 +617,7 @@ export default function PlannerClient({
         className="flex items-center gap-0.5 px-4 flex-shrink-0"
         style={{ background: cs.surface, borderBottom: `1px solid ${cs.border}` }}
       >
-        {([["chart","📐 Seating Chart"], ["guests","👥 Guests"], ["rules","📋 Rules"], ["export","📤 Export"], ["wishes","💌 Wishes"]] as [Tab,string][]).map(([tab, label]) => (
+        {([["overview","🏠 Overview"],["chart","📐 Seating Chart"], ["guests","👥 Guests"], ["rules","📋 Rules"], ["export","📤 Export"], ["wishes","💌 Wishes"]] as [Tab,string][]).map(([tab, label]) => (
           <button key={tab} onClick={() => setActiveTab(tab)}
             className="py-2.5 px-4 text-sm font-medium border-b-2 transition-colors capitalize"
             style={{
@@ -646,6 +647,19 @@ export default function PlannerClient({
 
       {/* ── Main Content ── */}
       <div className="flex-1 overflow-hidden">
+        {activeTab === "overview" && (
+          <OverviewPanel
+            wedding={wedding}
+            guests={state.guests}
+            tables={state.tables}
+            groups={state.groups}
+            rules={state.rules}
+            venues={state.venues}
+            darkMode={darkMode}
+            isDemo={isDemo}
+            onTabChange={(tab) => setActiveTab(tab as Tab)}
+          />
+        )}
         {activeTab === "chart" && (
           <ChartCanvas
             tables={activeTables}

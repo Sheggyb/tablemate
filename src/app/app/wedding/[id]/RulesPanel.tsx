@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { Guest, Rule, Table } from "@/lib/types";
 
 interface Props {
@@ -48,7 +48,6 @@ export default function RulesPanel({ rules, guests, tables, violations, darkMode
 
   const handleAdd = () => {
     if (!g1 || !g2 || g1 === g2) return;
-    // prevent duplicate rules
     const exists = rules.some(r =>
       r.type === type &&
       ((r.guest1_id === g1 && r.guest2_id === g2) || (r.guest1_id === g2 && r.guest2_id === g1))
@@ -80,13 +79,13 @@ export default function RulesPanel({ rules, guests, tables, violations, darkMode
             </a>
           ) : (
             <div className="flex flex-wrap gap-3 items-center">
-              <GuestSelect value={g1} onChange={setG1} guests={guests} placeholder="Guest 1" exclude={g2} cs={cs}/>
+              <GuestCombobox value={g1} onChange={setG1} guests={guests} placeholder="Search guest 1…" exclude={g2} cs={cs} />
               <select value={type} onChange={e => setType(e.target.value as any)}
                 className="px-3 py-2 border rounded-lg text-sm" style={inputStyle}>
                 <option value="must_sit_with">must sit with</option>
                 <option value="must_not_sit_with">must NOT sit with</option>
               </select>
-              <GuestSelect value={g2} onChange={setG2} guests={guests} placeholder="Guest 2" exclude={g1} cs={cs}/>
+              <GuestCombobox value={g2} onChange={setG2} guests={guests} placeholder="Search guest 2…" exclude={g1} cs={cs} />
               <button onClick={handleAdd} disabled={!g1 || !g2 || g1 === g2}
                 className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40 hover:opacity-90"
                 style={{ background: cs.accent }}>
@@ -161,19 +160,114 @@ export default function RulesPanel({ rules, guests, tables, violations, darkMode
   );
 }
 
-function GuestSelect({ value, onChange, guests, placeholder, exclude, cs }: {
-  value: string; onChange: (v: string) => void; guests: Guest[]; placeholder: string; exclude: string;
+/* ── Typeahead guest combobox ── */
+function GuestCombobox({ value, onChange, guests, placeholder, exclude, cs }: {
+  value: string;
+  onChange: (v: string) => void;
+  guests: Guest[];
+  placeholder: string;
+  exclude: string;
   cs: Record<string, string>;
 }) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen]   = useState(false);
+  const ref               = useRef<HTMLDivElement>(null);
+
+  const selected = guests.find(g => g.id === value);
+  const displayVal = selected ? `${selected.first_name} ${selected.last_name}` : "";
+
+  const filtered = guests
+    .filter(g => g.id !== exclude)
+    .filter(g => {
+      if (!query) return true;
+      return `${g.first_name} ${g.last_name}`.toLowerCase().includes(query.toLowerCase());
+    })
+    .slice(0, 30); // cap dropdown at 30 results
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const select = (id: string) => {
+    onChange(id);
+    setQuery("");
+    setOpen(false);
+  };
+
+  const clear = () => {
+    onChange("");
+    setQuery("");
+  };
+
   return (
-    <select value={value} onChange={e => onChange(e.target.value)}
-      className="px-3 py-2 border rounded-lg text-sm min-w-[160px]"
-      style={{ background: cs.surface, borderColor: cs.borderSoft, color: cs.text }}>
-      <option value="">{placeholder}</option>
-      {guests.filter(g => g.id !== exclude).map(g => (
-        <option key={g.id} value={g.id}>{g.first_name} {g.last_name}</option>
-      ))}
-    </select>
+    <div ref={ref} className="relative" style={{ minWidth: 200 }}>
+      <div
+        className="flex items-center gap-1 px-3 py-2 border rounded-lg text-sm cursor-text"
+        style={{ background: cs.surface, borderColor: open ? cs.accent : cs.borderSoft, color: cs.text }}
+        onClick={() => { setOpen(true); }}
+      >
+        {selected && !open ? (
+          <>
+            <span className="flex-1 truncate">{displayVal}</span>
+            <button onMouseDown={e => { e.preventDefault(); clear(); }}
+              className="text-xs opacity-50 hover:opacity-100 flex-shrink-0" style={{ color: cs.textMuted }}>×</button>
+          </>
+        ) : (
+          <input
+            autoFocus={open}
+            type="text"
+            value={open ? query : displayVal}
+            placeholder={placeholder}
+            onChange={e => { setQuery(e.target.value); setOpen(true); }}
+            onFocus={() => setOpen(true)}
+            className="flex-1 bg-transparent outline-none text-sm min-w-0"
+            style={{ color: cs.text }}
+          />
+        )}
+      </div>
+
+      {open && (
+        <div
+          className="absolute top-full left-0 mt-1 rounded-xl shadow-xl overflow-hidden z-50"
+          style={{
+            background: cs.surface,
+            border: `1px solid ${cs.border}`,
+            minWidth: "100%",
+            maxHeight: 260,
+            overflowY: "auto",
+          }}
+        >
+          {filtered.length === 0 ? (
+            <div className="px-4 py-3 text-xs" style={{ color: cs.textMuted }}>No guests found</div>
+          ) : (
+            filtered.map(g => (
+              <button
+                key={g.id}
+                onMouseDown={e => { e.preventDefault(); select(g.id); }}
+                className="w-full text-left px-4 py-2.5 text-sm hover:opacity-80 flex items-center gap-2"
+                style={{
+                  background: g.id === value ? cs.accentBg : "transparent",
+                  color: g.id === value ? cs.accent : cs.text,
+                  borderBottom: `1px solid ${cs.border}`,
+                }}
+              >
+                <span className="flex-1">{g.first_name} {g.last_name}</span>
+                {g.table_id && (
+                  <span className="text-xs flex-shrink-0" style={{ color: cs.textMuted }}>
+                    {/* table name shown in tooltip */}
+                  </span>
+                )}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

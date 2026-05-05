@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import type { Guest, Group, Table } from "@/lib/types";
 
 interface Props {
@@ -23,6 +23,7 @@ interface Props {
 
 type SortKey = "name" | "rsvp" | "meal" | "table" | "party";
 type SortDir = "asc" | "desc";
+type ViewMode = "list" | "grouped";
 
 const MEALS = ["standard","vegetarian","vegan","gluten-free","halal","kosher","children"];
 const RSVP_OPTIONS = ["pending","confirmed","declined"];
@@ -41,6 +42,8 @@ export default function GuestPanel({
 }: Props) {
   const [sendingRsvp, setSendingRsvp] = useState<string | null>(null);
   const [confirmModal, setConfirmModal] = useState<{ message: string; onConfirm: () => void } | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const [inlineTableEdit, setInlineTableEdit] = useState<string | null>(null);
 
   const sendRsvp = async (g: Guest) => {
     if (!g.email) { showToast("Guest has no email address.", "error"); return; }
@@ -119,7 +122,6 @@ export default function GuestPanel({
     if (sortKey === "table") { av = tables.find(t => t.id === a.table_id)?.name ?? ""; bv = tables.find(t => t.id === b.table_id)?.name ?? ""; }
     if (sortKey === "party") { av = groups.find(g => g.id === a.group_id)?.name ?? ""; bv = groups.find(g => g.id === b.group_id)?.name ?? ""; }
     if (sortKey === "table" || sortKey === "party") {
-      // Natural sort: "Table 10" after "Table 2"
       return sortDir === "asc"
         ? av.localeCompare(bv, undefined, { numeric: true, sensitivity: "base" })
         : bv.localeCompare(av, undefined, { numeric: true, sensitivity: "base" });
@@ -186,23 +188,179 @@ export default function GuestPanel({
     pending:   guests.filter(g => g.rsvp === "pending").length,
     declined:  guests.filter(g => g.rsvp === "declined").length,
     seated:    guests.filter(g => !!g.table_id).length,
+    unseated:  guests.filter(g => !g.table_id).length,
   };
 
   const inputCls = "px-3 py-2 border rounded-lg text-sm";
   const inputStyle = { background: cs.surface, borderColor: cs.borderSoft, color: cs.text };
 
+  // ── Grouped view: group guests by table ──
+  const groupedByTable = () => {
+    const tableMap = new Map<string | null, Guest[]>();
+    tableMap.set(null, []);
+    tables.forEach(t => tableMap.set(t.id, []));
+    filtered.forEach(g => {
+      const key = g.table_id ?? null;
+      if (!tableMap.has(key)) tableMap.set(key, []);
+      tableMap.get(key)!.push(g);
+    });
+    // Sort guests within each table by name
+    tableMap.forEach((gs, key) => {
+      gs.sort((a, b) => `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`));
+    });
+    return tableMap;
+  };
+
+  const hasFilters = search || filterRsvp !== "all" || filterMeal !== "all" || filterSeated !== "all" || filterParty !== "all";
+
+  const GuestRow = ({ g }: { g: Guest }) => {
+    const tableLabel = g.table_id ? tables.find(t => t.id === g.table_id)?.name ?? "?" : "—";
+    const partyLabel = g.group_id ? groups.find(gr => gr.id === g.group_id)?.name ?? "?" : "—";
+    const rv = rsvpStyle(g.rsvp);
+    return (
+      <tr key={g.id}
+        draggable
+        onDragStart={e => { e.dataTransfer.setData("guestId", g.id); e.dataTransfer.effectAllowed = "move"; }}
+        className="group cursor-pointer"
+        style={{ borderBottom: `1px solid ${cs.border}` }}
+        onMouseEnter={e => (e.currentTarget.style.background = cs.surface2)}
+        onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+        onClick={() => toggleSelect(g.id)}
+      >
+        <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+          <input type="checkbox" checked={selected.has(g.id)}
+            onChange={() => toggleSelect(g.id)}
+            style={{ accentColor: cs.accent }}/>
+        </td>
+        <td className="px-4 py-3 font-medium" style={{ color: cs.text }}>
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: groupColor(g.group_id) }}/>
+            {g.first_name} {g.last_name}
+            {g.email && <span className="text-xs hidden lg:block" style={{ color: cs.textMuted }}>{g.email}</span>}
+          </div>
+        </td>
+        <td className="px-4 py-3 text-xs" style={{ color: cs.textSoft }}>{partyLabel}</td>
+        <td className="px-4 py-3">
+          <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium capitalize"
+            style={{ background: rv.bg, color: rv.color, border: `1px solid ${rv.border}` }}>
+            {g.rsvp || "pending"}
+          </span>
+        </td>
+        <td className="px-4 py-3 text-xs" style={{ color: cs.textSoft }}>
+          {MEAL_ICON[g.meal || "standard"]} {g.meal || "standard"}
+        </td>
+        {/* Inline table assign */}
+        <td className="px-4 py-3 text-xs" onClick={e => e.stopPropagation()}>
+          {!isDemo && inlineTableEdit === g.id ? (
+            <select
+              autoFocus
+              value={g.table_id ?? ""}
+              onBlur={() => setInlineTableEdit(null)}
+              onChange={e => {
+                onUpdateGuest(g.id, { table_id: e.target.value || null });
+                setInlineTableEdit(null);
+              }}
+              className="px-2 py-1 border rounded-lg text-xs"
+              style={{ background: cs.surface, borderColor: cs.accent, color: cs.text, minWidth: 120 }}
+            >
+              <option value="">— Unseated —</option>
+              {tables.map(t => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          ) : (
+            <button
+              onClick={() => !isDemo && setInlineTableEdit(g.id)}
+              className={`rounded px-1.5 py-0.5 transition-colors ${!isDemo ? "hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer" : ""}`}
+              style={{ color: g.table_id ? cs.textSoft : "var(--warning)" }}
+              title={!isDemo ? "Click to change table" : undefined}
+            >
+              {tableLabel}
+              {!isDemo && <span className="ml-1 opacity-0 group-hover:opacity-50 text-xs">✏</span>}
+            </button>
+          )}
+        </td>
+        <td className="px-4 py-3 text-xs" style={{ color: cs.textMuted }}>
+          {g.allergies ? `⚠ ${g.allergies}` : "—"}
+        </td>
+        <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
+          {!isDemo && g.email && (
+            <button onClick={() => sendRsvp(g)}
+              disabled={sendingRsvp === g.id}
+              className="opacity-0 group-hover:opacity-100 text-xs mr-3 hover:underline transition-opacity"
+              style={{ color: cs.accent }}>
+              {sendingRsvp === g.id ? "Sending…" : "Send RSVP"}
+            </button>
+          )}
+          {!isDemo && (
+            <button onClick={() => openEdit(g)}
+              className="opacity-0 group-hover:opacity-100 text-xs mr-3 hover:underline transition-opacity"
+              style={{ color: cs.accent }}>Edit</button>
+          )}
+          {!isDemo && (
+            <button onClick={() => { setConfirmModal({ message: `Remove ${g.first_name}?`, onConfirm: () => onDeleteGuest(g.id) }); }}
+              className="opacity-0 group-hover:opacity-100 text-xs transition-opacity hover:opacity-70"
+              style={{ color: "var(--danger)" }}>✕</button>
+          )}
+        </td>
+      </tr>
+    );
+  };
+
   return (
     <div className="flex flex-col h-full" style={{ background: cs.bg }}>
 
-      {/* Stats bar */}
-      <div className="px-6 py-3 flex items-center flex-wrap gap-4 text-sm flex-shrink-0"
+      {/* Stats bar — clickable pills to filter */}
+      <div className="px-6 py-3 flex items-center flex-wrap gap-3 text-sm flex-shrink-0"
         style={{ background: cs.surface, borderBottom: `1px solid ${cs.border}` }}>
         <span className="font-semibold" style={{ color: cs.text }}>{stats.total} guests</span>
-        <span style={{ color: "var(--success)" }}>✓ {stats.confirmed} confirmed</span>
-        <span style={{ color: "var(--warning)" }}>⏳ {stats.pending} pending</span>
-        <span style={{ color: "var(--danger)" }}>✗ {stats.declined} declined</span>
-        <span style={{ color: "var(--accent)" }}>🪑 {stats.seated} seated</span>
+        <button
+          onClick={() => { setFilterRsvp(filterRsvp === "confirmed" ? "all" : "confirmed"); }}
+          className="rounded-full px-2.5 py-0.5 text-xs font-medium transition-all hover:opacity-80"
+          style={{ background: filterRsvp === "confirmed" ? "rgba(76,175,125,0.25)" : "rgba(76,175,125,0.1)", color: "var(--success)", border: "1px solid rgba(76,175,125,0.3)" }}>
+          ✓ {stats.confirmed} confirmed
+        </button>
+        <button
+          onClick={() => { setFilterRsvp(filterRsvp === "pending" ? "all" : "pending"); }}
+          className="rounded-full px-2.5 py-0.5 text-xs font-medium transition-all hover:opacity-80"
+          style={{ background: filterRsvp === "pending" ? "rgba(240,168,88,0.25)" : "rgba(240,168,88,0.1)", color: "var(--warning)", border: "1px solid rgba(240,168,88,0.3)" }}>
+          ⏳ {stats.pending} pending
+        </button>
+        <button
+          onClick={() => { setFilterRsvp(filterRsvp === "declined" ? "all" : "declined"); }}
+          className="rounded-full px-2.5 py-0.5 text-xs font-medium transition-all hover:opacity-80"
+          style={{ background: filterRsvp === "declined" ? "rgba(224,92,106,0.25)" : "rgba(224,92,106,0.1)", color: "var(--danger)", border: "1px solid rgba(224,92,106,0.3)" }}>
+          ✗ {stats.declined} declined
+        </button>
+        <button
+          onClick={() => { setFilterSeated(filterSeated === "unseated" ? "all" : "unseated"); }}
+          className="rounded-full px-2.5 py-0.5 text-xs font-medium transition-all hover:opacity-80"
+          style={{
+            background: filterSeated === "unseated" ? "rgba(201,149,110,0.25)" : "rgba(201,149,110,0.1)",
+            color: stats.unseated > 0 ? "var(--accent)" : "var(--text-muted)",
+            border: "1px solid rgba(201,149,110,0.3)"
+          }}>
+          🪑 {stats.unseated} unseated
+        </button>
+
         <div className="flex-1"/>
+
+        {/* View toggle */}
+        <div className="flex items-center rounded-lg overflow-hidden border" style={{ borderColor: cs.border }}>
+          <button
+            onClick={() => setViewMode("list")}
+            className="px-3 py-1.5 text-xs font-medium transition-colors"
+            style={{ background: viewMode === "list" ? cs.accent : cs.surface, color: viewMode === "list" ? "white" : cs.textMuted }}>
+            ≡ List
+          </button>
+          <button
+            onClick={() => setViewMode("grouped")}
+            className="px-3 py-1.5 text-xs font-medium transition-colors"
+            style={{ background: viewMode === "grouped" ? cs.accent : cs.surface, color: viewMode === "grouped" ? "white" : cs.textMuted }}>
+            🪑 By Table
+          </button>
+        </div>
+
         {!isDemo && (
           <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs cursor-pointer hover:opacity-80"
             style={{ border: `1px solid ${cs.borderSoft}`, color: cs.textSoft }}>
@@ -257,7 +415,7 @@ export default function GuestPanel({
           <option value="all">All Parties</option>
           {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
         </select>
-        {(search || filterRsvp !== "all" || filterMeal !== "all" || filterSeated !== "all" || filterParty !== "all") && (
+        {hasFilters && (
           <button onClick={() => { setSearch(""); setFilterRsvp("all"); setFilterMeal("all"); setFilterSeated("all"); setFilterParty("all"); }}
             className="text-xs px-2 py-1.5 rounded-lg hover:opacity-70" style={{ color: "var(--danger)", border: `1px solid rgba(224,92,106,0.3)` }}>
             ✕ Clear
@@ -299,19 +457,20 @@ export default function GuestPanel({
         </div>
       )}
 
-      {/* Guest table */}
+      {/* ── GUEST TABLE / GROUPED VIEW ── */}
       <div className="flex-1 overflow-y-auto">
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center py-16">
             <div className="text-4xl mb-3">👥</div>
             <p className="text-sm mb-4" style={{ color: cs.textMuted }}>
-              {search || filterRsvp !== "all" ? "No guests match your filters." : "No guests yet. Add your first guest!"}
+              {hasFilters ? "No guests match your filters." : "No guests yet. Add your first guest!"}
             </p>
-            {!search && filterRsvp === "all" && (
+            {!hasFilters && (
               <button onClick={openAdd} className="text-sm hover:underline font-medium" style={{ color: cs.accent }}>+ Add Guest</button>
             )}
           </div>
-        ) : (
+        ) : viewMode === "list" ? (
+          /* ── Flat list view ── */
           <table className="w-full text-sm border-collapse">
             <thead className="sticky top-0" style={{ background: cs.surface }}>
               <tr style={{ borderBottom: `1px solid ${cs.border}` }}>
@@ -334,73 +493,70 @@ export default function GuestPanel({
               </tr>
             </thead>
             <tbody>
-              {filtered.map(g => {
-                const tableLabel = g.table_id ? tables.find(t => t.id === g.table_id)?.name ?? "?" : "—";
-                const partyLabel = g.group_id ? groups.find(gr => gr.id === g.group_id)?.name ?? "?" : "—";
-                const rv = rsvpStyle(g.rsvp);
-                return (
-                  <tr key={g.id}
-                    draggable
-                    onDragStart={e => { e.dataTransfer.setData("guestId", g.id); e.dataTransfer.effectAllowed = "move"; }}
-                    className="group cursor-pointer"
-                    style={{ borderBottom: `1px solid ${cs.border}` }}
-                    onMouseEnter={e => (e.currentTarget.style.background = cs.surface2)}
-                    onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-                    onClick={() => toggleSelect(g.id)}
-                  >
-                    <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                      <input type="checkbox" checked={selected.has(g.id)}
-                        onChange={() => toggleSelect(g.id)}
-                        style={{ accentColor: cs.accent }}/>
-                    </td>
-                    <td className="px-4 py-3 font-medium" style={{ color: cs.text }}>
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: groupColor(g.group_id) }}/>
-                        {g.first_name} {g.last_name}
-                        {g.email && <span className="text-xs hidden lg:block" style={{ color: cs.textMuted }}>{g.email}</span>}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-xs" style={{ color: cs.textSoft }}>{partyLabel}</td>
-                    <td className="px-4 py-3">
-                      <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium capitalize"
-                        style={{ background: rv.bg, color: rv.color, border: `1px solid ${rv.border}` }}>
-                        {g.rsvp || "pending"}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-xs" style={{ color: cs.textSoft }}>
-                      {MEAL_ICON[g.meal || "standard"]} {g.meal || "standard"}
-                    </td>
-                    <td className="px-4 py-3 text-xs" style={{ color: g.table_id ? cs.textSoft : "var(--warning)" }}>
-                      {tableLabel}
-                    </td>
-                    <td className="px-4 py-3 text-xs" style={{ color: cs.textMuted }}>
-                      {g.allergies ? `⚠ ${g.allergies}` : "—"}
-                    </td>
-                    <td className="px-4 py-3 text-right" onClick={e => e.stopPropagation()}>
-                      {!isDemo && g.email && (
-                        <button onClick={() => sendRsvp(g)}
-                          disabled={sendingRsvp === g.id}
-                          className="opacity-0 group-hover:opacity-100 text-xs mr-3 hover:underline transition-opacity"
-                          style={{ color: cs.accent }}>
-                          {sendingRsvp === g.id ? "Sending…" : "Send RSVP"}
-                        </button>
-                      )}
-                      {!isDemo && (
-                        <button onClick={() => openEdit(g)}
-                          className="opacity-0 group-hover:opacity-100 text-xs mr-3 hover:underline transition-opacity"
-                          style={{ color: cs.accent }}>Edit</button>
-                      )}
-                      {!isDemo && (
-                        <button onClick={() => { setConfirmModal({ message: `Remove ${g.first_name}?`, onConfirm: () => onDeleteGuest(g.id) }); }}
-                          className="opacity-0 group-hover:opacity-100 text-xs transition-opacity hover:opacity-70"
-                          style={{ color: "var(--danger)" }}>✕</button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
+              {filtered.map(g => <GuestRow key={g.id} g={g} />)}
             </tbody>
           </table>
+        ) : (
+          /* ── Grouped by table view ── */
+          <div className="p-4 space-y-4">
+            {(() => {
+              const grouped = groupedByTable();
+              const unseated = grouped.get(null) ?? [];
+              const entries: [Table, Guest[]][] = tables
+                .map(t => [t, grouped.get(t.id) ?? []] as [Table, Guest[]])
+                .filter(([, gs]) => gs.length > 0 || !hasFilters);
+
+              return (
+                <>
+                  {entries.map(([table, tableGuests]) => (
+                    <div key={table.id} className="rounded-xl overflow-hidden" style={{ border: `1px solid ${cs.border}` }}>
+                      {/* Table header */}
+                      <div className="px-4 py-2.5 flex items-center gap-3"
+                        style={{ background: cs.surface, borderBottom: `1px solid ${cs.border}` }}>
+                        <span className="font-semibold text-sm" style={{ color: cs.accent }}>🪑 {table.name}</span>
+                        <span className="text-xs rounded-full px-2 py-0.5"
+                          style={{ background: cs.accentBg, color: cs.accent }}>
+                          {tableGuests.length}/{table.capacity} seats
+                        </span>
+                        {tableGuests.length === 0 && (
+                          <span className="text-xs" style={{ color: cs.textMuted }}>Empty</span>
+                        )}
+                      </div>
+                      {/* Guests at this table */}
+                      {tableGuests.length > 0 ? (
+                        <table className="w-full text-sm border-collapse">
+                          <tbody>
+                            {tableGuests.map(g => <GuestRow key={g.id} g={g} />)}
+                          </tbody>
+                        </table>
+                      ) : (
+                        <div className="px-4 py-3 text-xs italic" style={{ color: cs.textMuted }}>No guests assigned</div>
+                      )}
+                    </div>
+                  ))}
+
+                  {/* Unseated section */}
+                  {unseated.length > 0 && (
+                    <div className="rounded-xl overflow-hidden" style={{ border: `1px solid rgba(240,168,88,0.4)` }}>
+                      <div className="px-4 py-2.5 flex items-center gap-3"
+                        style={{ background: "rgba(240,168,88,0.08)", borderBottom: `1px solid rgba(240,168,88,0.3)` }}>
+                        <span className="font-semibold text-sm" style={{ color: "var(--warning)" }}>⚠ Unseated</span>
+                        <span className="text-xs rounded-full px-2 py-0.5"
+                          style={{ background: "rgba(240,168,88,0.15)", color: "var(--warning)" }}>
+                          {unseated.length} guest{unseated.length !== 1 ? "s" : ""}
+                        </span>
+                      </div>
+                      <table className="w-full text-sm border-collapse">
+                        <tbody>
+                          {unseated.map(g => <GuestRow key={g.id} g={g} />)}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+          </div>
         )}
       </div>
 
@@ -456,13 +612,23 @@ export default function GuestPanel({
                   </select>
                 </div>
               </div>
-              <div>
-                <label className="block text-xs font-medium mb-1" style={{ color: cs.textSoft }}>Party / Group</label>
-                <select value={form.group_id || ""} onChange={e => setForm(p => ({ ...p, group_id: e.target.value || null }))}
-                  className={`w-full ${inputCls}`} style={inputStyle}>
-                  <option value="">No group</option>
-                  {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
-                </select>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium mb-1" style={{ color: cs.textSoft }}>Party / Group</label>
+                  <select value={form.group_id || ""} onChange={e => setForm(p => ({ ...p, group_id: e.target.value || null }))}
+                    className={`w-full ${inputCls}`} style={inputStyle}>
+                    <option value="">No group</option>
+                    {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1" style={{ color: cs.textSoft }}>Assign to Table</label>
+                  <select value={form.table_id || ""} onChange={e => setForm(p => ({ ...p, table_id: e.target.value || null }))}
+                    className={`w-full ${inputCls}`} style={inputStyle}>
+                    <option value="">— Unseated —</option>
+                    {tables.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
+                </div>
               </div>
               <div>
                 <label className="block text-xs font-medium mb-1" style={{ color: cs.textSoft }}>Allergies / dietary notes</label>

@@ -42,6 +42,7 @@ const PRESET_TABLES: { label: string; shape: "round" | "rectangle" | "oval"; cap
 const SNAP_GRID = 20;
 
 type SideTab = "add" | "custom" | "guests";
+type ViewMode = "canvas" | "list" | "grid";
 
 interface ContextMenu { x: number; y: number; tableId: string; }
 
@@ -72,6 +73,7 @@ export default function ChartCanvas({
   // New features
   const [snapEnabled, setSnapEnabled] = useState(false);
   const [findQuery, setFindQuery]     = useState("");
+  const [viewMode, setViewMode]       = useState<ViewMode>("canvas");
 
   const cs = {
     bg: "var(--canvas-bg)", surface: "var(--surface)", surface2: "var(--surface2)",
@@ -430,6 +432,21 @@ export default function ChartCanvas({
               ⊞ Snap
             </button>
 
+            {/* View mode toggle */}
+            <div className="flex items-center gap-0.5 rounded-lg overflow-hidden" style={{ border: `1px solid ${cs.border}` }}>
+              {([["canvas","📐","Floor Plan"],["list","☰","List"],["grid","⊞","Grid"]] as [ViewMode,string,string][]).map(([mode, icon, label]) => (
+                <button key={mode} onClick={() => setViewMode(mode)}
+                  title={label}
+                  className="px-2.5 py-1.5 text-xs hover:opacity-80 transition-all"
+                  style={{
+                    background: viewMode === mode ? cs.accent : cs.surface2,
+                    color: viewMode === mode ? "white" : cs.textSoft,
+                  }}>
+                  {icon}
+                </button>
+              ))}
+            </div>
+
             <button onClick={onAutoSeat}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
               style={{ background: cs.accentBg, border: `1px solid var(--accent)`, color: "var(--accent)" }}>
@@ -452,8 +469,157 @@ export default function ChartCanvas({
               style={{ background: cs.surface2, color: cs.textSoft, border: `1px solid ${cs.border}` }}>Reset</button>
           </div>
 
+          {/* ── LIST VIEW ── */}
+          {viewMode === "list" && (
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {tables.length === 0 && (
+                <div className="text-center py-16" style={{ color: cs.textMuted }}>
+                  <p className="text-4xl mb-3">📐</p>
+                  <p className="text-sm">No tables yet — switch to Floor Plan and add some!</p>
+                </div>
+              )}
+              {tables.map(t => {
+                const tGuests = tableGuests(t.id);
+                const cap = t.capacity || 8;
+                const pct = Math.min(100, Math.round(tGuests.length / cap * 100));
+                const over = tGuests.length > cap;
+                return (
+                  <div key={t.id} className="rounded-2xl overflow-hidden"
+                    style={{ background: cs.surface, border: `1px solid ${cs.border}` }}>
+                    <div className="flex items-center justify-between px-4 py-3"
+                      style={{ background: cs.surface2, borderBottom: `1px solid ${cs.border}` }}>
+                      <div className="flex items-center gap-3">
+                        <span className="font-semibold text-sm" style={{ color: cs.text }}>{t.name}</span>
+                        <span className="text-xs rounded-full px-2 py-0.5"
+                          style={{ background: over ? "rgba(224,92,106,0.15)" : cs.accentBg,
+                            color: over ? "var(--danger)" : cs.accent }}>
+                          {tGuests.length}/{cap}
+                        </span>
+                        {over && <span className="text-xs" style={{ color: "var(--danger)" }}>⚠ Over capacity</span>}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {/* Capacity bar */}
+                        <div className="w-20 rounded-full" style={{ height: 5, background: cs.border }}>
+                          <div style={{ width: `${pct}%`, height: 5, borderRadius: 999,
+                            background: over ? "var(--danger)" : pct >= 80 ? "var(--success)" : cs.accent }}/>
+                        </div>
+                        <span className="text-xs" style={{ color: cs.textMuted }}>{pct}%</span>
+                      </div>
+                    </div>
+                    {tGuests.length === 0 ? (
+                      <div className="px-4 py-3 text-xs" style={{ color: cs.textMuted }}>No guests seated yet</div>
+                    ) : (
+                      <div className="divide-y" style={{ borderColor: cs.border }}>
+                        {tGuests.sort((a, b) => `${a.last_name}${a.first_name}`.localeCompare(`${b.last_name}${b.first_name}`)).map((g, i) => (
+                          <div key={g.id} className="flex items-center gap-3 px-4 py-2">
+                            <span className="text-xs w-5 text-right flex-shrink-0" style={{ color: cs.textMuted }}>{i + 1}</span>
+                            <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: groupColor(g.group_id) }}/>
+                            <span className="text-sm flex-1" style={{ color: cs.text }}>
+                              {g.first_name} {g.last_name}
+                            </span>
+                            {g.group_id && (
+                              <span className="text-xs" style={{ color: cs.textMuted }}>
+                                {groups.find(gr => gr.id === g.group_id)?.name ?? ""}
+                              </span>
+                            )}
+                            <span className="text-xs" title={g.meal || "standard"}>
+                              {MEAL_ICON[g.meal || "standard"]}
+                            </span>
+                            <span className="text-xs rounded-full px-1.5" style={{
+                              background: g.rsvp === "confirmed" ? "rgba(76,175,125,0.15)" : g.rsvp === "declined" ? "rgba(224,92,106,0.15)" : cs.surface2,
+                              color: g.rsvp === "confirmed" ? "var(--success)" : g.rsvp === "declined" ? "var(--danger)" : cs.textMuted,
+                            }}>
+                              {g.rsvp === "confirmed" ? "✓" : g.rsvp === "declined" ? "✗" : "?"}
+                            </span>
+                            <button onClick={() => onSeatGuest(g.id, null, null)}
+                              className="text-xs hover:opacity-60 ml-1" style={{ color: cs.textMuted }}
+                              title="Remove from table">✕</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {/* Unseated */}
+              {unseatedGuests.length > 0 && (
+                <div className="rounded-2xl overflow-hidden"
+                  style={{ background: cs.surface, border: `2px dashed var(--warning)` }}>
+                  <div className="px-4 py-3 flex items-center gap-2"
+                    style={{ background: "rgba(245,200,100,0.07)", borderBottom: `1px solid ${cs.border}` }}>
+                    <span className="font-semibold text-sm" style={{ color: "var(--warning)" }}>⚠ Unseated</span>
+                    <span className="text-xs rounded-full px-2 py-0.5"
+                      style={{ background: "rgba(245,200,100,0.15)", color: "var(--warning)" }}>
+                      {unseatedGuests.length}
+                    </span>
+                  </div>
+                  <div className="divide-y" style={{ borderColor: cs.border }}>
+                    {unseatedGuests.map(g => (
+                      <div key={g.id} className="flex items-center gap-3 px-4 py-2">
+                        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: groupColor(g.group_id) }}/>
+                        <span className="text-sm flex-1" style={{ color: cs.text }}>{g.first_name} {g.last_name}</span>
+                        <span className="text-xs">{MEAL_ICON[g.meal || "standard"]}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── GRID VIEW ── */}
+          {viewMode === "grid" && (
+            <div className="flex-1 overflow-y-auto p-4">
+              {tables.length === 0 && (
+                <div className="text-center py-16" style={{ color: cs.textMuted }}>
+                  <p className="text-4xl mb-3">📐</p>
+                  <p className="text-sm">No tables yet — switch to Floor Plan and add some!</p>
+                </div>
+              )}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                {tables.map(t => {
+                  const tGuests = tableGuests(t.id);
+                  const cap = t.capacity || 8;
+                  const over = tGuests.length > cap;
+                  return (
+                    <div key={t.id} className="rounded-2xl p-4 flex flex-col gap-2"
+                      style={{ background: cs.surface, border: `1px solid ${over ? "var(--danger)" : cs.border}` }}>
+                      <div className="font-semibold text-sm truncate" style={{ color: cs.text }}>{t.name}</div>
+                      {/* Seat dots */}
+                      <div className="flex flex-wrap gap-1.5 my-1">
+                        {Array.from({ length: cap }).map((_, i) => {
+                          const g = tGuests[i];
+                          return (
+                            <div key={i} className="w-5 h-5 rounded-full flex items-center justify-center text-[9px]"
+                              title={g ? `${g.first_name} ${g.last_name}` : "Empty"}
+                              style={{
+                                background: g ? groupColor(g.group_id) : cs.surface2,
+                                border: g ? "none" : `1px dashed ${cs.border}`,
+                                color: "white",
+                              }}>
+                              {g ? ((g.first_name?.[0] ?? "") + (g.last_name?.[0] ?? "")).toUpperCase() : ""}
+                            </div>
+                          );
+                        })}
+                        {tGuests.length > cap && Array.from({ length: tGuests.length - cap }).map((_, i) => (
+                          <div key={`over-${i}`} className="w-5 h-5 rounded-full flex items-center justify-center text-[9px]"
+                            title="Over capacity"
+                            style={{ background: "var(--danger)", color: "white" }}>+</div>
+                        ))}
+                      </div>
+                      <div className="text-xs" style={{ color: over ? "var(--danger)" : cs.textMuted }}>
+                        {tGuests.length} / {cap} seats
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Canvas */}
-          <div ref={canvasRef}
+          {viewMode === "canvas" && (
+            <div ref={canvasRef}
             className="flex-1 overflow-hidden relative select-none"
             style={{ background: cs.bg, cursor: panning ? "grabbing" : "grab" }}
             onPointerDown={onPointerDownCanvas}
@@ -572,6 +738,7 @@ export default function ChartCanvas({
               </div>
             )}
           </div>
+          )}
         </div>
 
         {/* ── RIGHT PANEL — Table Details ── */}
