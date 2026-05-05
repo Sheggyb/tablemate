@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { Guest, Table, Group, Rule, Wedding, Venue } from "@/lib/types";
 
 interface Props {
@@ -19,9 +20,17 @@ const MEAL_ICON: Record<string, string> = {
   "gluten-free": "🌾", halal: "☪", kosher: "✡", children: "🧒",
 };
 
+const RSVP_COLOR: Record<string, string> = {
+  confirmed: "var(--success)",
+  pending:   "var(--warning)",
+  declined:  "var(--danger)",
+};
+
 export default function OverviewPanel({
   wedding, guests, tables, groups, rules, venues, darkMode, isDemo, onTabChange
 }: Props) {
+  const [selectedTable, setSelectedTable] = useState<Table | null>(null);
+
   const cs = {
     bg:         "var(--bg)",
     surface:    "var(--surface)",
@@ -68,7 +77,7 @@ export default function OverviewPanel({
   // ── Table occupancy ──
   const tableStats = tables.map(t => {
     const guestsAtTable = guests.filter(g => g.table_id === t.id);
-    return { ...t, count: guestsAtTable.length };
+    return { ...t, count: guestsAtTable.length, guestList: guestsAtTable };
   }).sort((a, b) => b.count - a.count);
 
   // ── Checklist items ──
@@ -82,8 +91,13 @@ export default function OverviewPanel({
   ];
   const checkDone = checklist.filter(c => c.done).length;
 
+  // ── Drawer guests ──
+  const drawerGuests = selectedTable
+    ? guests.filter(g => g.table_id === selectedTable.id).sort((a, b) => `${a.first_name} ${a.last_name ?? ""}`.localeCompare(`${b.first_name} ${b.last_name ?? ""}`))
+    : [];
+
   return (
-    <div className="h-full overflow-y-auto" style={{ background: cs.bg }}>
+    <div className="h-full overflow-y-auto relative" style={{ background: cs.bg }}>
       <div className="max-w-5xl mx-auto px-6 py-8 space-y-8">
 
         {/* ── Hero: wedding title + countdown ── */}
@@ -113,7 +127,7 @@ export default function OverviewPanel({
               ) : daysUntil === 0 ? (
                 <>
                   <div className="font-playfair text-3xl" style={{ color: cs.accent }}>🎉</div>
-                  <div className="text-xs mt-0.5 font-medium" style={{ color: cs.accent }}>Today's the day!</div>
+                  <div className="text-xs mt-0.5 font-medium" style={{ color: cs.accent }}>Today{"'"}s the day!</div>
                 </>
               ) : (
                 <>
@@ -263,22 +277,33 @@ export default function OverviewPanel({
         {/* ── Table occupancy overview ── */}
         {tableStats.length > 0 && (
           <div className="rounded-2xl p-5" style={{ background: cs.surface, border: `1px solid var(--border)` }}>
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-1">
               <h3 className="font-semibold text-sm" style={{ color: cs.text }}>Table Occupancy</h3>
               <button onClick={() => onTabChange("chart")} className="text-xs hover:underline" style={{ color: cs.accent }}>
                 Open floor plan →
               </button>
             </div>
+            <p className="text-xs mb-4" style={{ color: cs.textMuted }}>Click any table to see who&apos;s sitting there</p>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
               {tableStats.map(t => {
-                const cap  = t.capacity || 8;
-                const pct  = Math.min(100, Math.round(t.count / cap * 100));
-                const over = t.count > cap;
+                const cap   = t.capacity || 8;
+                const pct   = Math.min(100, Math.round(t.count / cap * 100));
+                const over  = t.count > cap;
+                const empty = t.count === 0;
                 const color = over ? "var(--danger)" : pct >= 80 ? "var(--success)" : pct >= 40 ? cs.accent : cs.textMuted;
+                const isSelected = selectedTable?.id === t.id;
                 return (
-                  <div key={t.id} className="rounded-xl p-3 text-center"
-                    style={{ background: cs.surface2, border: `1px solid var(--border)` }}>
-                    <div className="text-xs font-semibold truncate mb-2" style={{ color: cs.text }}>{t.name}</div>
+                  <button
+                    key={t.id}
+                    onClick={() => setSelectedTable(isSelected ? null : t)}
+                    className="rounded-xl p-3 text-center transition-all duration-150 cursor-pointer text-left w-full"
+                    style={{
+                      background: isSelected ? cs.accentBg : cs.surface2,
+                      border: `2px solid ${isSelected ? cs.accent : "var(--border)"}`,
+                      transform: isSelected ? "scale(1.03)" : "scale(1)",
+                      boxShadow: isSelected ? `0 0 0 2px var(--accent-bg)` : "none",
+                    }}>
+                    <div className="text-xs font-semibold truncate mb-2 text-center" style={{ color: isSelected ? cs.accent : cs.text }}>{t.name}</div>
                     {/* Circle fill indicator */}
                     <div className="relative w-12 h-12 mx-auto mb-2">
                       <svg viewBox="0 0 36 36" className="w-12 h-12 -rotate-90">
@@ -288,14 +313,100 @@ export default function OverviewPanel({
                       </svg>
                       <span className="absolute inset-0 flex items-center justify-center text-xs font-bold" style={{ color }}>{pct}%</span>
                     </div>
-                    <div className="text-xs" style={{ color: over ? "var(--danger)" : cs.textMuted }}>
+                    <div className="text-xs text-center" style={{ color: over ? "var(--danger)" : cs.textMuted }}>
                       {t.count}/{cap}
                       {over && <span className="ml-1" style={{ color: "var(--danger)" }}>⚠</span>}
+                      {empty && <span className="ml-1">·  empty</span>}
                     </div>
-                  </div>
+                  </button>
                 );
               })}
             </div>
+
+            {/* ── Inline guest drawer ── */}
+            {selectedTable && (
+              <div className="mt-4 rounded-xl overflow-hidden" style={{ border: `1px solid var(--accent)` }}>
+                {/* Drawer header */}
+                <div className="flex items-center justify-between px-4 py-3"
+                  style={{ background: cs.accentBg, borderBottom: `1px solid var(--border)` }}>
+                  <div>
+                    <span className="font-semibold text-sm" style={{ color: cs.accent }}>🪑 {selectedTable.name}</span>
+                    <span className="ml-2 text-xs" style={{ color: cs.textMuted }}>
+                      {drawerGuests.length} / {selectedTable.capacity || 8} seats
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setSelectedTable(null)}
+                    className="text-lg leading-none hover:opacity-60 transition-opacity"
+                    style={{ color: cs.textMuted }}>
+                    ×
+                  </button>
+                </div>
+
+                {/* Guest list */}
+                {drawerGuests.length === 0 ? (
+                  <div className="px-4 py-6 text-center text-sm" style={{ color: cs.textMuted, background: cs.surface2 }}>
+                    No guests seated at this table yet
+                  </div>
+                ) : (
+                  <div className="divide-y" style={{ background: cs.surface2, borderColor: "var(--border)" }}>
+                    {drawerGuests.map(g => {
+                      const group = groups.find(gr => gr.id === g.group_id);
+                      return (
+                        <div key={g.id} className="flex items-center gap-3 px-4 py-2.5">
+                          {/* Avatar */}
+                          <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                            style={{ background: group?.color ?? cs.accentBg, color: group ? "white" : cs.accent }}>
+                            {g.first_name.charAt(0).toUpperCase()}
+                          </div>
+                          {/* Name + group */}
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium truncate" style={{ color: cs.text }}>{g.first_name} {g.last_name ?? ""}</div>
+                            {group && (
+                              <div className="text-xs truncate" style={{ color: cs.textMuted }}>{group.name}</div>
+                            )}
+                          </div>
+                          {/* RSVP badge */}
+                          <span className="text-xs rounded-full px-2 py-0.5 font-medium capitalize flex-shrink-0"
+                            style={{
+                              background: `${RSVP_COLOR[g.rsvp ?? "pending"]}22`,
+                              color: RSVP_COLOR[g.rsvp ?? "pending"],
+                            }}>
+                            {g.rsvp ?? "pending"}
+                          </span>
+                          {/* Meal */}
+                          <span className="text-base flex-shrink-0" title={g.meal ?? "standard"}>
+                            {MEAL_ICON[g.meal ?? "standard"] ?? "🍽"}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Drawer footer */}
+                <div className="flex items-center justify-between px-4 py-2"
+                  style={{ background: cs.surface, borderTop: `1px solid var(--border)` }}>
+                  <div className="flex gap-3 text-xs" style={{ color: cs.textMuted }}>
+                    {Object.entries(
+                      drawerGuests.reduce<Record<string, number>>((a, g) => {
+                        const m = g.meal ?? "standard";
+                        a[m] = (a[m] || 0) + 1;
+                        return a;
+                      }, {})
+                    ).map(([meal, cnt]) => (
+                      <span key={meal}>{MEAL_ICON[meal] ?? "🍽"} {cnt}</span>
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => { onTabChange("chart"); setSelectedTable(null); }}
+                    className="text-xs hover:underline"
+                    style={{ color: cs.accent }}>
+                    Edit table →
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
