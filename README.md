@@ -1,36 +1,87 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Tablemate 💍
 
-## Getting Started
+> The all-in-one wedding planning tool that makes guest logistics joyful, not stressful.
 
-First, run the development server:
+**Live:** [tablemate-beta.vercel.app](https://tablemate-beta.vercel.app)
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+---
+
+## What is Tablemate?
+
+Tablemate helps couples manage their wedding from invite to seating — collect RSVPs, manage the guest list, build a drag-and-drop seating chart, and send it all from one place. No spreadsheets. No chaos.
+
+---
+
+## Features
+
+- 🔐 **Auth** — Sign up / login via Supabase Auth (email + OAuth)
+- 👥 **Guest management** — Add, edit, remove guests with dietary/RSVP tracking
+- 🪑 **Drag-and-drop seating chart** — Visual table placement on a canvas
+- 🤖 **AI seating suggestions** — GPT-powered seat assignment based on your rules
+- 📋 **Seating rules** — Keep apart / keep together logic
+- 📧 **RSVP emails** — Send personalized RSVP links to guests
+- 🌐 **Guest share page** — Public RSVP view for guests
+- 💌 **Wishing wall** — Guest messages and well-wishes
+- 📄 **PDF export** — Export seating chart and guest list
+- 📱 **Mobile responsive** — Full mobile planner view
+- 💳 **Stripe subscriptions** — Free + Pro tier billing
+
+---
+
+## Tech Stack
+
+| Layer | Tech |
+|-------|------|
+| Framework | Next.js 15 (App Router) |
+| UI | React 19 + Tailwind CSS v4 |
+| Backend | Supabase (PostgreSQL + Auth + RLS) |
+| Payments | Stripe |
+| AI | OpenAI (GPT) |
+| Deployment | Vercel |
+
+---
+
+## Project Structure
+
+```
+src/
+├── app/
+│   ├── app/              # Authenticated app (dashboard, planner, upgrade)
+│   │   └── wedding/[id]/ # Core planner: canvas, guests, rules, export
+│   ├── api/              # API routes (guests, RSVP, Stripe, AI)
+│   ├── rsvp/[token]/     # Public RSVP page
+│   ├── guest/[shareCode] # Guest share page
+│   └── (public pages)    # Landing, pricing, blog, login, signup
+├── components/           # Shared UI components
+└── lib/                  # Supabase client, Stripe, export utils, types
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Deployment
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+This project is deployed on **Vercel** and connected to **Supabase** as the backend.
 
-## Learn More
+There is no local dev setup required — the live app at [tablemate-beta.vercel.app](https://tablemate-beta.vercel.app) is the working product.
 
-To learn more about Next.js, take a look at the following resources:
+### Environment Variables
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Required in Vercel dashboard:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+STRIPE_SECRET_KEY=
+STRIPE_WEBHOOK_SECRET=
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=
+OPENAI_API_KEY=
+```
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Docs
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — Full system architecture
+- [`ROADMAP.md`](ROADMAP.md) — Feature roadmap and status
+- [`supabase/schema.sql`](supabase/schema.sql) — Database schema
