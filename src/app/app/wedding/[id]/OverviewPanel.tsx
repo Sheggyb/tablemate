@@ -286,24 +286,139 @@ export default function OverviewPanel({
             <p className="text-xs mb-4" style={{ color: cs.textMuted }}>Click any table to see who&apos;s sitting there</p>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
               {tableStats.map(t => {
-                const cap   = t.capacity || 8;
-                const pct   = Math.min(100, Math.round(t.count / cap * 100));
-                const over  = t.count > cap;
-                const empty = t.count === 0;
-                const color = over ? "var(--danger)" : pct >= 80 ? "var(--success)" : pct >= 40 ? cs.accent : cs.textMuted;
+                const cap        = t.capacity || 8;
+                const pct        = Math.min(100, Math.round(t.count / cap * 100));
+                const over       = t.count > cap;
+                const empty      = t.count === 0;
+                const color      = over ? "var(--danger)" : pct >= 80 ? "var(--success)" : pct >= 40 ? cs.accent : cs.textMuted;
                 const isSelected = selectedTable?.id === t.id;
-                return (
+                const expandGuests = isSelected
+                  ? guests.filter(g => g.table_id === t.id).sort((a, b) =>
+                      `${a.first_name} ${a.last_name ?? ""}`.localeCompare(`${b.first_name} ${b.last_name ?? ""}`)
+                    )
+                  : [];
+
+                return isSelected ? (
+                  /* ── Expanded card (col-span-full) ── */
+                  <div
+                    key={t.id}
+                    className="col-span-full rounded-xl overflow-hidden transition-all duration-200"
+                    style={{ border: `2px solid ${cs.accent}`, background: cs.surface2 }}
+                  >
+                    {/* Card header row: compact stats + close button */}
+                    <div
+                      className="flex items-center gap-4 px-4 py-3 cursor-pointer"
+                      style={{ background: cs.accentBg, borderBottom: `1px solid var(--border)` }}
+                      onClick={() => setSelectedTable(null)}
+                    >
+                      {/* Circle indicator */}
+                      <div className="relative w-10 h-10 flex-shrink-0">
+                        <svg viewBox="0 0 36 36" className="w-10 h-10 -rotate-90">
+                          <circle cx="18" cy="18" r="14" fill="none" stroke="var(--border)" strokeWidth="3"/>
+                          <circle cx="18" cy="18" r="14" fill="none" stroke={color} strokeWidth="3"
+                            strokeDasharray={`${pct * 0.879} 100`} strokeLinecap="round"/>
+                        </svg>
+                        <span className="absolute inset-0 flex items-center justify-center text-xs font-bold" style={{ color }}>{pct}%</span>
+                      </div>
+                      {/* Table name + seat count */}
+                      <div className="flex-1 min-w-0">
+                        <div className="font-semibold text-sm" style={{ color: cs.accent }}>🪑 {t.name}</div>
+                        <div className="text-xs mt-0.5" style={{ color: over ? "var(--danger)" : cs.textMuted }}>
+                          {t.count}/{cap} seats
+                          {over && <span className="ml-1" style={{ color: "var(--danger)" }}>⚠ over capacity</span>}
+                          {empty && <span className="ml-1">· empty</span>}
+                        </div>
+                      </div>
+                      {/* Meal summary chips */}
+                      {expandGuests.length > 0 && (
+                        <div className="hidden sm:flex gap-2 text-xs flex-shrink-0" style={{ color: cs.textMuted }}>
+                          {Object.entries(
+                            expandGuests.reduce<Record<string, number>>((a, g) => {
+                              const m = g.meal ?? "standard"; a[m] = (a[m] || 0) + 1; return a;
+                            }, {})
+                          ).map(([meal, cnt]) => (
+                            <span key={meal} className="flex items-center gap-1 rounded-full px-2 py-0.5"
+                              style={{ background: cs.surface, border: `1px solid var(--border)` }}>
+                              {MEAL_ICON[meal] ?? "🍽"} {cnt}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {/* Edit link */}
+                      <button
+                        onClick={e => { e.stopPropagation(); onTabChange("chart"); setSelectedTable(null); }}
+                        className="hidden sm:inline text-xs hover:underline flex-shrink-0"
+                        style={{ color: cs.accent }}>
+                        Edit →
+                      </button>
+                      {/* Close */}
+                      <button
+                        onClick={e => { e.stopPropagation(); setSelectedTable(null); }}
+                        className="text-xl leading-none hover:opacity-60 transition-opacity flex-shrink-0 ml-1"
+                        style={{ color: cs.textMuted }}>
+                        ×
+                      </button>
+                    </div>
+
+                    {/* Guest list */}
+                    {expandGuests.length === 0 ? (
+                      <div className="px-4 py-6 text-center text-sm" style={{ color: cs.textMuted }}>
+                        No guests seated at this table yet
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 divide-y sm:divide-y-0 sm:gap-px"
+                        style={{ borderColor: "var(--border)" }}>
+                        {expandGuests.map((g, idx) => {
+                          const group = groups.find(gr => gr.id === g.group_id);
+                          return (
+                            <div key={g.id} className="flex items-center gap-3 px-4 py-2.5"
+                              style={{
+                                borderBottom: `1px solid var(--border)`,
+                                background: idx % 2 === 0 ? cs.surface2 : cs.surface,
+                              }}>
+                              {/* Avatar */}
+                              <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
+                                style={{ background: group?.color ?? cs.accentBg, color: group ? "white" : cs.accent }}>
+                                {g.first_name.charAt(0).toUpperCase()}
+                              </div>
+                              {/* Name + group */}
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm font-medium truncate" style={{ color: cs.text }}>
+                                  {g.first_name} {g.last_name ?? ""}
+                                </div>
+                                {group && (
+                                  <div className="text-xs truncate" style={{ color: cs.textMuted }}>{group.name}</div>
+                                )}
+                              </div>
+                              {/* RSVP badge */}
+                              <span className="text-xs rounded-full px-2 py-0.5 font-medium capitalize flex-shrink-0"
+                                style={{
+                                  background: `${RSVP_COLOR[g.rsvp ?? "pending"]}22`,
+                                  color: RSVP_COLOR[g.rsvp ?? "pending"],
+                                }}>
+                                {g.rsvp ?? "pending"}
+                              </span>
+                              {/* Meal */}
+                              <span className="text-base flex-shrink-0" title={g.meal ?? "standard"}>
+                                {MEAL_ICON[g.meal ?? "standard"] ?? "🍽"}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  /* ── Compact card ── */
                   <button
                     key={t.id}
-                    onClick={() => setSelectedTable(isSelected ? null : t)}
-                    className="rounded-xl p-3 text-center transition-all duration-150 cursor-pointer text-left w-full"
+                    onClick={() => setSelectedTable(t)}
+                    className="rounded-xl p-3 text-center transition-all duration-150 cursor-pointer text-left w-full hover:scale-[1.02]"
                     style={{
-                      background: isSelected ? cs.accentBg : cs.surface2,
-                      border: `2px solid ${isSelected ? cs.accent : "var(--border)"}`,
-                      transform: isSelected ? "scale(1.03)" : "scale(1)",
-                      boxShadow: isSelected ? `0 0 0 2px var(--accent-bg)` : "none",
+                      background: cs.surface2,
+                      border: `2px solid var(--border)`,
                     }}>
-                    <div className="text-xs font-semibold truncate mb-2 text-center" style={{ color: isSelected ? cs.accent : cs.text }}>{t.name}</div>
+                    <div className="text-xs font-semibold truncate mb-2 text-center" style={{ color: cs.text }}>{t.name}</div>
                     {/* Circle fill indicator */}
                     <div className="relative w-12 h-12 mx-auto mb-2">
                       <svg viewBox="0 0 36 36" className="w-12 h-12 -rotate-90">
@@ -316,97 +431,12 @@ export default function OverviewPanel({
                     <div className="text-xs text-center" style={{ color: over ? "var(--danger)" : cs.textMuted }}>
                       {t.count}/{cap}
                       {over && <span className="ml-1" style={{ color: "var(--danger)" }}>⚠</span>}
-                      {empty && <span className="ml-1">·  empty</span>}
+                      {empty && <span className="ml-1">· empty</span>}
                     </div>
                   </button>
                 );
               })}
             </div>
-
-            {/* ── Inline guest drawer ── */}
-            {selectedTable && (
-              <div className="mt-4 rounded-xl overflow-hidden" style={{ border: `1px solid var(--accent)` }}>
-                {/* Drawer header */}
-                <div className="flex items-center justify-between px-4 py-3"
-                  style={{ background: cs.accentBg, borderBottom: `1px solid var(--border)` }}>
-                  <div>
-                    <span className="font-semibold text-sm" style={{ color: cs.accent }}>🪑 {selectedTable.name}</span>
-                    <span className="ml-2 text-xs" style={{ color: cs.textMuted }}>
-                      {drawerGuests.length} / {selectedTable.capacity || 8} seats
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => setSelectedTable(null)}
-                    className="text-lg leading-none hover:opacity-60 transition-opacity"
-                    style={{ color: cs.textMuted }}>
-                    ×
-                  </button>
-                </div>
-
-                {/* Guest list */}
-                {drawerGuests.length === 0 ? (
-                  <div className="px-4 py-6 text-center text-sm" style={{ color: cs.textMuted, background: cs.surface2 }}>
-                    No guests seated at this table yet
-                  </div>
-                ) : (
-                  <div className="divide-y" style={{ background: cs.surface2, borderColor: "var(--border)" }}>
-                    {drawerGuests.map(g => {
-                      const group = groups.find(gr => gr.id === g.group_id);
-                      return (
-                        <div key={g.id} className="flex items-center gap-3 px-4 py-2.5">
-                          {/* Avatar */}
-                          <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-                            style={{ background: group?.color ?? cs.accentBg, color: group ? "white" : cs.accent }}>
-                            {g.first_name.charAt(0).toUpperCase()}
-                          </div>
-                          {/* Name + group */}
-                          <div className="flex-1 min-w-0">
-                            <div className="text-sm font-medium truncate" style={{ color: cs.text }}>{g.first_name} {g.last_name ?? ""}</div>
-                            {group && (
-                              <div className="text-xs truncate" style={{ color: cs.textMuted }}>{group.name}</div>
-                            )}
-                          </div>
-                          {/* RSVP badge */}
-                          <span className="text-xs rounded-full px-2 py-0.5 font-medium capitalize flex-shrink-0"
-                            style={{
-                              background: `${RSVP_COLOR[g.rsvp ?? "pending"]}22`,
-                              color: RSVP_COLOR[g.rsvp ?? "pending"],
-                            }}>
-                            {g.rsvp ?? "pending"}
-                          </span>
-                          {/* Meal */}
-                          <span className="text-base flex-shrink-0" title={g.meal ?? "standard"}>
-                            {MEAL_ICON[g.meal ?? "standard"] ?? "🍽"}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* Drawer footer */}
-                <div className="flex items-center justify-between px-4 py-2"
-                  style={{ background: cs.surface, borderTop: `1px solid var(--border)` }}>
-                  <div className="flex gap-3 text-xs" style={{ color: cs.textMuted }}>
-                    {Object.entries(
-                      drawerGuests.reduce<Record<string, number>>((a, g) => {
-                        const m = g.meal ?? "standard";
-                        a[m] = (a[m] || 0) + 1;
-                        return a;
-                      }, {})
-                    ).map(([meal, cnt]) => (
-                      <span key={meal}>{MEAL_ICON[meal] ?? "🍽"} {cnt}</span>
-                    ))}
-                  </div>
-                  <button
-                    onClick={() => { onTabChange("chart"); setSelectedTable(null); }}
-                    className="text-xs hover:underline"
-                    style={{ color: cs.accent }}>
-                    Edit table →
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         )}
 
