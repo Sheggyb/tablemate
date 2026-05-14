@@ -71,9 +71,12 @@ export default function ChartCanvas({
   const [editName, setEditName] = useState("");
   const [ctxMenu, setCtxMenu]   = useState<ContextMenu | null>(null);
   // New features
-  const [snapEnabled, setSnapEnabled] = useState(false);
-  const [findQuery, setFindQuery]     = useState("");
-  const [viewMode, setViewMode]       = useState<ViewMode>("canvas");
+  const [snapEnabled, setSnapEnabled]           = useState(false);
+  const [findQuery, setFindQuery]               = useState("");
+  const [viewMode, setViewMode]                 = useState<ViewMode>("canvas");
+  const [focusedGuestId, setFocusedGuestId]     = useState<string | null>(null);
+  const [findDropdownOpen, setFindDropdownOpen] = useState(false);
+  const [findUnseatToast, setFindUnseatToast]   = useState<string | null>(null);
 
   const cs = {
     bg: "var(--canvas-bg)", surface: "var(--surface)", surface2: "var(--surface2)",
@@ -121,15 +124,21 @@ export default function ChartCanvas({
     return { w: 140 + t.capacity * 5, h: 80 };
   }, []);
 
-  // ── Find Guest: resolve which table is highlighted ──
-  const highlightedTableId = useMemo(() => {
-    if (!findQuery.trim()) return null;
+  // ── Find Guest: all matching guests for dropdown ──
+  const findMatches = useMemo(() => {
+    if (findQuery.trim().length < 2) return [];
     const q = findQuery.toLowerCase();
-    const match = guests.find(g =>
-      g.table_id && `${g.first_name} ${g.last_name}`.toLowerCase().includes(q)
+    return guests.filter(g =>
+      `${g.first_name} ${g.last_name}`.toLowerCase().includes(q)
     );
-    return match?.table_id ?? null;
   }, [findQuery, guests]);
+
+  // IDs of highlighted tables (floor plan) — all tables of focused guest
+  const highlightedTableIds = useMemo(() => {
+    if (!focusedGuestId) return [] as string[];
+    const g = guests.find(x => x.id === focusedGuestId);
+    return g?.table_id ? [g.table_id] : [];
+  }, [focusedGuestId, guests]);
 
   // Close context menu on outside click
   useEffect(() => {
@@ -402,18 +411,76 @@ export default function ChartCanvas({
             </div>
 
             {/* Find Guest search */}
-            <div className="relative flex items-center">
+            <div className="relative flex items-center" style={{ zIndex: 50 }}>
               <span className="absolute left-2 text-xs pointer-events-none" style={{ color: cs.textMuted }}>🔍</span>
               <input
                 type="search"
                 value={findQuery}
-                onChange={e => setFindQuery(e.target.value)}
+                onChange={e => {
+                  setFindQuery(e.target.value);
+                  setFocusedGuestId(null);
+                  setFindDropdownOpen(true);
+                  setFindUnseatToast(null);
+                }}
+                onFocus={() => { if (findQuery.trim().length >= 2) setFindDropdownOpen(true); }}
                 placeholder="Find guest…"
                 className="pl-6 pr-2 py-1.5 rounded-lg text-xs border"
-                style={{ background: cs.surface2, borderColor: findQuery ? cs.accent : cs.borderSoft, color: cs.text, width: 130 }}
+                style={{ background: cs.surface2, borderColor: findQuery ? cs.accent : cs.borderSoft, color: cs.text, width: 140 }}
               />
-              {highlightedTableId && (
+              {focusedGuestId && (
                 <span className="absolute -right-1 -top-1 w-2 h-2 rounded-full" style={{ background: cs.accent }}/>
+              )}
+              {/* Find results dropdown */}
+              {findDropdownOpen && findMatches.length > 0 && (
+                <div className="absolute top-full left-0 mt-1 rounded-xl shadow-xl overflow-hidden"
+                  style={{ background: cs.surface, border: `1px solid ${cs.border}`, minWidth: 260, maxHeight: 280, overflowY: "auto", zIndex: 100 }}>
+                  <div className="px-3 py-1.5 text-xs font-semibold uppercase tracking-wider border-b"
+                    style={{ color: cs.textMuted, borderColor: cs.border }}>
+                    {findMatches.length} match{findMatches.length !== 1 ? "es" : ""}
+                  </div>
+                  {findMatches.map(g => {
+                    const tbl = g.table_id ? tables.find(t => t.id === g.table_id) : null;
+                    const grp = g.group_id ? groups.find(gr => gr.id === g.group_id) : null;
+                    const rsvpColor = g.rsvp === "confirmed" ? "var(--success)" : g.rsvp === "declined" ? "var(--danger)" : cs.textMuted;
+                    const rsvpLabel = g.rsvp === "confirmed" ? "✓ Confirmed" : g.rsvp === "declined" ? "✗ Declined" : "? Pending";
+                    return (
+                      <button key={g.id}
+                        className="w-full text-left px-3 py-2 hover:opacity-80 transition-opacity flex items-center gap-2"
+                        style={{ borderBottom: `1px solid ${cs.border}`, background: focusedGuestId === g.id ? cs.accentBg : "transparent" }}
+                        onClick={() => {
+                          setFocusedGuestId(g.id);
+                          setFindDropdownOpen(false);
+                          setFindUnseatToast(null);
+                          if (!g.table_id) {
+                            setFindUnseatToast(`${g.first_name} ${g.last_name} is not seated yet`);
+                          }
+                        }}>
+                        <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: groupColor(g.group_id) }}/>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-medium truncate" style={{ color: cs.text }}>{g.first_name} {g.last_name}</div>
+                          <div className="text-[10px] truncate" style={{ color: cs.textMuted }}>
+                            {tbl ? `📍 ${tbl.name}` : "🪑 Unseated"}{grp ? ` · ${grp.name}` : ""}
+                          </div>
+                        </div>
+                        <span className="text-[10px] flex-shrink-0 font-medium" style={{ color: rsvpColor }}>{rsvpLabel}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {/* No matches message */}
+              {findDropdownOpen && findQuery.trim().length >= 2 && findMatches.length === 0 && (
+                <div className="absolute top-full left-0 mt-1 rounded-xl shadow-xl px-3 py-2.5 text-xs"
+                  style={{ background: cs.surface, border: `1px solid ${cs.border}`, color: cs.textMuted, minWidth: 180, zIndex: 100 }}>
+                  No guests found
+                </div>
+              )}
+              {/* Unseated toast */}
+              {findUnseatToast && (
+                <div className="absolute top-full left-0 mt-1 rounded-xl shadow-xl px-3 py-2.5 text-xs"
+                  style={{ background: cs.surface, border: `1px solid var(--warning)`, color: "var(--warning)", minWidth: 220, zIndex: 100 }}>
+                  🪑 {findUnseatToast}
+                </div>
               )}
             </div>
 
@@ -523,7 +590,14 @@ export default function ChartCanvas({
                     ) : (
                       <div className="divide-y" style={{ borderColor: cs.border }}>
                         {tGuests.sort((a, b) => `${a.last_name}${a.first_name}`.localeCompare(`${b.last_name}${b.first_name}`)).map((g, i) => (
-                          <div key={g.id} className="flex items-center gap-3 px-4 py-2">
+                          <div key={g.id}
+                            data-guest-row={g.id}
+                            ref={el => { if (el && focusedGuestId === g.id) el.scrollIntoView({ behavior: "smooth", block: "center" }); }}
+                            className="flex items-center gap-3 px-4 py-2 transition-all"
+                            style={{
+                              background: focusedGuestId === g.id ? "var(--accent-bg)" : "transparent",
+                              borderLeft: focusedGuestId === g.id ? "3px solid var(--accent)" : "3px solid transparent",
+                            }}>
                             <span className="text-xs w-5 text-right flex-shrink-0" style={{ color: cs.textMuted }}>{i + 1}</span>
                             <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: groupColor(g.group_id) }}/>
                             <span className="text-sm flex-1" style={{ color: cs.text }}>
@@ -572,12 +646,15 @@ export default function ChartCanvas({
                   const cap = t.capacity || 8;
                   const over = tGuests.length > cap;
                   const isDrop = dropTarget === t.id;
+                  const isFocusedTable = focusedGuestId ? tGuests.some(g => g.id === focusedGuestId) : false;
                   return (
-                    <div key={t.id} className="rounded-2xl p-4 flex flex-col gap-2 transition-all"
+                    <div key={t.id}
+                      ref={el => { if (el && isFocusedTable) el.scrollIntoView({ behavior: "smooth", block: "center" }); }}
+                      className="rounded-2xl p-4 flex flex-col gap-2 transition-all"
                       style={{
-                        background: isDrop ? "var(--accent-bg)" : cs.surface,
-                        border: `${isDrop ? 2 : 1}px solid ${isDrop ? "var(--accent)" : over ? "var(--danger)" : cs.border}`,
-                        boxShadow: isDrop ? "0 0 0 3px var(--accent-bg)" : "none",
+                        background: isDrop || isFocusedTable ? "var(--accent-bg)" : cs.surface,
+                        border: `${isDrop || isFocusedTable ? 2 : 1}px solid ${isDrop || isFocusedTable ? "var(--accent)" : over ? "var(--danger)" : cs.border}`,
+                        boxShadow: isDrop || isFocusedTable ? "0 0 0 3px var(--accent-bg)" : "none",
                         transform: isDrop ? "scale(1.02)" : "scale(1)",
                         cursor: "copy",
                       }}
@@ -594,7 +671,7 @@ export default function ChartCanvas({
                               title={g ? `${g.first_name} ${g.last_name}` : "Empty"}
                               style={{
                                 background: g ? groupColor(g.group_id) : cs.surface2,
-                                border: g ? "none" : `1px dashed ${cs.border}`,
+                                border: g ? (g.id === focusedGuestId ? "2px solid var(--accent)" : "none") : `1px dashed ${cs.border}`,
                                 color: "white",
                               }}>
                               {g ? ((g.first_name?.[0] ?? "") + (g.last_name?.[0] ?? "")).toUpperCase() : ""}
@@ -645,7 +722,7 @@ export default function ChartCanvas({
                 const isFull    = tg.length >= table.capacity;
                 const isDrop    = dropTarget === table.id;
                 const isSel     = selected === table.id;
-                const isHighlit = highlightedTableId === table.id;
+                const isHighlit = highlightedTableIds.includes(table.id);
                 const { w, h }  = tableSize(table);
                 const isRound = table.shape === "round", isOval = table.shape === "oval";
                 const br = isRound || isOval ? "50%" : "14px";
