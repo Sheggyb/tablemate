@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { rateLimit, rateLimitResponse } from "@/lib/rateLimit";
 
-// TODO: add rate limiting (e.g. 10 req/min per user — AI seating is expensive)
 // POST /api/ai/seat — Smart seating optimizer (no external API)
 // Premium/Planner only
 export async function POST(req: Request) {
@@ -10,6 +10,10 @@ export async function POST(req: Request) {
   // Auth check
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+
+  // Rate limit: 5 AI requests per minute per user
+  const rl = rateLimit(`ai:${user.id}`, 5, 60_000);
+  if (!rl.allowed) return rateLimitResponse(rl.resetAt);
 
   // Check plan
   const { data: profile } = await supabase.from("profiles").select("plan").eq("id", user.id).single();

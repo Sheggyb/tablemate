@@ -232,17 +232,29 @@ export default function PlannerClient({
   }, [supabase, wedding.id, showToast, plan, isDemo]);
 
   const updateGuest = useCallback(async (id: string, data: Partial<Guest>) => {
+    const prevGuest = state.guests.find(g => g.id === id);
     dispatch({ type: "UPDATE_GUEST", id, data });
     if (!isDemo) supabase.from("guests").update(data).eq("id", id).then(({ error }) => {
-      if (error) console.error("Update guest failed:", error.message);
+      if (error) {
+        console.error("Update guest failed:", error.message);
+        if (prevGuest) dispatch({ type: "UPDATE_GUEST", id, data: prevGuest });
+        showToast("Failed to update guest. Please try again.", "error");
+      }
     });
-  }, [supabase, isDemo]);
+  }, [supabase, isDemo, state.guests, showToast]);
 
   const deleteGuest = useCallback(async (id: string) => {
+    const prevGuest = state.guests.find(g => g.id === id);
     dispatch({ type: "DELETE_GUEST", id });
     showToast("Guest removed", "info");
-    if (!isDemo) supabase.from("guests").delete().eq("id", id).then();
-  }, [supabase, isDemo, showToast]);
+    if (!isDemo) supabase.from("guests").delete().eq("id", id).then(({ error }) => {
+      if (error) {
+        console.error("Delete guest failed:", error.message);
+        if (prevGuest) dispatch({ type: "ADD_GUEST", payload: prevGuest });
+        showToast("Failed to delete guest. Please try again.", "error");
+      }
+    });
+  }, [supabase, isDemo, showToast, state.guests]);
 
   const bulkUpdateGuests = useCallback(async (ids: string[], data: Partial<Guest>) => {
     dispatch({ type: "BULK_UPDATE_GUESTS", ids, data });
@@ -251,10 +263,18 @@ export default function PlannerClient({
   }, [supabase, isDemo]);
 
   const bulkDeleteGuests = useCallback(async (ids: string[]) => {
+    const prevGuests = state.guests;
     dispatch({ type: "BULK_DELETE_GUESTS", ids });
     showToast(`${ids.length} guests removed`, "info");
-    if (!isDemo) for (const id of ids) supabase.from("guests").delete().eq("id", id).then();
-  }, [supabase, isDemo, showToast]);
+    if (!isDemo) {
+      const { error } = await supabase.from("guests").delete().in("id", ids);
+      if (error) {
+        console.error("Bulk delete guests failed:", error.message);
+        dispatch({ type: "SET_ALL", payload: { ...state, guests: prevGuests } });
+        showToast("Failed to delete guests. Please try again.", "error");
+      }
+    }
+  }, [supabase, isDemo, showToast, state]);
 
   /* ── Table CRUD ── */
   const addTable = useCallback(async (name: string, shape: "round" | "rectangle" | "oval", capacity: number) => {
@@ -288,13 +308,20 @@ export default function PlannerClient({
   }, [supabase, isDemo]);
 
   const deleteTable = useCallback(async (id: string) => {
+    const prevTables = state.tables;
+    const prevGuests = state.guests;
     dispatch({ type: "DELETE_TABLE", id });
     showToast("Table removed", "info");
     if (!isDemo) {
-    supabase.from("guests").update({ table_id: null, seat_index: null }).eq("table_id", id).then();
-    supabase.from("tables").delete().eq("id", id).then();
+      await supabase.from("guests").update({ table_id: null, seat_index: null }).eq("table_id", id);
+      const { error } = await supabase.from("tables").delete().eq("id", id);
+      if (error) {
+        console.error("Delete table failed:", error.message);
+        dispatch({ type: "SET_ALL", payload: { ...state, tables: prevTables, guests: prevGuests } });
+        showToast("Failed to delete table. Please try again.", "error");
+      }
     }
-  }, [supabase, isDemo, showToast]);
+  }, [supabase, isDemo, showToast, state]);
 
   /* ── Venue CRUD ── */
   const addVenue = useCallback(async (name: string) => {

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { rateLimit, rateLimitResponse } from "@/lib/rateLimit";
 
-// TODO: add rate limiting (e.g. 20 req/min per user — email sends are costly and abuse-prone)
 // POST /api/rsvp/send — sends RSVP email to one or more guests
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -9,6 +9,10 @@ export async function POST(req: Request) {
   // Auth check
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+
+  // Rate limit: 10 sends per minute per user
+  const rl = rateLimit(`rsvp:${user.id}`, 10, 60_000);
+  if (!rl.allowed) return rateLimitResponse(rl.resetAt);
 
   // Parse body safely
   let guestIds: string[], weddingId: string;

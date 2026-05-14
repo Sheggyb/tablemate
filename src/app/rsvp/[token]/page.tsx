@@ -74,9 +74,7 @@ export default function RsvpPage() {
     const load = async () => {
       const supabase = createClient();
       const { data: g, error: e } = await supabase
-        .from("guests")
-        .select("*, weddings(*)")
-        .eq("rsvp_token", params.token)
+        .rpc("get_guest_by_rsvp_token", { p_token: params.token })
         .single();
 
       if (e || !g) { setError("Invitation not found. Please check your link."); setLoading(false); return; }
@@ -98,9 +96,12 @@ export default function RsvpPage() {
     setSaving(true);
     const supabase = createClient();
     const { error: saveErr } = await supabase
-      .from("guests")
-      .update({ rsvp, meal, allergies, rsvp_responded_at: new Date().toISOString() })
-      .eq("rsvp_token", params.token);
+      .rpc("update_guest_rsvp", {
+        p_token:     params.token,
+        p_rsvp:      rsvp,
+        p_meal:      meal,
+        p_allergies: allergies,
+      });
 
     if (saveErr) { setError("Failed to save. Please try again."); setSaving(false); return; }
     setSubmitted(true);

@@ -128,8 +128,13 @@ drop policy if exists "RSVP token read" on public.guests;
 drop policy if exists "RSVP token update" on public.guests;
 create policy "Wedding owner manages guests" on public.guests for all
   using (exists (select 1 from public.weddings w where w.id = wedding_id and w.user_id = auth.uid()));
-create policy "RSVP token read"   on public.guests for select using (rsvp_token is not null);
-create policy "RSVP token update" on public.guests for update using (rsvp_token is not null);
+-- RSVP policies: anonymous access is handled via security definer RPC functions below.
+-- Direct table access is restricted to authenticated wedding owners only.
+create policy "RSVP token read" on public.guests for select
+  using (exists (select 1 from public.weddings w where w.id = wedding_id and w.user_id = auth.uid()));
+create policy "RSVP token update" on public.guests for update
+  using (exists (select 1 from public.weddings w where w.id = wedding_id and w.user_id = auth.uid()))
+  with check (exists (select 1 from public.weddings w where w.id = wedding_id and w.user_id = auth.uid()));
 
 -- ════════════════════════════════════
 -- RULES
@@ -146,11 +151,64 @@ drop policy if exists "Wedding owner manages rules" on public.rules;
 create policy "Wedding owner manages rules" on public.rules for all
   using (exists (select 1 from public.weddings w where w.id = wedding_id and w.user_id = auth.uid()));
 
+alter table public.rules add constraint if not exists unique_rule unique (guest1_id, guest2_id, type);
+
 -- ════════════════════════════════════
 -- INDEXES
 -- ════════════════════════════════════
-create index if not exists idx_guests_wedding_id  on public.guests(wedding_id);
-create index if not exists idx_tables_venue_id    on public.tables(venue_id);
-create index if not exists idx_groups_wedding_id  on public.groups(wedding_id);
-create index if not exists idx_rules_wedding_id   on public.rules(wedding_id);
-create index if not exists idx_guests_rsvp_token  on public.guests(rsvp_token);
+create index if not exists idx_guests_wedding_id    on public.guests(wedding_id);
+create index if not exists idx_tables_venue_id      on public.tables(venue_id);
+create index if not exists idx_groups_wedding_id    on public.groups(wedding_id);
+create index if not exists idx_rules_wedding_id     on public.rules(wedding_id);
+create index if not exists idx_guests_rsvp_token    on public.guests(rsvp_token);
+create index if not exists idx_guests_wedding_table on public.guests(wedding_id, table_id);
+create index if not exists idx_guests_wedding_rsvp  on public.guests(wedding_id, rsvp);
+
+-- ════════════════════════════════════
+-- WEDDINGS: share_code column
+-- ════════════════════════════════════
+alter table public.weddings add column if not exists share_code text unique default encode(gen_random_bytes(6), 'hex');
+create index if not exists idx_weddings_share_code on public.weddings(share_code);
+
+-- ════════════════════════════════════
+-- SECURITY DEFINER FUNCTIONS (RSVP)
+-- These bypass RLS so the anonymous/public RSVP page can read and update
+-- a single guest record without exposing the full guests table.
+-- ════════════════════════════════════
+
+-- Read a guest by RSVP token (includes related wedding data)
+create or replace function public.get_guest_by_rsvp_token(p_token text)
+returns json
+language sql
+security definer
+set search_path = public
+as $$
+  select row_to_json(r) from (
+    select g.*, row_to_json(w.*) as weddings
+    from public.guests g
+    join public.weddings w on w.id = g.wedding_id
+    where g.rsvp_token = p_token
+    limit 1
+  ) r;
+$$;
+
+-- Update a guest's RSVP response (only fields the guest is allowed to change)
+create or replace function public.update_guest_rsvp(
+  p_token      text,
+  p_rsvp       text,
+  p_meal       text,
+  p_allergies  text
+)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  update public.guests
+  set
+    rsvp               = p_rsvp,
+    meal               = p_meal,
+    allergies          = p_allergies,
+    rsvp_responded_at  = now()
+  where rsvp_token = p_token;
+$$;

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { rateLimit, rateLimitResponse } from "@/lib/rateLimit";
 
 /**
  * POST /api/guests
@@ -11,7 +12,6 @@ import { createClient } from "@/lib/supabase/server";
  *   403 { allowed: false, error: string }          – limit reached
  *   401 { error: string }                          – not authenticated
  */
-// TODO: add rate limiting (e.g. 60 req/min per user to prevent enumeration/abuse)
 export async function POST(req: Request) {
   const supabase = await createClient();
 
@@ -20,6 +20,10 @@ export async function POST(req: Request) {
   if (!user) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
+
+  // Rate limit: 60 guest checks per minute per user
+  const rl = rateLimit(`guests:${user.id}`, 60, 60_000);
+  if (!rl.allowed) return rateLimitResponse(rl.resetAt);
 
   const { weddingId } = await req.json();
   if (!weddingId) {
