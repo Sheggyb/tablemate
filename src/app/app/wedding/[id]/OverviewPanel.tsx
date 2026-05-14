@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import type { Guest, Table, Group, Rule, Wedding, Venue } from "@/lib/types";
 
 interface Props {
@@ -29,8 +28,6 @@ const RSVP_COLOR: Record<string, string> = {
 export default function OverviewPanel({
   wedding, guests, tables, groups, rules, venues, darkMode, isDemo, onTabChange
 }: Props) {
-  const [selectedTable, setSelectedTable] = useState<Table | null>(null);
-
   const cs = {
     bg:         "var(--bg)",
     surface:    "var(--surface)",
@@ -74,27 +71,59 @@ export default function OverviewPanel({
       return acc;
     }, {});
 
-  // ── Table occupancy ──
-  const tableStats = tables.map(t => {
-    const guestsAtTable = guests.filter(g => g.table_id === t.id);
-    return { ...t, count: guestsAtTable.length, guestList: guestsAtTable };
-  }).sort((a, b) => b.count - a.count);
-
   // ── Checklist items ──
   const checklist = [
-    { done: total > 0,     label: "Add guests",              action: "guests",  cta: "Add guests →" },
-    { done: rsvpRate > 0,  label: "Collect RSVPs",           action: "guests",  cta: "Manage RSVPs →" },
-    { done: tables.length > 0, label: "Create tables",       action: "chart",   cta: "Open floor plan →" },
-    { done: seated > 0,    label: "Start seating guests",    action: "chart",   cta: "Seat guests →" },
-    { done: unseated === 0 && confirmed > 0, label: "Seat all confirmed guests", action: "guests", cta: "See unseated →" },
-    { done: rules.length > 0 || confirmed > 20, label: "Set seating rules (optional)", action: "rules", cta: "Add rules →" },
+    {
+      done: total > 0,
+      icon: "👥",
+      label: "Add guests",
+      hint: "Import or manually add everyone attending your wedding.",
+      action: "guests",
+      cta: "Add guests →",
+    },
+    {
+      done: rsvpRate > 0,
+      icon: "💌",
+      label: "Collect RSVPs",
+      hint: "Track who has confirmed, declined, or is still pending.",
+      action: "guests",
+      cta: "Manage RSVPs →",
+    },
+    {
+      done: tables.length > 0,
+      icon: "🪑",
+      label: "Create tables",
+      hint: "Set up your floor plan with table names and capacities.",
+      action: "chart",
+      cta: "Open floor plan →",
+    },
+    {
+      done: seated > 0,
+      icon: "📍",
+      label: "Start seating guests",
+      hint: "Drag guests onto tables to assign them seats.",
+      action: "chart",
+      cta: "Seat guests →",
+    },
+    {
+      done: unseated === 0 && confirmed > 0,
+      icon: "✅",
+      label: "Seat all confirmed guests",
+      hint: "Make sure every confirmed guest has an assigned table.",
+      action: "guests",
+      cta: "See unseated →",
+    },
+    {
+      done: rules.length > 0,
+      icon: "📋",
+      label: "Set seating rules (optional)",
+      hint: "Add keep-together or keep-apart rules to guide the seating.",
+      action: "rules",
+      cta: "Add rules →",
+    },
   ];
   const checkDone = checklist.filter(c => c.done).length;
-
-  // ── Drawer guests ──
-  const drawerGuests = selectedTable
-    ? guests.filter(g => g.table_id === selectedTable.id).sort((a, b) => `${a.first_name} ${a.last_name ?? ""}`.localeCompare(`${b.first_name} ${b.last_name ?? ""}`))
-    : [];
+  const allDone   = checkDone === checklist.length;
 
   return (
     <div className="h-full overflow-y-auto relative" style={{ background: cs.bg }}>
@@ -204,41 +233,64 @@ export default function OverviewPanel({
                 Planning Checklist
               </h3>
               <span className="text-xs rounded-full px-2 py-0.5 font-medium"
-                style={{ background: cs.accentBg, color: cs.accent }}>
+                style={{ background: allDone ? "var(--success-bg, #d1fae5)" : cs.accentBg, color: allDone ? "var(--success)" : cs.accent }}>
                 {checkDone}/{checklist.length}
               </span>
             </div>
             {/* Overall progress */}
             <div className="w-full rounded-full mb-4" style={{ height: 6, background: "var(--border)" }}>
-              <div style={{ width: `${checklist.length > 0 ? checkDone / checklist.length * 100 : 0}%`, background: cs.accent, borderRadius: 999, height: 6, transition: "width 0.5s" }}/>
+              <div style={{ width: `${checklist.length > 0 ? checkDone / checklist.length * 100 : 0}%`, background: allDone ? "var(--success)" : cs.accent, borderRadius: 999, height: 6, transition: "width 0.5s" }}/>
             </div>
-            <ul className="space-y-2.5">
-              {checklist.map((item, i) => (
-                <li key={i} className="flex items-center gap-3">
-                  <div className="w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold"
-                    style={{
-                      background: item.done ? "var(--success)" : "var(--border)",
-                      color: item.done ? "white" : cs.textMuted,
-                    }}>
-                    {item.done ? "✓" : ""}
-                  </div>
-                  <span className="text-sm flex-1" style={{
-                    color: item.done ? cs.textMuted : cs.text,
-                    textDecoration: item.done ? "line-through" : "none",
-                  }}>
-                    {item.label}
-                  </span>
-                  {!item.done && !isDemo && (
-                    <button
-                      onClick={() => onTabChange(item.action)}
-                      className="text-xs hover:underline flex-shrink-0"
-                      style={{ color: cs.accent }}>
-                      {item.cta}
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ul>
+
+            {allDone ? (
+              /* ── Celebration state ── */
+              <div className="flex flex-col items-center justify-center py-6 gap-2 text-center">
+                <div className="text-4xl">🎉</div>
+                <div className="font-semibold text-sm" style={{ color: "var(--success)" }}>You&apos;re all set!</div>
+                <div className="text-xs" style={{ color: cs.textMuted }}>
+                  Every planning step is complete. Enjoy your big day! 💍
+                </div>
+              </div>
+            ) : (
+              <ul className="space-y-3">
+                {checklist.map((item, i) => (
+                  <li key={i}>
+                    <div className="flex items-center gap-3">
+                      {/* Check circle */}
+                      <div className="w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold"
+                        style={{
+                          background: item.done ? "var(--success)" : "var(--border)",
+                          color: item.done ? "white" : cs.textMuted,
+                        }}>
+                        {item.done ? "✓" : ""}
+                      </div>
+                      {/* Icon + label */}
+                      <span className="text-sm flex-1" style={{
+                        color: item.done ? cs.textMuted : cs.text,
+                        textDecoration: item.done ? "line-through" : "none",
+                      }}>
+                        {item.icon} {item.label}
+                      </span>
+                      {/* CTA button */}
+                      {!item.done && !isDemo && (
+                        <button
+                          onClick={() => onTabChange(item.action)}
+                          className="text-xs hover:underline flex-shrink-0"
+                          style={{ color: cs.accent }}>
+                          {item.cta}
+                        </button>
+                      )}
+                    </div>
+                    {/* Helper description for incomplete items */}
+                    {!item.done && (
+                      <p className="text-xs mt-0.5 ml-8" style={{ color: cs.textMuted }}>
+                        {item.hint}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           {/* Meal breakdown */}
@@ -274,172 +326,6 @@ export default function OverviewPanel({
           </div>
         </div>
 
-        {/* ── Table occupancy overview ── */}
-        {tableStats.length > 0 && (
-          <div className="rounded-2xl p-5" style={{ background: cs.surface, border: `1px solid var(--border)` }}>
-            <div className="flex items-center justify-between mb-1">
-              <h3 className="font-semibold text-sm" style={{ color: cs.text }}>Table Occupancy</h3>
-              <button onClick={() => onTabChange("chart")} className="text-xs hover:underline" style={{ color: cs.accent }}>
-                Open floor plan →
-              </button>
-            </div>
-            <p className="text-xs mb-4" style={{ color: cs.textMuted }}>Click any table to see who&apos;s sitting there</p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-              {tableStats.map(t => {
-                const cap        = t.capacity || 8;
-                const pct        = Math.min(100, Math.round(t.count / cap * 100));
-                const over       = t.count > cap;
-                const empty      = t.count === 0;
-                const color      = over ? "var(--danger)" : pct >= 80 ? "var(--success)" : pct >= 40 ? cs.accent : cs.textMuted;
-                const isSelected = selectedTable?.id === t.id;
-                const expandGuests = isSelected
-                  ? guests.filter(g => g.table_id === t.id).sort((a, b) =>
-                      `${a.first_name} ${a.last_name ?? ""}`.localeCompare(`${b.first_name} ${b.last_name ?? ""}`)
-                    )
-                  : [];
-
-                return isSelected ? (
-                  /* ── Expanded card (col-span-full) ── */
-                  <div
-                    key={t.id}
-                    className="col-span-full rounded-xl overflow-hidden transition-all duration-200"
-                    style={{ border: `2px solid ${cs.accent}`, background: cs.surface2 }}
-                  >
-                    {/* Card header row: compact stats + close button */}
-                    <div
-                      className="flex items-center gap-4 px-4 py-3 cursor-pointer"
-                      style={{ background: cs.accentBg, borderBottom: `1px solid var(--border)` }}
-                      onClick={() => setSelectedTable(null)}
-                    >
-                      {/* Circle indicator */}
-                      <div className="relative w-10 h-10 flex-shrink-0">
-                        <svg viewBox="0 0 36 36" className="w-10 h-10 -rotate-90">
-                          <circle cx="18" cy="18" r="14" fill="none" stroke="var(--border)" strokeWidth="3"/>
-                          <circle cx="18" cy="18" r="14" fill="none" stroke={color} strokeWidth="3"
-                            strokeDasharray={`${pct * 0.879} 100`} strokeLinecap="round"/>
-                        </svg>
-                        <span className="absolute inset-0 flex items-center justify-center text-xs font-bold" style={{ color }}>{pct}%</span>
-                      </div>
-                      {/* Table name + seat count */}
-                      <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-sm" style={{ color: cs.accent }}>🪑 {t.name}</div>
-                        <div className="text-xs mt-0.5" style={{ color: over ? "var(--danger)" : cs.textMuted }}>
-                          {t.count}/{cap} seats
-                          {over && <span className="ml-1" style={{ color: "var(--danger)" }}>⚠ over capacity</span>}
-                          {empty && <span className="ml-1">· empty</span>}
-                        </div>
-                      </div>
-                      {/* Meal summary chips */}
-                      {expandGuests.length > 0 && (
-                        <div className="hidden sm:flex gap-2 text-xs flex-shrink-0" style={{ color: cs.textMuted }}>
-                          {Object.entries(
-                            expandGuests.reduce<Record<string, number>>((a, g) => {
-                              const m = g.meal ?? "standard"; a[m] = (a[m] || 0) + 1; return a;
-                            }, {})
-                          ).map(([meal, cnt]) => (
-                            <span key={meal} className="flex items-center gap-1 rounded-full px-2 py-0.5"
-                              style={{ background: cs.surface, border: `1px solid var(--border)` }}>
-                              {MEAL_ICON[meal] ?? "🍽"} {cnt}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      {/* Edit link */}
-                      <button
-                        onClick={e => { e.stopPropagation(); onTabChange("chart"); setSelectedTable(null); }}
-                        className="hidden sm:inline text-xs hover:underline flex-shrink-0"
-                        style={{ color: cs.accent }}>
-                        Edit →
-                      </button>
-                      {/* Close */}
-                      <button
-                        onClick={e => { e.stopPropagation(); setSelectedTable(null); }}
-                        className="text-xl leading-none hover:opacity-60 transition-opacity flex-shrink-0 ml-1"
-                        style={{ color: cs.textMuted }}>
-                        ×
-                      </button>
-                    </div>
-
-                    {/* Guest list */}
-                    {expandGuests.length === 0 ? (
-                      <div className="px-4 py-6 text-center text-sm" style={{ color: cs.textMuted }}>
-                        No guests seated at this table yet
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 divide-y sm:divide-y-0 sm:gap-px"
-                        style={{ borderColor: "var(--border)" }}>
-                        {expandGuests.map((g, idx) => {
-                          const group = groups.find(gr => gr.id === g.group_id);
-                          return (
-                            <div key={g.id} className="flex items-center gap-3 px-4 py-2.5"
-                              style={{
-                                borderBottom: `1px solid var(--border)`,
-                                background: idx % 2 === 0 ? cs.surface2 : cs.surface,
-                              }}>
-                              {/* Avatar */}
-                              <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0"
-                                style={{ background: group?.color ?? cs.accentBg, color: group ? "white" : cs.accent }}>
-                                {g.first_name.charAt(0).toUpperCase()}
-                              </div>
-                              {/* Name + group */}
-                              <div className="flex-1 min-w-0">
-                                <div className="text-sm font-medium truncate" style={{ color: cs.text }}>
-                                  {g.first_name} {g.last_name ?? ""}
-                                </div>
-                                {group && (
-                                  <div className="text-xs truncate" style={{ color: cs.textMuted }}>{group.name}</div>
-                                )}
-                              </div>
-                              {/* RSVP badge */}
-                              <span className="text-xs rounded-full px-2 py-0.5 font-medium capitalize flex-shrink-0"
-                                style={{
-                                  background: `${RSVP_COLOR[g.rsvp ?? "pending"]}22`,
-                                  color: RSVP_COLOR[g.rsvp ?? "pending"],
-                                }}>
-                                {g.rsvp ?? "pending"}
-                              </span>
-                              {/* Meal */}
-                              <span className="text-base flex-shrink-0" title={g.meal ?? "standard"}>
-                                {MEAL_ICON[g.meal ?? "standard"] ?? "🍽"}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  /* ── Compact card ── */
-                  <button
-                    key={t.id}
-                    onClick={() => setSelectedTable(t)}
-                    className="rounded-xl p-3 text-center transition-all duration-150 cursor-pointer text-left w-full hover:scale-[1.02]"
-                    style={{
-                      background: cs.surface2,
-                      border: `2px solid var(--border)`,
-                    }}>
-                    <div className="text-xs font-semibold truncate mb-2 text-center" style={{ color: cs.text }}>{t.name}</div>
-                    {/* Circle fill indicator */}
-                    <div className="relative w-12 h-12 mx-auto mb-2">
-                      <svg viewBox="0 0 36 36" className="w-12 h-12 -rotate-90">
-                        <circle cx="18" cy="18" r="14" fill="none" stroke="var(--border)" strokeWidth="3"/>
-                        <circle cx="18" cy="18" r="14" fill="none" stroke={color} strokeWidth="3"
-                          strokeDasharray={`${pct * 0.879} 100`} strokeLinecap="round"/>
-                      </svg>
-                      <span className="absolute inset-0 flex items-center justify-center text-xs font-bold" style={{ color }}>{pct}%</span>
-                    </div>
-                    <div className="text-xs text-center" style={{ color: over ? "var(--danger)" : cs.textMuted }}>
-                      {t.count}/{cap}
-                      {over && <span className="ml-1" style={{ color: "var(--danger)" }}>⚠</span>}
-                      {empty && <span className="ml-1">· empty</span>}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
         {/* ── Groups/Parties overview ── */}
         {groups.length > 0 && (
           <div className="rounded-2xl p-5" style={{ background: cs.surface, border: `1px solid var(--border)` }}>
@@ -456,27 +342,6 @@ export default function OverviewPanel({
                   </div>
                 );
               })}
-            </div>
-          </div>
-        )}
-
-        {/* ── Quick actions ── */}
-        {!isDemo && (
-          <div className="rounded-2xl p-5" style={{ background: cs.surface, border: `1px solid var(--border)` }}>
-            <h3 className="font-semibold text-sm mb-4" style={{ color: cs.text }}>Quick Actions</h3>
-            <div className="flex flex-wrap gap-3">
-              {[
-                { icon: "👥", label: "Add Guest",     tab: "guests" },
-                { icon: "📐", label: "Floor Plan",    tab: "chart"  },
-                { icon: "📋", label: "Seating Rules", tab: "rules"  },
-                { icon: "📤", label: "Export PDFs",   tab: "export" },
-              ].map(a => (
-                <button key={a.tab} onClick={() => onTabChange(a.tab)}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium hover:opacity-80 transition-opacity"
-                  style={{ background: cs.surface2, border: `1px solid var(--border)`, color: cs.text }}>
-                  {a.icon} {a.label}
-                </button>
-              ))}
             </div>
           </div>
         )}
