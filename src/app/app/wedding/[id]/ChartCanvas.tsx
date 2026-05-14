@@ -483,11 +483,23 @@ export default function ChartCanvas({
                 const cap = t.capacity || 8;
                 const pct = Math.min(100, Math.round(tGuests.length / cap * 100));
                 const over = tGuests.length > cap;
+                const isDrop = dropTarget === t.id;
                 return (
-                  <div key={t.id} className="rounded-2xl overflow-hidden"
-                    style={{ background: cs.surface, border: `1px solid ${cs.border}` }}>
+                  <div key={t.id} className="rounded-2xl overflow-hidden transition-all"
+                    style={{
+                      background: cs.surface,
+                      border: `1px solid ${isDrop ? "var(--accent)" : cs.border}`,
+                      boxShadow: isDrop ? "0 0 0 3px var(--accent-bg)" : "none",
+                    }}
+                    onDragOver={e => onGuestDragOver(e, t.id)}
+                    onDrop={e => onGuestDrop(e, t.id)}
+                    onDragLeave={() => setDropTarget(null)}>
                     <div className="flex items-center justify-between px-4 py-3"
-                      style={{ background: cs.surface2, borderBottom: `1px solid ${cs.border}` }}>
+                      style={{
+                        background: isDrop ? "var(--accent-bg)" : cs.surface2,
+                        borderBottom: `1px solid ${cs.border}`,
+                        transition: "background 0.15s",
+                      }}>
                       <div className="flex items-center gap-3">
                         <span className="font-semibold text-sm" style={{ color: cs.text }}>{t.name}</span>
                         <span className="text-xs rounded-full px-2 py-0.5"
@@ -552,13 +564,20 @@ export default function ChartCanvas({
                       style={{ background: "rgba(245,200,100,0.15)", color: "var(--warning)" }}>
                       {unseatedGuests.length}
                     </span>
+                    <span className="text-xs ml-1" style={{ color: cs.textMuted }}>— drag onto a table to assign</span>
                   </div>
                   <div className="divide-y" style={{ borderColor: cs.border }}>
                     {unseatedGuests.map(g => (
-                      <div key={g.id} className="flex items-center gap-3 px-4 py-2">
+                      <div key={g.id} draggable
+                        onDragStart={e => { e.dataTransfer.setData("guestId", g.id); e.dataTransfer.effectAllowed = "move"; }}
+                        className="flex items-center gap-3 px-4 py-2 cursor-grab active:cursor-grabbing hover:opacity-80 transition-opacity"
+                        style={{ background: "transparent" }}
+                        onMouseEnter={e => (e.currentTarget.style.background = cs.surface2)}
+                        onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
                         <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: groupColor(g.group_id) }}/>
                         <span className="text-sm flex-1" style={{ color: cs.text }}>{g.first_name} {g.last_name}</span>
                         <span className="text-xs">{MEAL_ICON[g.meal || "standard"]}</span>
+                        <span className="text-xs" style={{ color: cs.textMuted }}>⠿</span>
                       </div>
                     ))}
                   </div>
@@ -581,9 +600,19 @@ export default function ChartCanvas({
                   const tGuests = tableGuests(t.id);
                   const cap = t.capacity || 8;
                   const over = tGuests.length > cap;
+                  const isDrop = dropTarget === t.id;
                   return (
-                    <div key={t.id} className="rounded-2xl p-4 flex flex-col gap-2"
-                      style={{ background: cs.surface, border: `1px solid ${over ? "var(--danger)" : cs.border}` }}>
+                    <div key={t.id} className="rounded-2xl p-4 flex flex-col gap-2 transition-all"
+                      style={{
+                        background: isDrop ? "var(--accent-bg)" : cs.surface,
+                        border: `${isDrop ? 2 : 1}px solid ${isDrop ? "var(--accent)" : over ? "var(--danger)" : cs.border}`,
+                        boxShadow: isDrop ? "0 0 0 3px var(--accent-bg)" : "none",
+                        transform: isDrop ? "scale(1.02)" : "scale(1)",
+                        cursor: "copy",
+                      }}
+                      onDragOver={e => onGuestDragOver(e, t.id)}
+                      onDrop={e => onGuestDrop(e, t.id)}
+                      onDragLeave={() => setDropTarget(null)}>
                       <div className="font-semibold text-sm truncate" style={{ color: cs.text }}>{t.name}</div>
                       {/* Seat dots */}
                       <div className="flex flex-wrap gap-1.5 my-1">
@@ -607,8 +636,8 @@ export default function ChartCanvas({
                             style={{ background: "var(--danger)", color: "white" }}>+</div>
                         ))}
                       </div>
-                      <div className="text-xs" style={{ color: over ? "var(--danger)" : cs.textMuted }}>
-                        {tGuests.length} / {cap} seats
+                      <div className="text-xs" style={{ color: over ? "var(--danger)" : isDrop ? "var(--accent)" : cs.textMuted }}>
+                        {isDrop ? "✚ Drop to seat" : `${tGuests.length} / ${cap} seats`}
                       </div>
                     </div>
                   );
