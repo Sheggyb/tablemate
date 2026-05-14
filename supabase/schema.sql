@@ -151,7 +151,14 @@ drop policy if exists "Wedding owner manages rules" on public.rules;
 create policy "Wedding owner manages rules" on public.rules for all
   using (exists (select 1 from public.weddings w where w.id = wedding_id and w.user_id = auth.uid()));
 
-alter table public.rules add constraint if not exists unique_rule unique (guest1_id, guest2_id, type);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'unique_rule'
+  ) THEN
+    ALTER TABLE public.rules ADD CONSTRAINT unique_rule UNIQUE (guest1_id, guest2_id, type);
+  END IF;
+END$$;
 
 -- ════════════════════════════════════
 -- INDEXES

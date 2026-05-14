@@ -71,4 +71,11 @@ create index if not exists idx_guests_wedding_rsvp  on public.guests(wedding_id,
 -- ────────────────────────────────────────────────────────────
 -- Fix 4: Unique constraint on rules to prevent duplicate entries
 -- ────────────────────────────────────────────────────────────
-alter table public.rules add constraint if not exists unique_rule unique (guest1_id, guest2_id, type);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'unique_rule'
+  ) THEN
+    ALTER TABLE public.rules ADD CONSTRAINT unique_rule UNIQUE (guest1_id, guest2_id, type);
+  END IF;
+END$$;
