@@ -191,12 +191,11 @@ export default function ChartCanvas({
     setScale(s => Math.min(3, Math.max(0.2, s * (e.deltaY > 0 ? 0.9 : 1.1))));
   }, []);
   useEffect(() => {
-    if (viewMode !== "canvas") return;
     const el = canvasRef.current;
     if (!el) return;
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [onWheel, viewMode]);
+  }, [onWheel]);
 
   /* ── Table drag ── */
   const onTablePointerDown = useCallback((e: React.PointerEvent, id: string) => {
@@ -618,11 +617,10 @@ export default function ChartCanvas({
             </div>
           )}
 
-          {/* Canvas */}
-          {viewMode === "canvas" && (
+          {/* Canvas — always mounted so canvasRef stays attached for wheel zoom */}
             <div ref={canvasRef}
             className="flex-1 overflow-hidden relative select-none"
-            style={{ background: cs.bg, cursor: panning ? "grabbing" : "grab" }}
+            style={{ display: viewMode === "canvas" ? undefined : "none", background: cs.bg, cursor: panning ? "grabbing" : "grab" }}
             onPointerDown={onPointerDownCanvas}
             onPointerMove={onPointerMoveCanvas}
             onPointerUp={onPointerUpCanvas}
@@ -739,7 +737,6 @@ export default function ChartCanvas({
               </div>
             )}
           </div>
-          )}
         </div>
 
         {/* ── RIGHT PANEL — Table Details ── */}
