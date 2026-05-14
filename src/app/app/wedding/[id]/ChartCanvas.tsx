@@ -191,11 +191,12 @@ export default function ChartCanvas({
     setScale(s => Math.min(3, Math.max(0.2, s * (e.deltaY > 0 ? 0.9 : 1.1))));
   }, []);
   useEffect(() => {
+    if (viewMode !== "canvas") return;
     const el = canvasRef.current;
     if (!el) return;
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [onWheel]);
+  }, [onWheel, viewMode]);
 
   /* ── Table drag ── */
   const onTablePointerDown = useCallback((e: React.PointerEvent, id: string) => {
@@ -553,36 +554,7 @@ export default function ChartCanvas({
                   </div>
                 );
               })}
-              {/* Unseated */}
-              {unseatedGuests.length > 0 && (
-                <div className="rounded-2xl overflow-hidden"
-                  style={{ background: cs.surface, border: `2px dashed var(--warning)` }}>
-                  <div className="px-4 py-3 flex items-center gap-2"
-                    style={{ background: "rgba(245,200,100,0.07)", borderBottom: `1px solid ${cs.border}` }}>
-                    <span className="font-semibold text-sm" style={{ color: "var(--warning)" }}>⚠ Unseated</span>
-                    <span className="text-xs rounded-full px-2 py-0.5"
-                      style={{ background: "rgba(245,200,100,0.15)", color: "var(--warning)" }}>
-                      {unseatedGuests.length}
-                    </span>
-                    <span className="text-xs ml-1" style={{ color: cs.textMuted }}>— drag onto a table to assign</span>
-                  </div>
-                  <div className="divide-y" style={{ borderColor: cs.border }}>
-                    {unseatedGuests.map(g => (
-                      <div key={g.id} draggable
-                        onDragStart={e => { e.dataTransfer.setData("guestId", g.id); e.dataTransfer.effectAllowed = "move"; }}
-                        className="flex items-center gap-3 px-4 py-2 cursor-grab active:cursor-grabbing hover:opacity-80 transition-opacity"
-                        style={{ background: "transparent" }}
-                        onMouseEnter={e => (e.currentTarget.style.background = cs.surface2)}
-                        onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
-                        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: groupColor(g.group_id) }}/>
-                        <span className="text-sm flex-1" style={{ color: cs.text }}>{g.first_name} {g.last_name}</span>
-                        <span className="text-xs">{MEAL_ICON[g.meal || "standard"]}</span>
-                        <span className="text-xs" style={{ color: cs.textMuted }}>⠿</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+
             </div>
           )}
 
