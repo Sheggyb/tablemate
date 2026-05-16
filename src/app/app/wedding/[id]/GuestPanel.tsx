@@ -111,7 +111,7 @@ export default function GuestPanel({
     const matchSearch = !search || name.includes(search.toLowerCase()) || (g.email ?? "").toLowerCase().includes(search.toLowerCase());
     const matchRsvp   = filterRsvp === "all" || g.rsvp === filterRsvp;
     const matchMeal   = filterMeal === "all" || g.meal === filterMeal;
-    const matchSeated = filterSeated === "all" || (filterSeated === "seated" ? !!g.table_id : !g.table_id);
+    const matchSeated = filterSeated === "all" || (filterSeated === "seated" ? !!g.table_id : !g.table_id && g.rsvp !== "declined");
     const matchParty  = filterParty === "all" || g.group_id === filterParty;
     return matchSearch && matchRsvp && matchMeal && matchSeated && matchParty;
   }).sort((a, b) => {
@@ -188,7 +188,7 @@ export default function GuestPanel({
     pending:   guests.filter(g => g.rsvp === "pending").length,
     declined:  guests.filter(g => g.rsvp === "declined").length,
     seated:    guests.filter(g => !!g.table_id).length,
-    unseated:  guests.filter(g => !g.table_id).length,
+    unseated:  guests.filter(g => !g.table_id && g.rsvp !== "declined").length,
   };
 
   const inputCls = "px-3 py-2 border rounded-lg text-sm";
@@ -340,7 +340,7 @@ export default function GuestPanel({
             color: stats.unseated > 0 ? "var(--accent)" : "var(--text-muted)",
             border: "1px solid rgba(201,149,110,0.3)"
           }}>
-          🪑 {stats.unseated} unseated
+          🪑 {stats.unseated} Needs Seat
         </button>
 
         <div className="flex-1"/>
@@ -408,7 +408,7 @@ export default function GuestPanel({
           className={inputCls} style={inputStyle}>
           <option value="all">Seated + Unseated</option>
           <option value="seated">Seated</option>
-          <option value="unseated">Unseated</option>
+          <option value="unseated">Needs Seat</option>
         </select>
         <select value={filterParty} onChange={e => setFilterParty(e.target.value)}
           className={inputCls} style={inputStyle}>
@@ -540,7 +540,7 @@ export default function GuestPanel({
                     <div className="rounded-xl overflow-hidden" style={{ border: `1px solid rgba(240,168,88,0.4)` }}>
                       <div className="px-4 py-2.5 flex items-center gap-3"
                         style={{ background: "rgba(240,168,88,0.08)", borderBottom: `1px solid rgba(240,168,88,0.3)` }}>
-                        <span className="font-semibold text-sm" style={{ color: "var(--warning)" }}>⚠ Unseated</span>
+                        <span className="font-semibold text-sm" style={{ color: "var(--warning)" }}>⚠ Needs Seat</span>
                         <span className="text-xs rounded-full px-2 py-0.5"
                           style={{ background: "rgba(240,168,88,0.15)", color: "var(--warning)" }}>
                           {unseated.length} guest{unseated.length !== 1 ? "s" : ""}
