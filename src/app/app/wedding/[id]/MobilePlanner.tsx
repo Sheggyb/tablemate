@@ -466,7 +466,7 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
     let list = guests.filter(g =>
       `${g.first_name} ${g.last_name}`.toLowerCase().includes(guestSearch.toLowerCase())
     );
-    if (guestFilter === 'unseated')  list = list.filter(g => !g.table_id);
+    if (guestFilter === 'unseated')  list = list.filter(g => !g.table_id && g.rsvp !== 'declined');
     if (guestFilter === 'confirmed') list = list.filter(g => g.rsvp === 'confirmed');
     if (guestFilter === 'pending')   list = list.filter(g => g.rsvp === 'pending' || !g.rsvp);
     if (guestFilter === 'declined')  list = list.filter(g => g.rsvp === 'declined');
@@ -904,14 +904,14 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
               );
               const counts = {
                 all:       searchBase.length,
-                unseated:  searchBase.filter(g => !g.table_id).length,
+                unseated:  searchBase.filter(g => !g.table_id && g.rsvp !== 'declined').length,
                 confirmed: searchBase.filter(g => g.rsvp === 'confirmed').length,
                 pending:   searchBase.filter(g => g.rsvp === 'pending' || !g.rsvp).length,
                 declined:  searchBase.filter(g => g.rsvp === 'declined').length,
               };
               const chips: { key: typeof guestFilter; label: string }[] = [
                 { key: 'all',       label: 'All' },
-                { key: 'unseated',  label: 'Unseated' },
+                { key: 'unseated',  label: 'Needs Seat' },
                 { key: 'confirmed', label: 'Confirmed' },
                 { key: 'pending',   label: 'Pending' },
                 { key: 'declined',  label: 'Declined' },
