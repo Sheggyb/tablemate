@@ -21,7 +21,6 @@ type PlannerAction =
   | { type: "BULK_UPDATE_GUESTS"; ids: string[]; data: Partial<Guest> }
   | { type: "BULK_DELETE_GUESTS"; ids: string[] };
 
-import WishingWall from "./WishingWall";
 import MobileWishes from "./MobileWishes";
 
 interface Props {
@@ -36,6 +35,10 @@ interface Props {
   isDemo?:  boolean;
   addTable?: (name: string, shape: "round" | "rectangle" | "oval", capacity: number) => void;
   plan?: string;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
 }
 
 // ── Updated tab type: overview | tables | guests | more
@@ -79,7 +82,7 @@ function Backdrop({
   );
 }
 
-export default function MobilePlanner({ wedding, tables, guests, groups, rules, dispatch, dark, onToggleDark, isDemo = false, addTable, plan = "free" }: Props) {
+export default function MobilePlanner({ wedding, tables, guests, groups, rules, dispatch, dark, onToggleDark, isDemo = false, addTable, plan = "free", onUndo, onRedo, canUndo = false, canRedo = false }: Props) {
   const supabase = createClient();
   const [activeTab, setActiveTab] = useState<MobileTab>("overview");
   const [expandedTable, setExpandedTable] = useState<string | null>(null);
@@ -118,11 +121,58 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
   // ── More sheet ──
   const [showMoreSheet, setShowMoreSheet] = useState(false);
 
+  // ── Smart Seating ──
+  const [smartSeatLoading, setSmartSeatLoading] = useState(false);
+
+  const runSmartSeat = async () => {
+    if (isDemo) { showToast("Smart seating not available in demo"); return; }
+    setSmartSeatLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/ai/seat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({ weddingId: wedding.id }),
+      });
+      if (res.status === 403) {
+        showToast("Smart seating requires a paid plan");
+        return;
+      }
+      if (!res.ok) {
+        let errMsg = `Request failed (${res.status})`;
+        try { const j = await res.json(); errMsg = j.error ?? errMsg; } catch { /* ignore */ }
+        showToast(errMsg);
+        return;
+      }
+      const data = await res.json();
+      if (data.error) { showToast(data.error); return; }
+      // Re-fetch guests to get updated seating
+      const { data: fresh } = await supabase.from("guests").select("*").eq("wedding_id", wedding.id);
+      if (fresh) {
+        for (const g of fresh) {
+          dispatch({ type: "UPDATE_GUEST", id: g.id, data: { table_id: g.table_id, seat_index: g.seat_index } });
+        }
+        const seated = fresh.filter((g: any) => g.table_id).length;
+        showToast(`✨ Smart seating done! ${seated} guests seated`);
+      }
+    } catch {
+      showToast("Smart seating failed. Please try again.");
+    } finally {
+      setSmartSeatLoading(false);
+    }
+  };
+
   // ── Table detail sheet ──
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
   const [showSeatGuestSheet, setShowSeatGuestSheet] = useState(false);
   const [tableSheetNameEdit, setTableSheetNameEdit] = useState(false);
   const [tableSheetNameVal, setTableSheetNameVal] = useState("");
+
+  // ── Groups expand state ──
+  const [expandedGroupId, setExpandedGroupId] = useState<string | null>(null);
 
   // ── Quick seat (from guests tab) ──
   const [quickSeatGuest, setQuickSeatGuest] = useState<Guest | null>(null);
@@ -216,11 +266,15 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
       allergies:  guestForm.allergies || "",
       notes:      guestForm.notes || "",
     };
+    const prevGuest = guests.find(g => g.id === editGuest.id);
     setSaving(true);
     dispatch({ type: "UPDATE_GUEST", id: editGuest.id, data });
     if (!isDemo) {
       const { error } = await supabase.from("guests").update(data).eq("id", editGuest.id);
-      if (error) { showError("Failed to save guest."); setSaving(false); return; }
+      if (error) {
+        if (prevGuest) dispatch({ type: "UPDATE_GUEST", id: editGuest.id, data: prevGuest });
+        showError("Failed to save guest."); setSaving(false); return;
+      }
     }
     setSaving(false);
     setEditGuest(null);
@@ -228,11 +282,15 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
   };
 
   const deleteGuest = async (id: string) => {
+    const prevGuest = guests.find(g => g.id === id);
     setSaving(true);
     dispatch({ type: "DELETE_GUEST", id });
     if (!isDemo) {
       const { error } = await supabase.from("guests").delete().eq("id", id);
-      if (error) { showError("Failed to delete guest."); setSaving(false); return; }
+      if (error) {
+        if (prevGuest) dispatch({ type: "ADD_GUEST", payload: prevGuest });
+        showError("Failed to delete guest."); setSaving(false); return;
+      }
     }
     setSaving(false);
     setEditGuest(null);
@@ -264,7 +322,10 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
     dispatch({ type: "ADD_GUEST", payload: newGuest });
     if (!isDemo) {
       const { error } = await supabase.from("guests").insert(newGuest);
-      if (error) { showError("Failed to add guest."); setSaving(false); return; }
+      if (error) {
+        dispatch({ type: "DELETE_GUEST", id: newGuest.id });
+        showError("Failed to add guest."); setSaving(false); return;
+      }
     }
     setSaving(false);
     setShowAddGuest(false);
@@ -274,11 +335,15 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
 
   const saveTableName = async () => {
     if (!editTable || !tableNameEdit.trim()) return;
+    const prevName = editTable.name;
     setSaving(true);
     dispatch({ type: "UPDATE_TABLE", id: editTable.id, data: { name: tableNameEdit.trim() } });
     if (!isDemo) {
       const { error } = await supabase.from("tables").update({ name: tableNameEdit.trim() }).eq("id", editTable.id);
-      if (error) { showError("Failed to rename table."); setSaving(false); return; }
+      if (error) {
+        dispatch({ type: "UPDATE_TABLE", id: editTable.id, data: { name: prevName } });
+        showError("Failed to rename table."); setSaving(false); return;
+      }
     }
     setSaving(false);
     setEditTable(null);
@@ -286,11 +351,17 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
   };
 
   const deleteTable = async (id: string) => {
+    const prevTable = tables.find(t => t.id === id);
+    const prevGuests = guests.filter(g => g.table_id === id);
     setSaving(true);
     dispatch({ type: "DELETE_TABLE", id });
     if (!isDemo) {
       const { error } = await supabase.from("tables").delete().eq("id", id);
-      if (error) { showError("Failed to delete table."); setSaving(false); return; }
+      if (error) {
+        if (prevTable) dispatch({ type: "ADD_TABLE", payload: prevTable });
+        for (const g of prevGuests) dispatch({ type: "UPDATE_GUEST", id: g.id, data: { table_id: id, seat_index: g.seat_index } });
+        showError("Failed to delete table."); setSaving(false); return;
+      }
     }
     setSaving(false);
     setEditTable(null);
@@ -597,11 +668,20 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
                     🔒 Sign up to add
                   </a>
                 ) : (
-                  <button onClick={() => setShowAddTable(true)}
-                    style={{ background:accent, color:"#fff", border:"none", borderRadius:10,
-                      padding:"8px 16px", fontSize:14, fontWeight:700, cursor:"pointer" }}>
-                    + Add
-                  </button>
+                  <div style={{ display:"flex", gap:8 }}>
+                    <button onClick={runSmartSeat} disabled={smartSeatLoading}
+                      style={{ background: smartSeatLoading ? surface2 : `${accent}22`, color:accent,
+                        border:`1px solid ${accent}44`, borderRadius:10,
+                        padding:"8px 14px", fontSize:13, fontWeight:700, cursor: smartSeatLoading ? "not-allowed" : "pointer",
+                        opacity: smartSeatLoading ? 0.7 : 1 }}>
+                      {smartSeatLoading ? "⏳…" : "✨ Smart Seat"}
+                    </button>
+                    <button onClick={() => setShowAddTable(true)}
+                      style={{ background:accent, color:"#fff", border:"none", borderRadius:10,
+                        padding:"8px 16px", fontSize:14, fontWeight:700, cursor:"pointer" }}>
+                      + Add
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -889,8 +969,8 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
         {tabs.map(tab => (
           <button key={tab.id}
             onClick={() => {
+              if (tab.id === "more") { setShowMoreSheet(true); return; }
               setActiveTab(tab.id);
-              if (tab.id === "more") setShowMoreSheet(true);
             }}
             style={{ flex:1, padding:"8px 4px", display:"flex", flexDirection:"column",
               alignItems:"center", gap:2, background:"none", border:"none", cursor:"pointer",
@@ -1135,7 +1215,7 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
             </button>
           </div>
 
-          {/* Wishes / Wishing Wall */}
+          {/* Wishing Wall */}
           <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
             background:surface2, borderRadius:12, padding:"14px 16px", marginBottom:20 }}>
             <div>
@@ -1148,6 +1228,73 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
               💌 Open
             </button>
           </div>
+
+          {/* Undo / Redo */}
+          {(onUndo || onRedo) && (
+            <div style={{ background:surface2, borderRadius:12, padding:"14px 16px", marginBottom:12 }}>
+              <div style={{ fontWeight:600, fontSize:14, color:text, marginBottom:10 }}>↩ Undo / Redo</div>
+              <div style={{ display:"flex", gap:10 }}>
+                <button onClick={onUndo} disabled={!canUndo}
+                  style={{ flex:1, background: canUndo ? card : surface2, color: canUndo ? text : textMuted,
+                    border:`1px solid ${border}`, borderRadius:10, padding:"10px",
+                    fontSize:14, fontWeight:600, cursor: canUndo ? "pointer" : "not-allowed",
+                    opacity: canUndo ? 1 : 0.5 }}>
+                  ↩ Undo
+                </button>
+                <button onClick={onRedo} disabled={!canRedo}
+                  style={{ flex:1, background: canRedo ? card : surface2, color: canRedo ? text : textMuted,
+                    border:`1px solid ${border}`, borderRadius:10, padding:"10px",
+                    fontSize:14, fontWeight:600, cursor: canRedo ? "pointer" : "not-allowed",
+                    opacity: canRedo ? 1 : 0.5 }}>
+                  ↪ Redo
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Guest Groups */}
+          {groups.length > 0 && (
+            <div style={{ background:surface2, borderRadius:14, padding:"16px", marginBottom:12 }}>
+              <div style={{ fontWeight:700, fontSize:15, color:text, marginBottom:12 }}>👨‍👩‍👧 Guest Groups</div>
+              <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+                {groups.map(group => {
+                  const members = guests.filter(g => g.group_id === group.id);
+                  const isOpen = expandedGroupId === group.id;
+                  return (
+                    <div key={group.id} style={{ background:card, borderRadius:10, border:`1px solid ${border}`, overflow:"hidden" }}>
+                      <button onClick={() => setExpandedGroupId(isOpen ? null : group.id)}
+                        style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between",
+                          padding:"10px 12px", background:"none", border:"none", cursor:"pointer", color:text }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                          <span style={{ fontSize:16 }}>👥</span>
+                          <span style={{ fontWeight:600, fontSize:13 }}>{group.name}</span>
+                        </div>
+                        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                          <span style={{ fontSize:12, color:textMuted }}>{members.length} member{members.length !== 1 ? "s" : ""}</span>
+                          <span style={{ fontSize:12, color:textMuted }}>{isOpen ? "▲" : "▼"}</span>
+                        </div>
+                      </button>
+                      {isOpen && members.length > 0 && (
+                        <div style={{ borderTop:`1px solid ${border}`, padding:"8px 12px", display:"flex", flexDirection:"column", gap:6 }}>
+                          {members.map(m => (
+                            <div key={m.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                              <span style={{ fontSize:13, color:text }}>{m.first_name} {m.last_name}</span>
+                              <span style={{ fontSize:11, color:textMuted }}>{tables.find(t => t.id === m.table_id)?.name ?? "Unseated"}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {isOpen && members.length === 0 && (
+                        <div style={{ borderTop:`1px solid ${border}`, padding:"8px 12px" }}>
+                          <span style={{ fontSize:12, color:textMuted }}>No members in this group</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Seating Rules */}
           <div style={{ background:surface2, borderRadius:14, padding:"16px", marginBottom:12 }}>

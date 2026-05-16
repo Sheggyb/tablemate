@@ -526,6 +526,10 @@ export default function PlannerClient({
           isDemo={isDemo}
           addTable={addTable}
           plan={plan}
+          onUndo={undo}
+          onRedo={redo}
+          canUndo={history.length > 0}
+          canRedo={future.length > 0}
         />
         </div>
       )}
