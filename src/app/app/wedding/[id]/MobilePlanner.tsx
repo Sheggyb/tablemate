@@ -110,6 +110,8 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
 
   // ── Search ──
   const [guestSearch, setGuestSearch]     = useState("");
+  const [guestFilter, setGuestFilter]     = useState<'all'|'unseated'|'confirmed'|'pending'|'declined'>('all');
+  const [guestSort,   setGuestSort]       = useState<'name-asc'|'name-desc'|'table'>('name-asc');
   const [tableSearch, setTableSearch]     = useState("");
 
   // ── Add Table (mobile) ──
@@ -460,9 +462,23 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
   ];
   const checklistDone = checklist.filter(c => c.done).length;
 
-  const filteredGuests = guests.filter(g =>
-    `${g.first_name} ${g.last_name}`.toLowerCase().includes(guestSearch.toLowerCase())
-  );
+  const filteredGuests = (() => {
+    let list = guests.filter(g =>
+      `${g.first_name} ${g.last_name}`.toLowerCase().includes(guestSearch.toLowerCase())
+    );
+    if (guestFilter === 'unseated')  list = list.filter(g => !g.table_id);
+    if (guestFilter === 'confirmed') list = list.filter(g => g.rsvp === 'confirmed');
+    if (guestFilter === 'pending')   list = list.filter(g => g.rsvp === 'pending' || !g.rsvp);
+    if (guestFilter === 'declined')  list = list.filter(g => g.rsvp === 'declined');
+    if (guestSort === 'name-asc')  list = [...list].sort((a,b) => `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`));
+    if (guestSort === 'name-desc') list = [...list].sort((a,b) => `${b.first_name} ${b.last_name}`.localeCompare(`${a.first_name} ${a.last_name}`));
+    if (guestSort === 'table')     list = [...list].sort((a,b) => {
+      const ta = tables.find(t => t.id === a.table_id)?.name ?? 'zzz';
+      const tb = tables.find(t => t.id === b.table_id)?.name ?? 'zzz';
+      return ta.localeCompare(tb);
+    });
+    return list;
+  })();
 
   const filteredTables = tables.filter(t =>
     t.name.toLowerCase().includes(tableSearch.toLowerCase())
@@ -878,8 +894,64 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
               placeholder="🔍 Search guests…"
               value={guestSearch}
               onChange={e => setGuestSearch(e.target.value)}
-              style={{ ...inputStyle, marginBottom:14 }}
+              style={{ ...inputStyle, marginBottom:8 }}
             />
+
+            {/* Filter chips */}
+            {(() => {
+              const searchBase = guests.filter(g =>
+                `${g.first_name} ${g.last_name}`.toLowerCase().includes(guestSearch.toLowerCase())
+              );
+              const counts = {
+                all:       searchBase.length,
+                unseated:  searchBase.filter(g => !g.table_id).length,
+                confirmed: searchBase.filter(g => g.rsvp === 'confirmed').length,
+                pending:   searchBase.filter(g => g.rsvp === 'pending' || !g.rsvp).length,
+                declined:  searchBase.filter(g => g.rsvp === 'declined').length,
+              };
+              const chips: { key: typeof guestFilter; label: string }[] = [
+                { key: 'all',       label: 'All' },
+                { key: 'unseated',  label: 'Unseated' },
+                { key: 'confirmed', label: 'Confirmed' },
+                { key: 'pending',   label: 'Pending' },
+                { key: 'declined',  label: 'Declined' },
+              ];
+              const sortLabels: Record<typeof guestSort, string> = {
+                'name-asc':  'Name A–Z',
+                'name-desc': 'Name Z–A',
+                'table':     'By Table',
+              };
+              const nextSort: Record<typeof guestSort, typeof guestSort> = {
+                'name-asc': 'name-desc', 'name-desc': 'table', 'table': 'name-asc',
+              };
+              return (
+                <>
+                  <div style={{ display:'flex', gap:6, overflowX:'auto', scrollbarWidth:'none', paddingBottom:6, marginBottom:6 }}>
+                    {chips.map(chip => {
+                      const active = guestFilter === chip.key;
+                      return (
+                        <button key={chip.key} onClick={() => setGuestFilter(chip.key)}
+                          style={{ flexShrink:0, display:'flex', alignItems:'center', gap:4, height:32,
+                            padding:'0 12px', borderRadius:16, border:'none', cursor:'pointer', fontSize:13, fontWeight:600,
+                            background: active ? accent : surface2,
+                            color: active ? '#fff' : textMuted }}>
+                          {chip.label}
+                          <span style={{ fontSize:11, fontWeight:500, opacity:0.8 }}>{counts[chip.key]}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:12 }}>
+                    <button onClick={() => setGuestSort(nextSort[guestSort])}
+                      style={{ display:'flex', alignItems:'center', gap:4, height:28, padding:'0 10px',
+                        borderRadius:14, border:`1px solid ${border}`, cursor:'pointer', fontSize:12, fontWeight:500,
+                        background: surface2, color: textMuted }}>
+                      ↕ {sortLabels[guestSort]}
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
 
             {filteredGuests.length === 0 ? (
               <div style={{ textAlign:"center", padding:"48px 0", color:textMuted }}>
