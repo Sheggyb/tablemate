@@ -22,17 +22,16 @@ export async function POST(req: Request) {
   }
 
   // Parse body safely
-  let weddingId: string, venueId: string;
+  let weddingId: string;
   try {
     const body = await req.json();
     weddingId = body.weddingId;
-    venueId   = body.venueId;
   } catch {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
-  if (!weddingId || !venueId) {
-    return NextResponse.json({ error: "weddingId and venueId are required" }, { status: 400 });
+  if (!weddingId) {
+    return NextResponse.json({ error: "weddingId is required" }, { status: 400 });
   }
 
   // Verify wedding ownership
@@ -60,7 +59,7 @@ export async function POST(req: Request) {
     [guestsRes, tablesRes, rulesRes, groupsRes] = await Promise.race([
       Promise.all([
         supabase.from("guests").select("*").eq("wedding_id", weddingId),
-        supabase.from("tables").select("*").eq("venue_id", venueId),
+        supabase.from("tables").select("*").eq("wedding_id", weddingId),
         supabase.from("rules").select("*").eq("wedding_id", weddingId),
         supabase.from("groups").select("*").eq("wedding_id", weddingId),
       ]),
