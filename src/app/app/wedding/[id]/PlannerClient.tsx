@@ -37,6 +37,7 @@ interface PlannerState {
 type PlannerAction =
   | { type: "SET_ALL"; payload: PlannerState }
   | { type: "ADD_VENUE";    payload: Venue }
+  | { type: "DELETE_VENUE"; id: string }
   | { type: "ADD_TABLE";    payload: Table }
   | { type: "UPDATE_TABLE"; id: string; data: Partial<Table> }
   | { type: "DELETE_TABLE"; id: string }
@@ -53,6 +54,7 @@ function reducer(state: PlannerState, action: PlannerAction): PlannerState {
   switch (action.type) {
     case "SET_ALL": return action.payload;
     case "ADD_VENUE":    return { ...state, venues: [...state.venues, action.payload] };
+    case "DELETE_VENUE": return { ...state, venues: state.venues.filter(v => v.id !== action.id), tables: state.tables.filter(t => t.venue_id !== action.id) };
     case "ADD_TABLE":    return { ...state, tables: [...state.tables, action.payload] };
     case "UPDATE_TABLE": return { ...state, tables: state.tables.map(t => t.id === action.id ? { ...t, ...action.data } : t) };
     case "DELETE_TABLE": return {
@@ -337,6 +339,16 @@ export default function PlannerClient({
     setActiveVenueId(newVenue.id);
     if (!isDemo) supabase.from("venues").insert(newVenue).then();
   }, [supabase, isDemo, wedding.id, state.venues.length]);
+
+  const deleteVenue = useCallback(async (id: string) => {
+    if (state.venues.length <= 1) { showToast("Can't delete the only floor", "error"); return; }
+    dispatch({ type: "DELETE_VENUE", id });
+    if (activeVenueId === id) setActiveVenueId(state.venues.find(v => v.id !== id)?.id ?? null);
+    if (!isDemo) {
+      await supabase.from("tables").delete().eq("venue_id", id);
+      await supabase.from("venues").delete().eq("id", id);
+    }
+  }, [supabase, isDemo, state.venues, activeVenueId, showToast]);
 
   /* ── Seat guest ── */
   const seatGuest = useCallback(async (guestId: string, tableId: string | null, seatIndex: number | null) => {
@@ -663,12 +675,18 @@ export default function PlannerClient({
         {activeTab === "chart" && state.venues.length > 0 && (
           <div className="ml-auto flex items-center gap-1 py-1.5">
             {state.venues.map(v => (
-              <button key={v.id} onClick={() => setActiveVenueId(v.id)}
-                className="px-3 py-1 text-xs rounded-lg font-medium transition-colors"
-                style={{
-                  background: activeVenueId === v.id ? cs.accent : cs.surface2,
-                  color: activeVenueId === v.id ? "white" : cs.textSoft,
-                }}>{v.name}</button>
+              <span key={v.id} className="inline-flex items-center rounded-lg overflow-hidden"
+                style={{ background: activeVenueId === v.id ? cs.accent : cs.surface2 }}>
+                <button onClick={() => setActiveVenueId(v.id)}
+                  className="px-3 py-1 text-xs font-medium transition-colors"
+                  style={{ color: activeVenueId === v.id ? "white" : cs.textSoft }}>{v.name}</button>
+                {state.venues.length > 1 && (
+                  <button onClick={() => deleteVenue(v.id)}
+                    className="pr-2 py-1 text-xs leading-none hover:opacity-60 transition-opacity"
+                    style={{ color: activeVenueId === v.id ? "white" : cs.textMuted }}
+                    title="Delete floor">×</button>
+                )}
+              </span>
             ))}
             <button onClick={() => { setFloorName(""); setShowFloorModal(true); }}
               className="px-2 py-1 text-xs hover:opacity-80" style={{ color: cs.textMuted }}>+ Add floor</button>
