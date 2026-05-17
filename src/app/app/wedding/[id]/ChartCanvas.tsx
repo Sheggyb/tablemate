@@ -1100,7 +1100,7 @@ export default function ChartCanvas({
                   <svg style={{ position: "absolute", top: 0, left: 0, overflow: "visible", pointerEvents: "none" }}>
                     {/* Room shape wrapped in transform group */}
                     <g
-                      transform={`translate(${ox},${oy}) scale(${sx},${sy})`}
+                      transform={`translate(${ox},${oy})`}
                       style={{ pointerEvents: "all", cursor: layout.roomLocked ? "not-allowed" : roomSelected ? "move" : "pointer" }}
                       onPointerDown={e => {
                         e.stopPropagation();
@@ -1110,6 +1110,8 @@ export default function ChartCanvas({
                         (e.currentTarget as SVGGElement).setPointerCapture(e.pointerId);
                       }}
                     >
+                    <g transform={`rotate(${layout.roomRotation ?? 0}, ${500 * sx}, ${400 * sy})`}>
+                    <g transform={`scale(${sx},${sy})`}>
                       {layout.roomPath && layout.templateKind !== "oval" && layout.templateKind !== "rectangle" && (
                         <path d={layout.roomPath}
                           fill={layout.roomFillColor ?? cs.surface}
@@ -1150,6 +1152,8 @@ export default function ChartCanvas({
                           }
                         />
                       )}
+                    </g>
+                    </g>
                     </g>
                     {/* Bounding box + handles when selected */}
                     {roomSelected && layout.templateKind !== "blank" && (<>
@@ -1543,9 +1547,15 @@ export default function ChartCanvas({
                 <div style={{ marginBottom: 14, padding: "8px 10px", borderRadius: 8, background: cs.surface2, border: `1px solid ${cs.border}` }}>
                   <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: cs.accent, marginBottom: 4 }}>Info</p>
                   <p style={{ fontSize: 12, color: cs.textMuted }}>
-                    Area: <span style={{ color: cs.text, fontWeight: 600 }}>{area.toLocaleString()} sq ft</span>
+                    Area:{" "}
+                    <span style={{ color: cs.text, fontWeight: 600 }}>{area.toLocaleString()} sq ft</span>
+                    <span style={{ color: cs.textMuted, fontWeight: 400 }}> ({Math.round(area * 0.0929).toLocaleString()} m²)</span>
                   </p>
-                  <p style={{ fontSize: 11, color: cs.textMuted, marginTop: 2 }}>{displayW} ft × {displayH} ft</p>
+                  <p style={{ fontSize: 11, color: cs.textMuted, marginTop: 2 }}>
+                    <strong>{displayW} ft</strong> <span style={{ color: cs.textMuted }}>({(displayW * 0.3048).toFixed(1)} m)</span>
+                    {" × "}
+                    <strong>{displayH} ft</strong> <span style={{ color: cs.textMuted }}>({(displayH * 0.3048).toFixed(1)} m)</span>
+                  </p>
                 </div>
               </div>
 
