@@ -681,7 +681,13 @@ export default function PlannerClient({
                   className="px-3 py-1 text-xs font-medium transition-colors"
                   style={{ color: activeVenueId === v.id ? "white" : cs.textSoft }}>{v.name}</button>
                 {state.venues.length > 1 && (
-                  <button onClick={() => deleteVenue(v.id)}
+                  <button onClick={() => {
+                      const tableCount = state.tables.filter(t => t.venue_id === v.id).length;
+                      const msg = tableCount > 0
+                        ? `Delete floor "${v.name}"? This will also remove ${tableCount} table${tableCount > 1 ? "s" : ""} on it. This cannot be undone.`
+                        : `Delete floor "${v.name}"? This cannot be undone.`;
+                      if (window.confirm(msg)) deleteVenue(v.id);
+                    }}
                     className="pr-2 py-1 text-xs leading-none hover:opacity-60 transition-opacity"
                     style={{ color: activeVenueId === v.id ? "white" : cs.textMuted }}
                     title="Delete floor">×</button>
