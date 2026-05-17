@@ -92,6 +92,10 @@ export default function ChartCanvas({
   const [draggingRoom, setDraggingRoom]         = useState<{ startClientX: number; startClientY: number; startOffX: number; startOffY: number } | null>(null);
   const [resizingRoom, setResizingRoom]         = useState<{ handle: string; startClientX: number; startClientY: number; startOffX: number; startOffY: number; startSX: number; startSY: number } | null>(null);
 
+  // Room Properties panel local UI state
+  const [roomPosOpen, setRoomPosOpen]           = useState(false);
+  const [roomAspectLock, setRoomAspectLock]     = useState(false);
+
   // Derived room transform values from layout
   const roomOffsetX = activeVenue?.layout?.roomOffsetX ?? 0;
   const roomOffsetY = activeVenue?.layout?.roomOffsetY ?? 0;
@@ -1097,19 +1101,54 @@ export default function ChartCanvas({
                     {/* Room shape wrapped in transform group */}
                     <g
                       transform={`translate(${ox},${oy}) scale(${sx},${sy})`}
-                      style={{ pointerEvents: "all", cursor: roomSelected ? "move" : "pointer" }}
+                      style={{ pointerEvents: "all", cursor: layout.roomLocked ? "not-allowed" : roomSelected ? "move" : "pointer" }}
                       onPointerDown={e => {
                         e.stopPropagation();
                         setRoomSelected(true);
+                        if (layout.roomLocked) return;
                         setDraggingRoom({ startClientX: e.clientX, startClientY: e.clientY, startOffX: ox, startOffY: oy });
                         (e.currentTarget as SVGGElement).setPointerCapture(e.pointerId);
                       }}
                     >
-                      {layout.roomPath && layout.templateKind !== "oval" && (
-                        <path d={layout.roomPath} fill={cs.surface} fillOpacity={0.9} stroke={cs.border} strokeWidth={3 / Math.min(sx, sy)} strokeDasharray={`${8 / Math.min(sx, sy)} ${4 / Math.min(sx, sy)}`} />
+                      {layout.roomPath && layout.templateKind !== "oval" && layout.templateKind !== "rectangle" && (
+                        <path d={layout.roomPath}
+                          fill={layout.roomFillColor ?? cs.surface}
+                          fillOpacity={layout.roomFillOpacity ?? (darkMode ? 0.15 : 0.9)}
+                          stroke={layout.roomBorderColor ?? cs.border}
+                          strokeWidth={(layout.roomBorderWidth ?? 3) / Math.min(sx, sy)}
+                          strokeDasharray={
+                            (layout.roomBorderStyle ?? "dashed") === "solid" ? undefined
+                            : (layout.roomBorderStyle === "dotted") ? `${2 / Math.min(sx,sy)} ${4 / Math.min(sx,sy)}`
+                            : `${8 / Math.min(sx, sy)} ${4 / Math.min(sx, sy)}`
+                          }
+                        />
+                      )}
+                      {layout.templateKind === "rectangle" && (
+                        <rect x={100} y={100} width={800} height={600}
+                          rx={(layout.roomCornerRadius ?? 0) / Math.min(sx, sy)}
+                          fill={layout.roomFillColor ?? cs.surface}
+                          fillOpacity={layout.roomFillOpacity ?? (darkMode ? 0.15 : 0.9)}
+                          stroke={layout.roomBorderColor ?? cs.border}
+                          strokeWidth={(layout.roomBorderWidth ?? 3) / Math.min(sx, sy)}
+                          strokeDasharray={
+                            (layout.roomBorderStyle ?? "dashed") === "solid" ? undefined
+                            : (layout.roomBorderStyle === "dotted") ? `${2 / Math.min(sx,sy)} ${4 / Math.min(sx,sy)}`
+                            : `${8 / Math.min(sx, sy)} ${4 / Math.min(sx, sy)}`
+                          }
+                        />
                       )}
                       {isOval && (
-                        <ellipse cx={500} cy={400} rx={400} ry={300} fill={cs.surface} fillOpacity={0.9} stroke={cs.border} strokeWidth={3 / Math.min(sx, sy)} strokeDasharray={`${8 / Math.min(sx, sy)} ${4 / Math.min(sx, sy)}`} />
+                        <ellipse cx={500} cy={400} rx={400} ry={300}
+                          fill={layout.roomFillColor ?? cs.surface}
+                          fillOpacity={layout.roomFillOpacity ?? (darkMode ? 0.15 : 0.9)}
+                          stroke={layout.roomBorderColor ?? cs.border}
+                          strokeWidth={(layout.roomBorderWidth ?? 3) / Math.min(sx, sy)}
+                          strokeDasharray={
+                            (layout.roomBorderStyle ?? "dashed") === "solid" ? undefined
+                            : (layout.roomBorderStyle === "dotted") ? `${2 / Math.min(sx,sy)} ${4 / Math.min(sx,sy)}`
+                            : `${8 / Math.min(sx, sy)} ${4 / Math.min(sx, sy)}`
+                          }
+                        />
                       )}
                     </g>
                     {/* Bounding box + handles when selected */}
@@ -1279,6 +1318,267 @@ export default function ChartCanvas({
               </div>
             )}
           </div>
+
+          {/* ── RIGHT PANEL — Room Properties ── */}
+          {(() => {
+          const layout = activeVenue?.layout;
+          if (!layout || layout.templateKind === "blank") return null;
+          const sx = roomScaleX, sy = roomScaleY;
+          const displayW = Math.round(sx * 80);
+          const displayH = Math.round(sy * 60);
+          const area = displayW * displayH;
+          const isRectangle = layout.templateKind === "rectangle";
+          const updateLayout = (patch: Partial<import("@/lib/types").VenueLayout>) =>
+            onUpdateLayout(activeVenue.id, { ...layout, ...patch });
+          return (
+            <div
+              style={{
+                position: "absolute",
+                right: 0, top: 0, height: "100%",
+                width: 264,
+                zIndex: 20,
+                background: cs.surface,
+                borderLeft: `1px solid ${cs.border}`,
+                display: "flex",
+                flexDirection: "column",
+                transform: roomSelected ? "translateX(0)" : "translateX(100%)",
+                transition: "transform 0.2s ease",
+                overflow: "hidden",
+              }}
+            >
+              {/* Header */}
+              <div style={{ padding: "12px 14px 10px", borderBottom: `1px solid ${cs.border}`, flexShrink: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span style={{ fontWeight: 700, fontSize: 13, color: cs.text }}>📐 Room</span>
+                  <button onClick={() => setRoomSelected(false)}
+                    style={{ fontSize: 18, lineHeight: 1, color: cs.textMuted, background: "none", border: "none", cursor: "pointer" }}>×</button>
+                </div>
+                <input
+                  type="text"
+                  defaultValue={layout.roomName ?? ""}
+                  placeholder="Room name…"
+                  onBlur={e => updateLayout({ roomName: e.target.value })}
+                  onKeyDown={e => { if (e.key === "Enter") updateLayout({ roomName: (e.target as HTMLInputElement).value }); }}
+                  style={{
+                    marginTop: 8, width: "100%", padding: "5px 8px",
+                    borderRadius: 8, border: `1px solid ${cs.border}`,
+                    background: cs.surface2, color: cs.text, fontSize: 12,
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+
+              <div style={{ flex: 1, overflowY: "auto", padding: "10px 14px" }}>
+                {/* DIMENSIONS */}
+                <div style={{ marginBottom: 14 }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: cs.accent, marginBottom: 8 }}>Dimensions</p>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ fontSize: 10, color: cs.textMuted, display: "block", marginBottom: 2 }}>W (ft)</label>
+                      <input type="number" min={10} max={1000} value={displayW}
+                        onChange={e => {
+                          const v = +e.target.value;
+                          const newSX = v / 80;
+                          if (roomAspectLock) {
+                            const ratio = sy / sx;
+                            updateLayout({ roomScaleX: newSX, roomScaleY: newSX * ratio });
+                          } else {
+                            updateLayout({ roomScaleX: newSX });
+                          }
+                        }}
+                        style={{ width: "100%", padding: "4px 6px", borderRadius: 7, border: `1px solid ${cs.border}`, background: cs.surface2, color: cs.text, fontSize: 12, boxSizing: "border-box" }}
+                      />
+                    </div>
+                    <button
+                      onClick={() => setRoomAspectLock(l => !l)}
+                      title={roomAspectLock ? "Unlock aspect ratio" : "Lock aspect ratio"}
+                      style={{
+                        marginTop: 14, padding: "4px 5px", borderRadius: 7, fontSize: 13, cursor: "pointer",
+                        border: `1px solid ${roomAspectLock ? cs.accent : cs.border}`,
+                        background: roomAspectLock ? cs.accentBg : cs.surface2,
+                        color: roomAspectLock ? cs.accent : cs.textMuted,
+                      }}>🔗</button>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ fontSize: 10, color: cs.textMuted, display: "block", marginBottom: 2 }}>H (ft)</label>
+                      <input type="number" min={10} max={1000} value={displayH}
+                        onChange={e => {
+                          const v = +e.target.value;
+                          const newSY = v / 60;
+                          if (roomAspectLock) {
+                            const ratio = sx / sy;
+                            updateLayout({ roomScaleY: newSY, roomScaleX: newSY * ratio });
+                          } else {
+                            updateLayout({ roomScaleY: newSY });
+                          }
+                        }}
+                        style={{ width: "100%", padding: "4px 6px", borderRadius: 7, border: `1px solid ${cs.border}`, background: cs.surface2, color: cs.text, fontSize: 12, boxSizing: "border-box" }}
+                      />
+                    </div>
+                  </div>
+                  <div style={{ marginTop: 8 }}>
+                    <label style={{ fontSize: 10, color: cs.textMuted, display: "block", marginBottom: 2 }}>Rotation °</label>
+                    <input type="number" min={0} max={360} value={layout.roomRotation ?? 0}
+                      onChange={e => updateLayout({ roomRotation: +e.target.value })}
+                      style={{ width: "100%", padding: "4px 6px", borderRadius: 7, border: `1px solid ${cs.border}`, background: cs.surface2, color: cs.text, fontSize: 12, boxSizing: "border-box" }}
+                    />
+                  </div>
+                </div>
+
+                {/* POSITION (collapsible) */}
+                <div style={{ marginBottom: 14 }}>
+                  <button
+                    onClick={() => setRoomPosOpen(o => !o)}
+                    style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: cs.accent, background: "none", border: "none", cursor: "pointer", padding: 0, marginBottom: roomPosOpen ? 8 : 0 }}>
+                    <span style={{ transition: "transform 0.15s", display: "inline-block", transform: roomPosOpen ? "rotate(90deg)" : "rotate(0deg)" }}>▶</span>
+                    &nbsp;Position
+                  </button>
+                  {roomPosOpen && (
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: 10, color: cs.textMuted, display: "block", marginBottom: 2 }}>X</label>
+                        <input type="number" value={Math.round(roomOffsetX)}
+                          onChange={e => updateLayout({ roomOffsetX: +e.target.value })}
+                          style={{ width: "100%", padding: "4px 6px", borderRadius: 7, border: `1px solid ${cs.border}`, background: cs.surface2, color: cs.text, fontSize: 12, boxSizing: "border-box" }}
+                        />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ fontSize: 10, color: cs.textMuted, display: "block", marginBottom: 2 }}>Y</label>
+                        <input type="number" value={Math.round(roomOffsetY)}
+                          onChange={e => updateLayout({ roomOffsetY: +e.target.value })}
+                          style={{ width: "100%", padding: "4px 6px", borderRadius: 7, border: `1px solid ${cs.border}`, background: cs.surface2, color: cs.text, fontSize: 12, boxSizing: "border-box" }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* STYLE */}
+                <div style={{ marginBottom: 14 }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: cs.accent, marginBottom: 8 }}>Style</p>
+
+                  {/* Fill color */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                    <label style={{ fontSize: 11, color: cs.textMuted, flex: 1 }}>Fill</label>
+                    <div style={{ position: "relative", width: 28, height: 28 }}>
+                      <div style={{ width: 28, height: 28, borderRadius: 6, background: layout.roomFillColor ?? cs.surface, border: `1px solid ${cs.border}`, cursor: "pointer" }}
+                        onClick={() => (document.getElementById("room-fill-color") as HTMLInputElement)?.click()} />
+                      <input id="room-fill-color" type="color"
+                        value={layout.roomFillColor ?? "#ffffff"}
+                        onChange={e => updateLayout({ roomFillColor: e.target.value })}
+                        style={{ position: "absolute", inset: 0, opacity: 0, width: "100%", height: "100%", cursor: "pointer" }} />
+                    </div>
+                  </div>
+
+                  {/* Fill opacity */}
+                  <div style={{ marginBottom: 8 }}>
+                    <label style={{ fontSize: 10, color: cs.textMuted, display: "block", marginBottom: 4 }}>Fill opacity</label>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <input type="range" min={0} max={100} value={Math.round((layout.roomFillOpacity ?? (darkMode ? 0.15 : 0.9)) * 100)}
+                        onChange={e => updateLayout({ roomFillOpacity: +e.target.value / 100 })}
+                        style={{ flex: 1 }} />
+                      <input type="number" min={0} max={100} value={Math.round((layout.roomFillOpacity ?? (darkMode ? 0.15 : 0.9)) * 100)}
+                        onChange={e => updateLayout({ roomFillOpacity: Math.min(100, Math.max(0, +e.target.value)) / 100 })}
+                        style={{ width: 44, padding: "3px 5px", borderRadius: 6, border: `1px solid ${cs.border}`, background: cs.surface2, color: cs.text, fontSize: 11 }} />
+                      <span style={{ fontSize: 10, color: cs.textMuted }}>%</span>
+                    </div>
+                  </div>
+
+                  {/* Border color */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                    <label style={{ fontSize: 11, color: cs.textMuted, flex: 1 }}>Border</label>
+                    <div style={{ position: "relative", width: 28, height: 28 }}>
+                      <div style={{ width: 28, height: 28, borderRadius: 6, background: layout.roomBorderColor ?? cs.border, border: `1px solid ${cs.border}`, cursor: "pointer" }}
+                        onClick={() => (document.getElementById("room-border-color") as HTMLInputElement)?.click()} />
+                      <input id="room-border-color" type="color"
+                        value={layout.roomBorderColor ?? "#888888"}
+                        onChange={e => updateLayout({ roomBorderColor: e.target.value })}
+                        style={{ position: "absolute", inset: 0, opacity: 0, width: "100%", height: "100%", cursor: "pointer" }} />
+                    </div>
+                  </div>
+
+                  {/* Border width */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                    <label style={{ fontSize: 11, color: cs.textMuted, flex: 1 }}>Width (px)</label>
+                    <input type="number" min={1} max={8} value={layout.roomBorderWidth ?? 2}
+                      onChange={e => updateLayout({ roomBorderWidth: Math.min(8, Math.max(1, +e.target.value)) })}
+                      style={{ width: 50, padding: "3px 5px", borderRadius: 6, border: `1px solid ${cs.border}`, background: cs.surface2, color: cs.text, fontSize: 11 }} />
+                  </div>
+
+                  {/* Border style */}
+                  <div style={{ marginBottom: 8 }}>
+                    <label style={{ fontSize: 10, color: cs.textMuted, display: "block", marginBottom: 4 }}>Border style</label>
+                    <div style={{ display: "flex", gap: 4 }}>
+                      {(["solid","dashed","dotted"] as const).map(s => (
+                        <button key={s} onClick={() => updateLayout({ roomBorderStyle: s })}
+                          style={{
+                            flex: 1, padding: "4px 2px", fontSize: 10, borderRadius: 7, cursor: "pointer",
+                            border: `1px solid ${(layout.roomBorderStyle ?? "dashed") === s ? cs.accent : cs.border}`,
+                            background: (layout.roomBorderStyle ?? "dashed") === s ? cs.accentBg : cs.surface2,
+                            color: (layout.roomBorderStyle ?? "dashed") === s ? cs.accent : cs.textMuted,
+                            textTransform: "capitalize",
+                          }}>
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Corner radius — rectangle only */}
+                  {isRectangle && (
+                    <div style={{ marginBottom: 4 }}>
+                      <label style={{ fontSize: 10, color: cs.textMuted, display: "block", marginBottom: 4 }}>Corner radius</label>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <input type="range" min={0} max={80} value={layout.roomCornerRadius ?? 0}
+                          onChange={e => updateLayout({ roomCornerRadius: +e.target.value })}
+                          style={{ flex: 1 }} />
+                        <input type="number" min={0} max={80} value={layout.roomCornerRadius ?? 0}
+                          onChange={e => updateLayout({ roomCornerRadius: Math.min(80, Math.max(0, +e.target.value)) })}
+                          style={{ width: 44, padding: "3px 5px", borderRadius: 6, border: `1px solid ${cs.border}`, background: cs.surface2, color: cs.text, fontSize: 11 }} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* INFO */}
+                <div style={{ marginBottom: 14, padding: "8px 10px", borderRadius: 8, background: cs.surface2, border: `1px solid ${cs.border}` }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: cs.accent, marginBottom: 4 }}>Info</p>
+                  <p style={{ fontSize: 12, color: cs.textMuted }}>
+                    Area: <span style={{ color: cs.text, fontWeight: 600 }}>{area.toLocaleString()} sq ft</span>
+                  </p>
+                  <p style={{ fontSize: 11, color: cs.textMuted, marginTop: 2 }}>{displayW} ft × {displayH} ft</p>
+                </div>
+              </div>
+
+              {/* Footer actions */}
+              <div style={{ padding: "10px 14px 14px", borderTop: `1px solid ${cs.border}`, flexShrink: 0, display: "flex", gap: 8 }}>
+                <button
+                  onClick={() => updateLayout({ roomLocked: !layout.roomLocked })}
+                  style={{
+                    flex: 1, padding: "7px 4px", borderRadius: 9, fontSize: 12, cursor: "pointer",
+                    border: `1px solid ${layout.roomLocked ? cs.accent : cs.border}`,
+                    background: layout.roomLocked ? cs.accentBg : cs.surface2,
+                    color: layout.roomLocked ? cs.accent : cs.textMuted,
+                    fontWeight: 600,
+                  }}>
+                  {layout.roomLocked ? "🔒 Locked" : "🔓 Lock"}
+                </button>
+                <button
+                  onClick={() => {
+                    if (confirm("Remove room shape? Fixtures will be kept.")) {
+                      onUpdateLayout(activeVenue.id, { ...layout, templateKind: "blank", roomPath: null });
+                      setRoomSelected(false);
+                    }
+                  }}
+                  style={{
+                    flex: 1, padding: "7px 4px", borderRadius: 9, fontSize: 12, cursor: "pointer",
+                    border: "1px solid var(--danger)", background: "transparent", color: "var(--danger)", fontWeight: 600,
+                  }}>
+                  🗑 Delete
+                </button>
+              </div>
+            </div>
+          );
+        })()}
         </div>
 
         {/* ── RIGHT PANEL — Table Details ── */}

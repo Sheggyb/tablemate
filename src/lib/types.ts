@@ -120,6 +120,16 @@ export interface VenueLayout {
   roomOffsetY?: number
   roomScaleX?: number
   roomScaleY?: number
+  // Room Properties panel fields
+  roomName?: string
+  roomRotation?: number
+  roomFillColor?: string
+  roomFillOpacity?: number
+  roomBorderColor?: string
+  roomBorderWidth?: number
+  roomBorderStyle?: 'solid' | 'dashed' | 'dotted'
+  roomCornerRadius?: number
+  roomLocked?: boolean
 }
 
 // Plan limits
