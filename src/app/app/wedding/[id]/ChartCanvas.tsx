@@ -1002,7 +1002,7 @@ export default function ChartCanvas({
                     onDrop={e => onGuestDrop(e, t.id)}
                     onDragLeave={() => setDropTarget(null)}>
                     <div className="flex items-center justify-between px-4 py-3 cursor-pointer"
-                      onClick={() => setSelected(selected === t.id ? null : t.id)}
+                      onClick={() => setSelected(t.id)}
                       style={{
                         background: isDrop ? "var(--accent-bg)" : cs.surface2,
                         borderBottom: `1px solid ${cs.border}`,
@@ -1102,7 +1102,7 @@ export default function ChartCanvas({
                         transform: isDrop ? "scale(1.02)" : "scale(1)",
                         cursor: "pointer",
                       }}
-                      onClick={() => setSelected(isSel ? null : t.id)}
+                      onClick={() => setSelected(t.id)}
                       onDragOver={e => onGuestDragOver(e, t.id)}
                       onDrop={e => onGuestDrop(e, t.id)}
                       onDragLeave={() => setDropTarget(null)}>
