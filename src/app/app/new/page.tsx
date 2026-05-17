@@ -62,12 +62,16 @@ export default function NewWeddingPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { router.push("/login"); return; }
 
+    // Generate a unique share code for the guest portal
+    const shareCode = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10);
+
     const { data: wedding, error: we } = await supabase.from("weddings").insert({
       user_id:      user.id,
       name:         form.name.trim(),
       couple_names: form.couple_names.trim() || null,
       date:         form.date || null,
       location:     form.location.trim() || null,
+      share_code:   shareCode,
     }).select().single();
 
     if (we || !wedding) { setError("Failed to create wedding. Please try again."); setLoading(false); return; }

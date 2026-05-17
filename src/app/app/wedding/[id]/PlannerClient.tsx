@@ -101,6 +101,7 @@ export default function PlannerClient({
   const [floorName, setFloorName] = useState("");
   const [weddingName, setWeddingName] = useState(wedding.name);
   const [venueName, setVenueName] = useState("");
+  const [shareCode, setShareCode] = useState<string | null>(wedding.share_code);
 
   // Undo/redo stacks
   const [history, setHistory] = useState<PlannerState[]>([]);
@@ -138,6 +139,16 @@ export default function PlannerClient({
     if (darkMode) root.classList.add("dark"); else root.classList.remove("dark");
     localStorage.setItem("tm-theme", darkMode ? "dark" : "light");
   }, [darkMode]);
+
+  // Auto-generate share_code for weddings that were created without one
+  useEffect(() => {
+    if (isDemo || shareCode) return;
+    const code = Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10);
+    supabase.from("weddings").update({ share_code: code }).eq("id", wedding.id).then(() => {
+      setShareCode(code);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Mobile detection
   useEffect(() => {
@@ -611,10 +622,10 @@ export default function PlannerClient({
         </button>
 
         {/* Day-of QR Code */}
-        {wedding.share_code && (
+        {shareCode && (
           <button
             onClick={async () => {
-              const url = `${window.location.origin}/guest/${wedding.share_code}`;
+              const url = `${window.location.origin}/guest/${shareCode}`;
               const dataUrl = await QRCode.toDataURL(url, { width: 320, margin: 2, color: { dark: "#1a1218", light: "#FDFBF8" } });
               setQrDataUrl(dataUrl);
               setShowQrModal(true);
@@ -781,7 +792,7 @@ export default function PlannerClient({
         {activeTab === "wishes" && (
           <WishingWall
             weddingId={wedding.id}
-            shareCode={wedding.share_code}
+            shareCode={shareCode}
             dark={darkMode}
             isDemo={isDemo}
           />
@@ -928,11 +939,11 @@ export default function PlannerClient({
               <img src={qrDataUrl} alt="Guest table finder QR code" width={260} height={260} />
             </div>
             <p className="text-xs text-center break-all" style={{ color: cs.textMuted }}>
-              {`${typeof window !== "undefined" ? window.location.origin : ""}/guest/${wedding.share_code}`}
+              {`${typeof window !== "undefined" ? window.location.origin : ""}/guest/${shareCode}`}
             </p>
             <a
               href={qrDataUrl}
-              download={`tablemate-qr-${wedding.share_code}.png`}
+              download={`tablemate-qr-${shareCode}.png`}
               className="w-full py-3 rounded-xl text-sm font-semibold text-white text-center block"
               style={{ background: cs.accent }}>
               ⬇ Download QR Code
