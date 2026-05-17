@@ -81,6 +81,11 @@ export default function ChartCanvas({
   const [findDropdownOpen, setFindDropdownOpen] = useState(false);
   const [findUnseatToast, setFindUnseatToast]   = useState<string | null>(null);
   const [draggingFixture, setDraggingFixture]   = useState<{ id: string; ox: number; oy: number } | null>(null);
+  const [selectedFixtureId, setSelectedFixtureId] = useState<string | null>(null);
+  const [resizingFixture, setResizingFixture]   = useState<{ id: string; corner: string; startX: number; startY: number; startW: number; startH: number; startFX: number; startFY: number } | null>(null);
+  // Custom fixture form state
+  const [customFixLabel, setCustomFixLabel]     = useState("");
+  const [customFixEmoji, setCustomFixEmoji]     = useState("🎪");
 
   const FIXTURE_PRESETS: { kind: import("@/lib/types").FixtureKind; emoji: string; label: string; w: number; h: number; color: string }[] = [
     { kind: "stage",       emoji: "🎭", label: "Stage",       w: 200, h: 80,  color: "#7c3aed" },
@@ -244,9 +249,27 @@ export default function ChartCanvas({
       );
       onUpdateLayout(activeVenue.id, { ...activeVenue.layout, fixtures: updated });
     }
-  }, [panning, panStart, dragging, draggingFixture, offset, scale, snapEnabled, onUpdateTable, activeVenue, onUpdateLayout]);
+    if (resizingFixture && activeVenue?.layout) {
+      const dx = (e.clientX - resizingFixture.startX) / scale;
+      const dy = (e.clientY - resizingFixture.startY) / scale;
+      const MIN = 30;
+      let nx = resizingFixture.startFX;
+      let ny = resizingFixture.startFY;
+      let nw = resizingFixture.startW;
+      let nh = resizingFixture.startH;
+      const c = resizingFixture.corner;
+      if (c === "se") { nw = Math.max(MIN, nw + dx); nh = Math.max(MIN, nh + dy); }
+      else if (c === "sw") { const dw = Math.min(dx, nw - MIN); nx = nx + dw; nw = nw - dw; nh = Math.max(MIN, nh + dy); }
+      else if (c === "ne") { nw = Math.max(MIN, nw + dx); const dh = Math.min(dy, nh - MIN); ny = ny + dh; nh = nh - dh; }
+      else if (c === "nw") { const dw = Math.min(dx, nw - MIN); nx = nx + dw; nw = nw - dw; const dh = Math.min(dy, nh - MIN); ny = ny + dh; nh = nh - dh; }
+      const updated = activeVenue.layout.fixtures.map(f =>
+        f.id === resizingFixture.id ? { ...f, x: nx, y: ny, w: nw, h: nh } : f
+      );
+      onUpdateLayout(activeVenue.id, { ...activeVenue.layout, fixtures: updated });
+    }
+  }, [panning, panStart, dragging, draggingFixture, resizingFixture, offset, scale, snapEnabled, onUpdateTable, activeVenue, onUpdateLayout]);
 
-  const onPointerUpCanvas = useCallback(() => { setPanning(false); setDragging(null); setDraggingFixture(null); }, []);
+  const onPointerUpCanvas = useCallback(() => { setPanning(false); setDragging(null); setDraggingFixture(null); setResizingFixture(null); }, []);
 
   /* ── Wheel zoom ── */
   const onWheel = useCallback((e: WheelEvent) => {
@@ -451,13 +474,20 @@ export default function ChartCanvas({
 
           {/* Tab: Layout */}
           {sideTab === "layout" && (
-            <div className="flex-1 overflow-y-auto p-3 space-y-4">
+            <div className="flex-1 overflow-y-auto p-3 space-y-5">
               {/* Room Shape */}
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: cs.textMuted }}>Room Shape</p>
-                <div className="grid grid-cols-2 gap-1.5">
+                <p className="text-[10px] font-bold uppercase tracking-widest mb-2.5" style={{ color: cs.accent }}>Room Shape</p>
+                <div className="grid grid-cols-3 gap-1.5">
                   {ROOM_TEMPLATES.map(tmpl => {
                     const active = activeVenue?.layout?.templateKind === tmpl.kind;
+                    // Mini SVG path preview per shape
+                    const shapePreview = tmpl.kind === "blank" ? null
+                      : tmpl.kind === "rectangle" ? <rect x="4" y="6" width="32" height="18" rx="1" fill="none" stroke="currentColor" strokeWidth="1.5"/>
+                      : tmpl.kind === "lshape" ? <path d="M4 6 L22 6 L22 14 L36 14 L36 24 L4 24 Z" fill="none" stroke="currentColor" strokeWidth="1.5"/>
+                      : tmpl.kind === "ushape" ? <path d="M4 6 L12 6 L12 18 L28 18 L28 6 L36 6 L36 24 L4 24 Z" fill="none" stroke="currentColor" strokeWidth="1.5"/>
+                      : tmpl.kind === "oval" ? <ellipse cx="20" cy="15" rx="16" ry="9" fill="none" stroke="currentColor" strokeWidth="1.5"/>
+                      : <><rect x="4" y="6" width="32" height="18" rx="1" fill="none" stroke="currentColor" strokeWidth="1.5"/><path d="M20 6 L20 1" stroke="currentColor" strokeWidth="1.5"/></>;
                     return (
                       <button key={tmpl.kind}
                         onClick={() => {
@@ -468,14 +498,21 @@ export default function ChartCanvas({
                             fixtures: existing?.fixtures ?? [],
                           });
                         }}
-                        className="px-2 py-2 rounded-xl text-xs font-medium text-center hover:opacity-80 transition-opacity"
+                        className="flex flex-col items-center gap-1 py-2.5 px-1 rounded-xl transition-all hover:scale-105"
                         style={{
                           background: active ? cs.accentBg : cs.surface2,
-                          color: active ? cs.accent : cs.textSoft,
-                          border: `1px solid ${active ? cs.accent : cs.border}`,
+                          color: active ? cs.accent : cs.textMuted,
+                          border: `1.5px solid ${active ? cs.accent : cs.border}`,
+                          boxShadow: active ? `0 0 0 2px ${cs.accentBg}` : "none",
                         }}>
-                        {tmpl.kind === "blank" ? "⬜" : tmpl.kind === "rectangle" ? "▭" : tmpl.kind === "lshape" ? "⌐" : tmpl.kind === "ushape" ? "∪" : tmpl.kind === "oval" ? "⬭" : "⛺"}
-                        <span className="block mt-0.5">{tmpl.label}</span>
+                        <svg width="40" height="28" viewBox="0 0 40 28" style={{ opacity: active ? 1 : 0.6 }}>
+                          {tmpl.kind === "blank"
+                            ? <text x="20" y="19" textAnchor="middle" fontSize="14" fill="currentColor">∅</text>
+                            : shapePreview}
+                        </svg>
+                        <span className="text-[9px] font-semibold leading-tight text-center" style={{ letterSpacing: "0.04em" }}>
+                          {tmpl.kind === "blank" ? "Blank" : tmpl.kind === "rectangle" ? "Rectangle" : tmpl.kind === "lshape" ? "L-Shape" : tmpl.kind === "ushape" ? "U-Shape" : tmpl.kind === "oval" ? "Oval" : "Marquee"}
+                        </span>
                       </button>
                     );
                   })}
@@ -484,7 +521,7 @@ export default function ChartCanvas({
 
               {/* Fixtures Palette */}
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: cs.textMuted }}>Add Fixture</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest mb-2.5" style={{ color: cs.accent }}>Add Fixture</p>
                 <div className="grid grid-cols-2 gap-1.5">
                   {FIXTURE_PRESETS.map(preset => (
                     <button key={preset.kind}
@@ -494,6 +531,7 @@ export default function ChartCanvas({
                           id: crypto.randomUUID(),
                           kind: preset.kind,
                           label: preset.label,
+                          emoji: preset.emoji,
                           x: 400 - preset.w / 2,
                           y: 300 - preset.h / 2,
                           w: preset.w,
@@ -506,36 +544,102 @@ export default function ChartCanvas({
                           fixtures: [...existing.fixtures, newFixture],
                         });
                       }}
-                      className="px-2 py-2 rounded-xl text-xs font-medium text-left hover:opacity-80 transition-opacity"
+                      className="flex items-center gap-2 px-2.5 py-2 rounded-xl text-left transition-all hover:scale-[1.02] active:scale-95"
                       style={{ background: cs.surface2, color: cs.textSoft, border: `1px solid ${cs.border}` }}>
-                      <span className="text-base">{preset.emoji}</span>
-                      <span className="block text-xs mt-0.5 truncate">{preset.label}</span>
+                      <span className="text-lg leading-none w-6 text-center flex-shrink-0">{preset.emoji}</span>
+                      <span className="text-[11px] font-medium leading-tight truncate">{preset.label}</span>
                     </button>
                   ))}
+                </div>
+              </div>
+
+              {/* Custom Fixture */}
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest mb-2.5" style={{ color: cs.accent }}>Custom Fixture</p>
+                <div className="rounded-xl p-3 space-y-3" style={{ background: cs.surface2, border: `1px solid ${cs.border}` }}>
+                  <input
+                    type="text"
+                    value={customFixLabel}
+                    onChange={e => setCustomFixLabel(e.target.value)}
+                    placeholder="e.g. Ice Bar, Photo Corner…"
+                    className="w-full px-2.5 py-2 rounded-lg text-xs border"
+                    style={{ background: cs.bg, borderColor: cs.border, color: cs.text }}
+                  />
+                  <div>
+                    <p className="text-[10px] mb-1.5" style={{ color: cs.textMuted }}>Pick an emoji:</p>
+                    <div className="grid grid-cols-7 gap-1">
+                      {["🎪","🍕","🎸","🎤","🎨","🏆","🕯️","🌸","⭐","🎯","🎺","🪴","🍰","🥂","🎻","🎆","🪑","🖼️","🎠","🌺"].map(em => (
+                        <button key={em}
+                          onClick={() => setCustomFixEmoji(em)}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg text-sm transition-all"
+                          style={{
+                            background: customFixEmoji === em ? cs.accentBg : "transparent",
+                            border: `1.5px solid ${customFixEmoji === em ? cs.accent : "transparent"}`,
+                          }}>
+                          {em}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const label = customFixLabel.trim() || "Custom";
+                      const existing = activeVenue?.layout ?? { templateKind: "blank" as import("@/lib/types").RoomTemplateKind, roomPath: null, fixtures: [] };
+                      const newFixture: import("@/lib/types").VenueFixture = {
+                        id: crypto.randomUUID(),
+                        kind: "custom",
+                        label,
+                        emoji: customFixEmoji,
+                        x: 380,
+                        y: 270,
+                        w: 100,
+                        h: 70,
+                        rotation: 0,
+                        color: "#c9a96e",
+                      };
+                      onUpdateLayout(activeVenue.id, { ...existing, fixtures: [...existing.fixtures, newFixture] });
+                      setCustomFixLabel("");
+                    }}
+                    disabled={!customFixLabel.trim()}
+                    className="w-full py-2 rounded-xl text-xs font-semibold transition-opacity"
+                    style={{
+                      background: customFixLabel.trim() ? cs.accent : cs.surface,
+                      color: customFixLabel.trim() ? "#fff" : cs.textMuted,
+                      border: `1px solid ${customFixLabel.trim() ? cs.accent : cs.border}`,
+                      opacity: customFixLabel.trim() ? 1 : 0.6,
+                    }}>
+                    {customFixEmoji} Add to Canvas
+                  </button>
                 </div>
               </div>
 
               {/* Placed Fixtures List */}
               {activeVenue?.layout && activeVenue.layout.fixtures.length > 0 && (
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: cs.textMuted }}>Placed Fixtures</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: cs.accent }}>Placed ({activeVenue.layout.fixtures.length})</p>
                   <div className="space-y-1 max-h-48 overflow-y-auto">
                     {activeVenue.layout.fixtures.map(f => {
                       const preset = FIXTURE_PRESETS.find(p => p.kind === f.kind);
+                      const emoji = f.emoji ?? preset?.emoji ?? "📦";
+                      const isSel = selectedFixtureId === f.id;
                       return (
-                        <div key={f.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg"
-                          style={{ background: cs.surface2 }}>
-                          <span className="text-sm">{preset?.emoji}</span>
-                          <span className="text-xs flex-1 truncate" style={{ color: cs.textSoft }}>{f.label}</span>
+                        <div key={f.id}
+                          className="flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer transition-all"
+                          onClick={() => setSelectedFixtureId(isSel ? null : f.id)}
+                          style={{ background: isSel ? cs.accentBg : cs.surface2, border: `1px solid ${isSel ? cs.accent : "transparent"}` }}>
+                          <span className="text-sm leading-none w-5 text-center">{emoji}</span>
+                          <span className="text-xs flex-1 truncate" style={{ color: isSel ? cs.accent : cs.textSoft }}>{f.label}</span>
                           <button
-                            onClick={() => {
+                            onClick={e => {
+                              e.stopPropagation();
                               if (!activeVenue.layout) return;
+                              if (selectedFixtureId === f.id) setSelectedFixtureId(null);
                               onUpdateLayout(activeVenue.id, {
                                 ...activeVenue.layout,
                                 fixtures: activeVenue.layout.fixtures.filter(x => x.id !== f.id),
                               });
                             }}
-                            className="text-xs hover:opacity-60 transition-opacity"
+                            className="text-xs hover:opacity-60 transition-opacity flex-shrink-0"
                             style={{ color: cs.textMuted }}>🗑</button>
                         </div>
                       );
@@ -910,26 +1014,50 @@ export default function ChartCanvas({
               {activeVenue?.layout && (
                 <svg style={{ position: "absolute", top: 0, left: 0, overflow: "visible", pointerEvents: "none" }}>
                   {activeVenue.layout.roomPath && activeVenue.layout.templateKind !== "oval" && (
-                    <path d={activeVenue.layout.roomPath} fill="#f8f7f4" stroke="#d1c9b8" strokeWidth={3} strokeDasharray="8 4" />
+                    <path d={activeVenue.layout.roomPath} fill={cs.surface} fillOpacity={0.9} stroke={cs.border} strokeWidth={3} strokeDasharray="8 4" />
                   )}
                   {activeVenue.layout.templateKind === "oval" && (
-                    <ellipse cx={500} cy={400} rx={400} ry={300} fill="#f8f7f4" stroke="#d1c9b8" strokeWidth={3} strokeDasharray="8 4" />
+                    <ellipse cx={500} cy={400} rx={400} ry={300} fill={cs.surface} fillOpacity={0.9} stroke={cs.border} strokeWidth={3} strokeDasharray="8 4" />
                   )}
-                  {activeVenue.layout.fixtures.map(f => (
-                    <g key={f.id} transform={`translate(${f.x},${f.y})`}
-                      style={{ cursor: "move", pointerEvents: "all" }}
-                      onPointerDown={e => handleFixtureDragStart(e, f.id)}>
-                      <rect x={0} y={0} width={f.w} height={f.h} rx={6}
-                        fill={f.color} fillOpacity={0.25} stroke={f.color} strokeWidth={2} />
-                      <text x={f.w/2} y={f.h/2 - 8} textAnchor="middle" fontSize={18} dominantBaseline="middle">
-                        {FIXTURE_PRESETS.find(p => p.kind === f.kind)?.emoji ?? ""}
-                      </text>
-                      <text x={f.w/2} y={f.h/2 + 12} textAnchor="middle" fontSize={11}
-                        fill={f.color} fontWeight={600} dominantBaseline="middle">
-                        {f.label}
-                      </text>
-                    </g>
-                  ))}
+                  {activeVenue.layout.fixtures.map(f => {
+                    const preset = FIXTURE_PRESETS.find(p => p.kind === f.kind);
+                    const emoji = f.emoji ?? preset?.emoji ?? "📦";
+                    const isSel = selectedFixtureId === f.id;
+                    const HANDLE = 9;
+                    return (
+                      <g key={f.id} transform={`translate(${f.x},${f.y})`} style={{ pointerEvents: "all" }}>
+                        {/* Body — draggable */}
+                        <g style={{ cursor: "move" }} onPointerDown={e => { e.stopPropagation(); setSelectedFixtureId(f.id); handleFixtureDragStart(e, f.id); }}>
+                          <rect x={0} y={0} width={f.w} height={f.h} rx={6}
+                            fill={f.color} fillOpacity={0.2} stroke={isSel ? f.color : f.color}
+                            strokeWidth={isSel ? 2.5 : 2} strokeOpacity={isSel ? 1 : 0.7} />
+                          {isSel && <rect x={-2} y={-2} width={f.w + 4} height={f.h + 4} rx={8}
+                            fill="none" stroke={f.color} strokeWidth={1.5} strokeOpacity={0.4} strokeDasharray="4 3" />}
+                          <text x={f.w/2} y={f.h/2 - 8} textAnchor="middle" fontSize={18} dominantBaseline="middle">
+                            {emoji}
+                          </text>
+                          <text x={f.w/2} y={f.h/2 + 12} textAnchor="middle" fontSize={11}
+                            fill={f.color} fontWeight={600} dominantBaseline="middle">
+                            {f.label}
+                          </text>
+                        </g>
+                        {/* Resize handles — only when selected */}
+                        {isSel && ([["nw",0,0],["ne",f.w,0],["se",f.w,f.h],["sw",0,f.h]] as [string,number,number][]).map(([corner, hx, hy]) => (
+                          <rect key={corner}
+                            x={hx - HANDLE/2} y={hy - HANDLE/2}
+                            width={HANDLE} height={HANDLE} rx={2}
+                            fill={cs.surface} stroke={f.color} strokeWidth={1.5}
+                            style={{ cursor: corner === "nw" || corner === "se" ? "nwse-resize" : "nesw-resize" }}
+                            onPointerDown={e => {
+                              e.stopPropagation();
+                              (e.currentTarget as SVGElement).setPointerCapture(e.pointerId);
+                              setResizingFixture({ id: f.id, corner, startX: e.clientX, startY: e.clientY, startW: f.w, startH: f.h, startFX: f.x, startFY: f.y });
+                            }}
+                          />
+                        ))}
+                      </g>
+                    );
+                  })}
                 </svg>
               )}
               {tables.map((table, tableIndex) => {

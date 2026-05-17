@@ -95,12 +95,13 @@ export interface Rule {
 export type FixtureKind =
   | 'stage' | 'dancefloor' | 'bar' | 'dj' | 'entrance' | 'exit'
   | 'buffet' | 'cake' | 'gifts' | 'photobooth' | 'cloakroom' | 'toilets'
-  | 'lounge' | 'plant'
+  | 'lounge' | 'plant' | 'custom'
 
 export interface VenueFixture {
   id: string
   kind: FixtureKind
   label: string
+  emoji?: string
   x: number
   y: number
   w: number
