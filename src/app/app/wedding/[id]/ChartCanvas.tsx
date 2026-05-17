@@ -2,7 +2,7 @@
 "use client";
 
 import { useRef, useState, useCallback, useEffect, useMemo } from "react";
-import type { Table, Guest, Group, Rule } from "@/lib/types";
+import type { Table, Guest, Group, Rule, VenueShape, VenueShapeKind } from "@/lib/types";
 
 interface Props {
   tables:        Table[];
@@ -87,20 +87,58 @@ export default function ChartCanvas({
   const [customFixLabel, setCustomFixLabel]     = useState("");
   const [customFixEmoji, setCustomFixEmoji]     = useState("🎪");
 
-  // Room drag/resize state
-  const [roomSelected, setRoomSelected]         = useState(false);
-  const [draggingRoom, setDraggingRoom]         = useState<{ startClientX: number; startClientY: number; startOffX: number; startOffY: number } | null>(null);
-  const [resizingRoom, setResizingRoom]         = useState<{ handle: string; startClientX: number; startClientY: number; startOffX: number; startOffY: number; startSX: number; startSY: number } | null>(null);
+  // Shape drag/resize state (replaces single-room state)
+  const [selectedShapeId, setSelectedShapeId]   = useState<string | null>(null);
+  const [draggingShapeId, setDraggingShapeId]   = useState<{ id: string; startClientX: number; startClientY: number; startX: number; startY: number } | null>(null);
+  const [resizingShapeId, setResizingShapeId]   = useState<{ id: string; handle: string; startClientX: number; startClientY: number; startX: number; startY: number; startSX: number; startSY: number } | null>(null);
 
   // Room Properties panel local UI state
   const [roomPosOpen, setRoomPosOpen]           = useState(false);
   const [roomAspectLock, setRoomAspectLock]     = useState(false);
 
-  // Derived room transform values from layout
-  const roomOffsetX = activeVenue?.layout?.roomOffsetX ?? 0;
-  const roomOffsetY = activeVenue?.layout?.roomOffsetY ?? 0;
-  const roomScaleX  = activeVenue?.layout?.roomScaleX  ?? 1;
-  const roomScaleY  = activeVenue?.layout?.roomScaleY  ?? 1;
+  // Migration: if old templateKind exists and shapes is empty, auto-create shapes from old fields
+  const layoutShapes: VenueShape[] = useMemo(() => {
+    const layout = activeVenue?.layout;
+    if (!layout) return [];
+    if (layout.shapes && layout.shapes.length > 0) return layout.shapes;
+    // Migrate legacy single shape
+    if (layout.templateKind && layout.templateKind !== "blank") {
+      const kind = layout.templateKind as VenueShapeKind;
+      return [{
+        id: "migrated-shape",
+        kind,
+        label: layout.roomName ?? kind.charAt(0).toUpperCase() + kind.slice(1),
+        x: layout.roomOffsetX ?? 0,
+        y: layout.roomOffsetY ?? 0,
+        scaleX: layout.roomScaleX ?? 1,
+        scaleY: layout.roomScaleY ?? 1,
+        rotation: layout.roomRotation ?? 0,
+        locked: layout.roomLocked ?? false,
+        fillColor: layout.roomFillColor,
+        fillOpacity: layout.roomFillOpacity,
+        borderColor: layout.roomBorderColor,
+        borderWidth: layout.roomBorderWidth,
+        borderStyle: layout.roomBorderStyle,
+        cornerRadius: layout.roomCornerRadius,
+      }];
+    }
+    return [];
+  }, [activeVenue?.layout]);
+
+  const selectedShape = useMemo(
+    () => layoutShapes.find(s => s.id === selectedShapeId) ?? null,
+    [layoutShapes, selectedShapeId]
+  );
+
+  // Helper to update a specific shape in layout.shapes
+  const updateShape = useCallback((id: string, patch: Partial<VenueShape>) => {
+    if (!activeVenue?.layout) return;
+    const existingShapes = activeVenue.layout.shapes && activeVenue.layout.shapes.length > 0
+      ? activeVenue.layout.shapes
+      : layoutShapes;
+    const updated = existingShapes.map(s => s.id === id ? { ...s, ...patch } : s);
+    onUpdateLayout(activeVenue.id, { ...activeVenue.layout, shapes: updated });
+  }, [activeVenue, layoutShapes, onUpdateLayout]);
 
   const FIXTURE_PRESETS: { kind: import("@/lib/types").FixtureKind; emoji: string; label: string; w: number; h: number; color: string }[] = [
     { kind: "stage",       emoji: "🎭", label: "Stage",       w: 200, h: 80,  color: "#7c3aed" },
@@ -127,6 +165,51 @@ export default function ChartCanvas({
     { kind: "oval",      label: "Oval / Marquee", path: null },
     { kind: "marquee",   label: "Marquee Tent",   path: "M 100 100 L 900 100 L 900 700 L 100 700 Z" },
   ];
+
+  // Shape kind helpers
+  function isWallKind(k: VenueShapeKind) { return k === "wall-h" || k === "wall-v" || k === "wall-diagonal"; }
+  function getWallBaseW(k: VenueShapeKind) { return k === "wall-v" ? 20 : k === "wall-diagonal" ? 300 : 400; }
+  function getWallBaseH(k: VenueShapeKind) { return k === "wall-v" ? 400 : 20; }
+
+  const SHAPE_BUTTONS: { kind: VenueShapeKind; label: string; icon: string }[] = [
+    { kind: "rectangle",    label: "Rectangle",  icon: "⬜" },
+    { kind: "lshape",       label: "L-Shape",    icon: "📐" },
+    { kind: "ushape",       label: "U-Shape",    icon: "⊓" },
+    { kind: "oval",         label: "Oval",       icon: "⭕" },
+    { kind: "marquee",      label: "Marquee",    icon: "⛺" },
+    { kind: "wall-h",       label: "Wall H",     icon: "───" },
+    { kind: "wall-v",       label: "Wall V",     icon: "│" },
+    { kind: "wall-diagonal",label: "Wall Diag",  icon: "╱" },
+  ];
+
+  const addShape = useCallback((kind: VenueShapeKind) => {
+    const existing = activeVenue?.layout ?? { templateKind: "blank" as import("@/lib/types").RoomTemplateKind, roomPath: null, fixtures: [] };
+    const existingShapes = existing.shapes ?? layoutShapes;
+    const offset_n = existingShapes.length * 20;
+    const isWall = isWallKind(kind);
+    const label = SHAPE_BUTTONS.find(b => b.kind === kind)?.label ?? kind;
+    const newShape: VenueShape = {
+      id: crypto.randomUUID(),
+      kind,
+      label,
+      x: 300 + offset_n,
+      y: 200 + offset_n,
+      scaleX: 1,
+      scaleY: 1,
+      rotation: kind === "wall-diagonal" ? 45 : 0,
+      locked: false,
+      fillColor: isWall ? "transparent" : undefined,
+      fillOpacity: isWall ? 0 : undefined,
+      borderColor: isWall ? "#888888" : undefined,
+      borderWidth: isWall ? 3 : undefined,
+      borderStyle: "solid",
+    };
+    onUpdateLayout(activeVenue.id, {
+      ...existing,
+      shapes: [...existingShapes, newShape],
+    });
+    setSelectedShapeId(newShape.id);
+  }, [activeVenue, layoutShapes, onUpdateLayout]);
 
   const handleFixtureDragStart = useCallback((e: React.PointerEvent, fixtureId: string) => {
     e.stopPropagation();
@@ -243,7 +326,7 @@ export default function ChartCanvas({
   const onPointerDownCanvas = useCallback((e: React.PointerEvent) => {
     if ((e.target as HTMLElement).closest("[data-table]")) return;
     setCtxMenu(null);
-    setRoomSelected(false);
+    setSelectedShapeId(null);
     setPanning(true);
     setPanStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
@@ -283,52 +366,55 @@ export default function ChartCanvas({
       );
       onUpdateLayout(activeVenue.id, { ...activeVenue.layout, fixtures: updated });
     }
-    if (draggingRoom && activeVenue?.layout) {
-      const dx = (e.clientX - draggingRoom.startClientX) / scale;
-      const dy = (e.clientY - draggingRoom.startClientY) / scale;
-      const newOffX = draggingRoom.startOffX + dx;
-      const newOffY = draggingRoom.startOffY + dy;
-      onUpdateLayout(activeVenue.id, { ...activeVenue.layout, roomOffsetX: newOffX, roomOffsetY: newOffY });
+    if (draggingShapeId && activeVenue?.layout) {
+      const dx = (e.clientX - draggingShapeId.startClientX) / scale;
+      const dy = (e.clientY - draggingShapeId.startClientY) / scale;
+      updateShape(draggingShapeId.id, {
+        x: draggingShapeId.startX + dx,
+        y: draggingShapeId.startY + dy,
+      });
     }
-    if (resizingRoom && activeVenue?.layout) {
-      const dx = (e.clientX - resizingRoom.startClientX) / scale;
-      const dy = (e.clientY - resizingRoom.startClientY) / scale;
-      const MIN_SCALE = 0.1;
-      let nSX = resizingRoom.startSX;
-      let nSY = resizingRoom.startSY;
-      let nOX = resizingRoom.startOffX;
-      let nOY = resizingRoom.startOffY;
-      // Bounding box of unscaled shape (approx based on template)
-      const BASE_W = activeVenue.layout.templateKind === "oval" ? 800 : 800;
-      const BASE_H = activeVenue.layout.templateKind === "oval" ? 600 : 600;
-      const h = resizingRoom.handle;
-      if (h === "e" || h === "se" || h === "ne") {
-        nSX = Math.max(MIN_SCALE, resizingRoom.startSX + dx / BASE_W);
+    if (resizingShapeId && activeVenue?.layout) {
+      const shape = layoutShapes.find(s => s.id === resizingShapeId.id);
+      if (shape) {
+        const dx = (e.clientX - resizingShapeId.startClientX) / scale;
+        const dy = (e.clientY - resizingShapeId.startClientY) / scale;
+        const MIN_SCALE = 0.05;
+        const BASE_W = isWallKind(shape.kind) ? getWallBaseW(shape.kind) : 800;
+        const BASE_H = isWallKind(shape.kind) ? getWallBaseH(shape.kind) : 600;
+        let nSX = resizingShapeId.startSX;
+        let nSY = resizingShapeId.startSY;
+        let nX = resizingShapeId.startX;
+        let nY = resizingShapeId.startY;
+        const h = resizingShapeId.handle;
+        if (h === "e" || h === "se" || h === "ne") {
+          nSX = Math.max(MIN_SCALE, resizingShapeId.startSX + dx / BASE_W);
+        }
+        if (h === "w" || h === "sw" || h === "nw") {
+          const dsx = dx / BASE_W;
+          nSX = Math.max(MIN_SCALE, resizingShapeId.startSX - dsx);
+          nX = resizingShapeId.startX + dsx * BASE_W * resizingShapeId.startSX;
+        }
+        if (h === "s" || h === "se" || h === "sw") {
+          nSY = Math.max(MIN_SCALE, resizingShapeId.startSY + dy / BASE_H);
+        }
+        if (h === "n" || h === "ne" || h === "nw") {
+          const dsy = dy / BASE_H;
+          nSY = Math.max(MIN_SCALE, resizingShapeId.startSY - dsy);
+          nY = resizingShapeId.startY + dsy * BASE_H * resizingShapeId.startSY;
+        }
+        updateShape(resizingShapeId.id, { scaleX: nSX, scaleY: nSY, x: nX, y: nY });
       }
-      if (h === "w" || h === "sw" || h === "nw") {
-        const dsx = dx / BASE_W;
-        nSX = Math.max(MIN_SCALE, resizingRoom.startSX - dsx);
-        nOX = resizingRoom.startOffX + dsx * BASE_W * resizingRoom.startSX;
-      }
-      if (h === "s" || h === "se" || h === "sw") {
-        nSY = Math.max(MIN_SCALE, resizingRoom.startSY + dy / BASE_H);
-      }
-      if (h === "n" || h === "ne" || h === "nw") {
-        const dsy = dy / BASE_H;
-        nSY = Math.max(MIN_SCALE, resizingRoom.startSY - dsy);
-        nOY = resizingRoom.startOffY + dsy * BASE_H * resizingRoom.startSY;
-      }
-      onUpdateLayout(activeVenue.id, { ...activeVenue.layout, roomScaleX: nSX, roomScaleY: nSY, roomOffsetX: nOX, roomOffsetY: nOY });
     }
-  }, [panning, panStart, dragging, draggingFixture, resizingFixture, draggingRoom, resizingRoom, offset, scale, snapEnabled, onUpdateTable, activeVenue, onUpdateLayout]);
+  }, [panning, panStart, dragging, draggingFixture, resizingFixture, draggingShapeId, resizingShapeId, offset, scale, snapEnabled, onUpdateTable, activeVenue, onUpdateLayout, updateShape, layoutShapes]);
 
   const onPointerUpCanvas = useCallback(() => {
     setPanning(false);
     setDragging(null);
     setDraggingFixture(null);
     setResizingFixture(null);
-    setDraggingRoom(null);
-    setResizingRoom(null);
+    setDraggingShapeId(null);
+    setResizingShapeId(null);
   }, []);
 
   /* ── Wheel zoom ── */
@@ -535,48 +621,55 @@ export default function ChartCanvas({
           {/* Tab: Layout */}
           {sideTab === "layout" && (
             <div className="flex-1 overflow-y-auto p-3 space-y-5">
-              {/* Room Shape */}
+              {/* ADD SHAPE */}
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest mb-2.5" style={{ color: cs.accent }}>Room Shape</p>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {ROOM_TEMPLATES.map(tmpl => {
-                    const active = activeVenue?.layout?.templateKind === tmpl.kind;
-                    // Mini SVG path preview per shape
-                    const shapePreview = tmpl.kind === "blank" ? null
-                      : tmpl.kind === "rectangle" ? <rect x="4" y="6" width="32" height="18" rx="1" fill="none" stroke="currentColor" strokeWidth="1.5"/>
-                      : tmpl.kind === "lshape" ? <path d="M4 6 L22 6 L22 14 L36 14 L36 24 L4 24 Z" fill="none" stroke="currentColor" strokeWidth="1.5"/>
-                      : tmpl.kind === "ushape" ? <path d="M4 6 L12 6 L12 18 L28 18 L28 6 L36 6 L36 24 L4 24 Z" fill="none" stroke="currentColor" strokeWidth="1.5"/>
-                      : tmpl.kind === "oval" ? <ellipse cx="20" cy="15" rx="16" ry="9" fill="none" stroke="currentColor" strokeWidth="1.5"/>
-                      : <><rect x="4" y="6" width="32" height="18" rx="1" fill="none" stroke="currentColor" strokeWidth="1.5"/><path d="M20 6 L20 1" stroke="currentColor" strokeWidth="1.5"/></>;
-                    return (
-                      <button key={tmpl.kind}
-                        onClick={() => {
-                          const existing = activeVenue?.layout;
-                          onUpdateLayout(activeVenue.id, {
-                            templateKind: tmpl.kind as import("@/lib/types").RoomTemplateKind,
-                            roomPath: tmpl.path,
-                            fixtures: existing?.fixtures ?? [],
-                          });
-                        }}
-                        className="flex flex-col items-center gap-1 py-2.5 px-1 rounded-xl transition-all hover:scale-105"
-                        style={{
-                          background: active ? cs.accentBg : cs.surface2,
-                          color: active ? cs.accent : cs.textMuted,
-                          border: `1.5px solid ${active ? cs.accent : cs.border}`,
-                          boxShadow: active ? `0 0 0 2px ${cs.accentBg}` : "none",
-                        }}>
-                        <svg width="40" height="28" viewBox="0 0 40 28" style={{ opacity: active ? 1 : 0.6 }}>
-                          {tmpl.kind === "blank"
-                            ? <text x="20" y="19" textAnchor="middle" fontSize="14" fill="currentColor">∅</text>
-                            : shapePreview}
-                        </svg>
-                        <span className="text-[9px] font-semibold leading-tight text-center" style={{ letterSpacing: "0.04em" }}>
-                          {tmpl.kind === "blank" ? "Blank" : tmpl.kind === "rectangle" ? "Rectangle" : tmpl.kind === "lshape" ? "L-Shape" : tmpl.kind === "ushape" ? "U-Shape" : tmpl.kind === "oval" ? "Oval" : "Marquee"}
-                        </span>
-                      </button>
-                    );
-                  })}
+                <p className="text-[10px] font-bold uppercase tracking-widest mb-2.5" style={{ color: cs.accent }}>Add Shape</p>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {SHAPE_BUTTONS.map(btn => (
+                    <button key={btn.kind}
+                      onClick={() => addShape(btn.kind)}
+                      className="flex flex-col items-center gap-0.5 py-2 px-1 rounded-xl transition-all hover:scale-105 active:scale-95"
+                      style={{ background: cs.surface2, color: cs.textMuted, border: `1px solid ${cs.border}` }}
+                      title={`Add ${btn.label}`}>
+                      <span className="text-base leading-none">{btn.icon}</span>
+                      <span className="text-[8px] font-semibold leading-tight text-center truncate w-full" style={{ letterSpacing: "0.03em" }}>{btn.label}</span>
+                    </button>
+                  ))}
                 </div>
+
+                {/* Shapes list */}
+                {layoutShapes.length > 0 && (
+                  <div className="mt-3 space-y-1">
+                    <p className="text-[9px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: cs.textMuted }}>Canvas shapes</p>
+                    {layoutShapes.map(shape => {
+                      const isSel = selectedShapeId === shape.id;
+                      return (
+                        <div key={shape.id}
+                          className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl cursor-pointer transition-all"
+                          style={{
+                            background: isSel ? cs.accentBg : cs.surface2,
+                            border: `1px solid ${isSel ? cs.accent : cs.border}`,
+                            color: isSel ? cs.accent : cs.text,
+                          }}
+                          onClick={() => setSelectedShapeId(isSel ? null : shape.id)}>
+                          <span className="text-xs w-5 text-center">{SHAPE_BUTTONS.find(b => b.kind === shape.kind)?.icon ?? "□"}</span>
+                          <span className="text-xs flex-1 truncate font-medium">{shape.label}</span>
+                          {shape.locked && <span title="Locked" style={{ fontSize: 10 }}>🔒</span>}
+                          <button
+                            onClick={e => {
+                              e.stopPropagation();
+                              if (!activeVenue?.layout) return;
+                              const newShapes = layoutShapes.filter(s => s.id !== shape.id);
+                              onUpdateLayout(activeVenue.id, { ...activeVenue.layout, shapes: newShapes });
+                              if (selectedShapeId === shape.id) setSelectedShapeId(null);
+                            }}
+                            style={{ fontSize: 12, color: "var(--danger)", background: "none", border: "none", cursor: "pointer", lineHeight: 1, padding: 2 }}
+                            title="Remove shape">✕</button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* Fixtures Palette */}
@@ -1070,120 +1163,99 @@ export default function ChartCanvas({
 
             {/* Tables */}
             <div style={{ transform: `translate(${offset.x}px,${offset.y}px) scale(${scale})`, transformOrigin: "0 0", position: "absolute", top: 0, left: 0 }}>
-              {/* Room Layout Layer */}
-              {activeVenue?.layout && (() => {
-                const layout = activeVenue.layout;
-                const ox = roomOffsetX, oy = roomOffsetY, sx = roomScaleX, sy = roomScaleY;
-                // Bounding box in unscaled room coordinate space
-                const isOval = layout.templateKind === "oval";
-                const BBX = isOval ? 100 : 100;
-                const BBY = isOval ? 100 : 100;
-                const BBW = isOval ? 800 : 800;
-                const BBH = isOval ? 600 : 600;
-                // Screen-space bounding box (in SVG coords = canvas space)
-                const bx = ox + BBX * sx;
-                const by = oy + BBY * sy;
-                const bw = BBW * sx;
-                const bh = BBH * sy;
-                const midX = bx + bw / 2, midY = by + bh / 2;
-                const handles: { id: string; cx: number; cy: number; cursor: string }[] = [
-                  { id: "nw", cx: bx,      cy: by,      cursor: "nwse-resize" },
-                  { id: "n",  cx: midX,    cy: by,      cursor: "ns-resize"   },
-                  { id: "ne", cx: bx + bw, cy: by,      cursor: "nesw-resize" },
-                  { id: "e",  cx: bx + bw, cy: midY,    cursor: "ew-resize"   },
-                  { id: "se", cx: bx + bw, cy: by + bh, cursor: "nwse-resize" },
-                  { id: "s",  cx: midX,    cy: by + bh, cursor: "ns-resize"   },
-                  { id: "sw", cx: bx,      cy: by + bh, cursor: "nesw-resize" },
-                  { id: "w",  cx: bx,      cy: midY,    cursor: "ew-resize"   },
-                ];
-                return (
-                  <svg style={{ position: "absolute", top: 0, left: 0, overflow: "visible", pointerEvents: "none" }}>
-                    {/* Room shape wrapped in transform group */}
-                    <g
-                      transform={`translate(${ox},${oy})`}
-                      style={{ pointerEvents: "all", cursor: layout.roomLocked ? "not-allowed" : roomSelected ? "move" : "pointer" }}
-                      onPointerDown={e => {
-                        e.stopPropagation();
-                        setRoomSelected(true);
-                        if (layout.roomLocked) return;
-                        setDraggingRoom({ startClientX: e.clientX, startClientY: e.clientY, startOffX: ox, startOffY: oy });
-                        (e.currentTarget as SVGGElement).setPointerCapture(e.pointerId);
-                      }}
-                    >
-                    <g transform={`rotate(${layout.roomRotation ?? 0}, ${500 * sx}, ${400 * sy})`}>
-                    <g transform={`scale(${sx},${sy})`}>
-                      {layout.roomPath && layout.templateKind !== "oval" && layout.templateKind !== "rectangle" && (
-                        <path d={layout.roomPath}
-                          fill={layout.roomFillColor ?? cs.surface}
-                          fillOpacity={layout.roomFillOpacity ?? (darkMode ? 0.15 : 0.9)}
-                          stroke={layout.roomBorderColor ?? cs.border}
-                          strokeWidth={(layout.roomBorderWidth ?? 3) / Math.min(sx, sy)}
-                          strokeDasharray={
-                            (layout.roomBorderStyle ?? "dashed") === "solid" ? undefined
-                            : (layout.roomBorderStyle === "dotted") ? `${2 / Math.min(sx,sy)} ${4 / Math.min(sx,sy)}`
-                            : `${8 / Math.min(sx, sy)} ${4 / Math.min(sx, sy)}`
-                          }
-                        />
-                      )}
-                      {layout.templateKind === "rectangle" && (
-                        <rect x={100} y={100} width={800} height={600}
-                          rx={(layout.roomCornerRadius ?? 0) / Math.min(sx, sy)}
-                          fill={layout.roomFillColor ?? cs.surface}
-                          fillOpacity={layout.roomFillOpacity ?? (darkMode ? 0.15 : 0.9)}
-                          stroke={layout.roomBorderColor ?? cs.border}
-                          strokeWidth={(layout.roomBorderWidth ?? 3) / Math.min(sx, sy)}
-                          strokeDasharray={
-                            (layout.roomBorderStyle ?? "dashed") === "solid" ? undefined
-                            : (layout.roomBorderStyle === "dotted") ? `${2 / Math.min(sx,sy)} ${4 / Math.min(sx,sy)}`
-                            : `${8 / Math.min(sx, sy)} ${4 / Math.min(sx, sy)}`
-                          }
-                        />
-                      )}
-                      {isOval && (
-                        <ellipse cx={500} cy={400} rx={400} ry={300}
-                          fill={layout.roomFillColor ?? cs.surface}
-                          fillOpacity={layout.roomFillOpacity ?? (darkMode ? 0.15 : 0.9)}
-                          stroke={layout.roomBorderColor ?? cs.border}
-                          strokeWidth={(layout.roomBorderWidth ?? 3) / Math.min(sx, sy)}
-                          strokeDasharray={
-                            (layout.roomBorderStyle ?? "dashed") === "solid" ? undefined
-                            : (layout.roomBorderStyle === "dotted") ? `${2 / Math.min(sx,sy)} ${4 / Math.min(sx,sy)}`
-                            : `${8 / Math.min(sx, sy)} ${4 / Math.min(sx, sy)}`
-                          }
-                        />
-                      )}
+              {/* Room Layout Layer — renders all VenueShapes */}
+              <svg style={{ position: "absolute", top: 0, left: 0, overflow: "visible", pointerEvents: "none" }}>
+                {layoutShapes.map(shape => {
+                  const isSel = selectedShapeId === shape.id;
+                  const isWall = isWallKind(shape.kind);
+                  const BASE_W = isWall ? getWallBaseW(shape.kind) : 800;
+                  const BASE_H = isWall ? getWallBaseH(shape.kind) : 600;
+                  const sx = shape.scaleX, sy = shape.scaleY;
+                  const cx = BASE_W / 2, cy = BASE_H / 2;
+
+                  // Shape SVG content (in 0,0 coordinate space before scale/rotate)
+                  const defaultFill = isWall ? "transparent" : (darkMode ? cs.surface : cs.surface);
+                  const defaultFillOp = isWall ? 0 : (darkMode ? 0.15 : 0.9);
+                  const fill = shape.fillColor ?? defaultFill;
+                  const fillOp = shape.fillOpacity ?? defaultFillOp;
+                  const stroke = shape.borderColor ?? cs.border;
+                  const strokeW = (shape.borderWidth ?? (isWall ? 3 : 3)) / Math.min(sx, sy);
+                  const strokeDash = (shape.borderStyle ?? "dashed") === "solid" ? undefined
+                    : (shape.borderStyle === "dotted") ? `${2/Math.min(sx,sy)} ${4/Math.min(sx,sy)}`
+                    : `${8/Math.min(sx,sy)} ${4/Math.min(sx,sy)}`;
+
+                  const shapeEl = shape.kind === "oval"
+                    ? <ellipse cx={400} cy={300} rx={400} ry={300} fill={fill} fillOpacity={fillOp} stroke={stroke} strokeWidth={strokeW} strokeDasharray={strokeDash}/>
+                    : shape.kind === "rectangle"
+                    ? <rect x={0} y={0} width={800} height={600} rx={(shape.cornerRadius ?? 0)/Math.min(sx,sy)} fill={fill} fillOpacity={fillOp} stroke={stroke} strokeWidth={strokeW} strokeDasharray={strokeDash}/>
+                    : shape.kind === "lshape"
+                    ? <path d="M 0 0 L 450 0 L 450 250 L 800 250 L 800 600 L 0 600 Z" fill={fill} fillOpacity={fillOp} stroke={stroke} strokeWidth={strokeW} strokeDasharray={strokeDash}/>
+                    : shape.kind === "ushape"
+                    ? <path d="M 0 0 L 200 0 L 200 300 L 600 300 L 600 0 L 800 0 L 800 600 L 0 600 Z" fill={fill} fillOpacity={fillOp} stroke={stroke} strokeWidth={strokeW} strokeDasharray={strokeDash}/>
+                    : shape.kind === "marquee"
+                    ? <><rect x={0} y={0} width={800} height={600} fill={fill} fillOpacity={fillOp} stroke={stroke} strokeWidth={strokeW} strokeDasharray={strokeDash}/><path d="M 400 0 L 400 -40" stroke={stroke} strokeWidth={strokeW}/></>
+                    : isWall
+                    ? <rect x={0} y={0} width={BASE_W} height={BASE_H} fill={fill} fillOpacity={fillOp} stroke={stroke} strokeWidth={strokeW} strokeDasharray={strokeDash}/>
+                    : null;
+
+                  // Bounding box for handles
+                  const bx = shape.x, by = shape.y;
+                  const bw = BASE_W * sx, bh = BASE_H * sy;
+                  const midX = bx + bw/2, midY = by + bh/2;
+                  const handles: { id: string; cx: number; cy: number; cursor: string }[] = [
+                    { id: "nw", cx: bx,      cy: by,      cursor: "nwse-resize" },
+                    { id: "n",  cx: midX,    cy: by,      cursor: "ns-resize"   },
+                    { id: "ne", cx: bx + bw, cy: by,      cursor: "nesw-resize" },
+                    { id: "e",  cx: bx + bw, cy: midY,    cursor: "ew-resize"   },
+                    { id: "se", cx: bx + bw, cy: by + bh, cursor: "nwse-resize" },
+                    { id: "s",  cx: midX,    cy: by + bh, cursor: "ns-resize"   },
+                    { id: "sw", cx: bx,      cy: by + bh, cursor: "nesw-resize" },
+                    { id: "w",  cx: bx,      cy: midY,    cursor: "ew-resize"   },
+                  ];
+
+                  return (
+                    <g key={shape.id}>
+                      {/* Shape body — draggable */}
+                      <g
+                        transform={`translate(${shape.x},${shape.y})`}
+                        style={{ pointerEvents: "all", cursor: shape.locked ? "not-allowed" : isSel ? "move" : "pointer" }}
+                        onPointerDown={e => {
+                          e.stopPropagation();
+                          setSelectedShapeId(shape.id);
+                          if (shape.locked) return;
+                          setDraggingShapeId({ id: shape.id, startClientX: e.clientX, startClientY: e.clientY, startX: shape.x, startY: shape.y });
+                          (e.currentTarget as SVGGElement).setPointerCapture(e.pointerId);
+                        }}
+                      >
+                        <g transform={`rotate(${shape.rotation},${cx * sx},${cy * sy})`}>
+                          <g transform={`scale(${sx},${sy})`}>
+                            {shapeEl}
+                          </g>
+                        </g>
+                      </g>
+                      {/* Selection highlight + resize handles */}
+                      {isSel && (<>
+                        <rect x={bx} y={by} width={bw} height={bh}
+                          fill="none" stroke={cs.accent} strokeWidth={1.5} strokeDasharray="6 3"
+                          style={{ pointerEvents: "none" }}/>
+                        {handles.map(hd => (
+                          <rect key={hd.id}
+                            x={hd.cx - 5} y={hd.cy - 5} width={10} height={10} rx={2}
+                            fill={cs.surface} stroke={cs.accent} strokeWidth={1.5}
+                            style={{ cursor: hd.cursor, pointerEvents: "all" }}
+                            onPointerDown={e => {
+                              e.stopPropagation();
+                              (e.currentTarget as SVGRectElement).setPointerCapture(e.pointerId);
+                              setResizingShapeId({ id: shape.id, handle: hd.id, startClientX: e.clientX, startClientY: e.clientY, startX: shape.x, startY: shape.y, startSX: sx, startSY: sy });
+                            }}
+                          />
+                        ))}
+                      </>)}
                     </g>
-                    </g>
-                    </g>
-                    {/* Bounding box + handles when selected */}
-                    {roomSelected && layout.templateKind !== "blank" && (<>
-                      <rect
-                        x={bx} y={by} width={bw} height={bh}
-                        fill="none" stroke={cs.accent} strokeWidth={1.5} strokeDasharray="6 3"
-                        style={{ pointerEvents: "none" }}
-                      />
-                      {handles.map(hd => (
-                        <rect
-                          key={hd.id}
-                          x={hd.cx - 5} y={hd.cy - 5} width={10} height={10} rx={2}
-                          fill={cs.surface} stroke={cs.accent} strokeWidth={1.5}
-                          style={{ cursor: hd.cursor, pointerEvents: "all" }}
-                          onPointerDown={e => {
-                            e.stopPropagation();
-                            (e.currentTarget as SVGRectElement).setPointerCapture(e.pointerId);
-                            setResizingRoom({ handle: hd.id, startClientX: e.clientX, startClientY: e.clientY, startOffX: ox, startOffY: oy, startSX: sx, startSY: sy });
-                          }}
-                        />
-                      ))}
-                    </>)}
-                    {/* Hint when no room selected and a non-blank room exists */}
-                    {!roomSelected && layout.templateKind !== "blank" && (
-                      <text x={ox + BBX * sx} y={oy + BBY * sy - 8} fontSize={11} fill={cs.textMuted} style={{ pointerEvents: "none", userSelect: "none" }}>
-                        Click room to move/resize
-                      </text>
-                    )}
-                    {/* Fixtures */}
-                    {layout.fixtures.map(f => {
+                  );
+                })}
+                {/* Fixtures */}
+                {activeVenue?.layout?.fixtures.map(f => {
                     const preset = FIXTURE_PRESETS.find(p => p.kind === f.kind);
                     const emoji = f.emoji ?? preset?.emoji ?? "📦";
                     const isSel = selectedFixtureId === f.id;
@@ -1206,7 +1278,7 @@ export default function ChartCanvas({
                           </text>
                         </g>
                         {/* Resize handles — only when selected */}
-                        {isSel && ([["nw",0,0],["ne",f.w,0],["se",f.w,f.h],["sw",0,f.h]] as [string,number,number][]).map(([corner, hx, hy]) => (
+                        {isSel && (([["nw",0,0],["ne",f.w,0],["se",f.w,f.h],["sw",0,f.h]] as [string,number,number][]).map(([corner, hx, hy]) => (
                           <rect key={corner}
                             x={hx - HANDLE/2} y={hy - HANDLE/2}
                             width={HANDLE} height={HANDLE} rx={2}
@@ -1218,13 +1290,11 @@ export default function ChartCanvas({
                               setResizingFixture({ id: f.id, corner, startX: e.clientX, startY: e.clientY, startW: f.w, startH: f.h, startFX: f.x, startFY: f.y });
                             }}
                           />
-                        ))}
+                        )))}
                       </g>
                     );
                   })}
-                </svg>
-                );
-              })()}
+              </svg>
               {tables.map((table, tableIndex) => {
                 const tg = tableGuests(table.id);
                 const isFull    = tg.length >= table.capacity;
@@ -1323,17 +1393,12 @@ export default function ChartCanvas({
             )}
           </div>
 
-          {/* ── RIGHT PANEL — Room Properties ── */}
+          {/* ── RIGHT PANEL — Shape Properties ── */}
           {(() => {
-          const layout = activeVenue?.layout;
-          if (!layout || layout.templateKind === "blank") return null;
-          const sx = roomScaleX, sy = roomScaleY;
-          const displayW = Math.round(sx * 80);
-          const displayH = Math.round(sy * 60);
-          const area = displayW * displayH;
-          const isRectangle = layout.templateKind === "rectangle";
-          const updateLayout = (patch: Partial<import("@/lib/types").VenueLayout>) =>
-            onUpdateLayout(activeVenue.id, { ...layout, ...patch });
+          const shape = selectedShape;
+          if (!shape) return null;
+          const isWall = isWallKind(shape.kind);
+          const updateS = (p: Partial<import("@/lib/types").VenueShape>) => updateShape(shape.id, p);
           return (
             <div
               style={{
@@ -1345,7 +1410,7 @@ export default function ChartCanvas({
                 borderLeft: `1px solid ${cs.border}`,
                 display: "flex",
                 flexDirection: "column",
-                transform: roomSelected ? "translateX(0)" : "translateX(100%)",
+                transform: "translateX(0)",
                 transition: "transform 0.2s ease",
                 overflow: "hidden",
               }}
@@ -1353,16 +1418,18 @@ export default function ChartCanvas({
               {/* Header */}
               <div style={{ padding: "12px 14px 10px", borderBottom: `1px solid ${cs.border}`, flexShrink: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <span style={{ fontWeight: 700, fontSize: 13, color: cs.text }}>📐 Room</span>
-                  <button onClick={() => setRoomSelected(false)}
+                  <span style={{ fontWeight: 700, fontSize: 13, color: cs.text }}>
+                    {SHAPE_BUTTONS.find(b => b.kind === shape.kind)?.icon ?? "□"} {shape.label}
+                  </span>
+                  <button onClick={() => setSelectedShapeId(null)}
                     style={{ fontSize: 18, lineHeight: 1, color: cs.textMuted, background: "none", border: "none", cursor: "pointer" }}>×</button>
                 </div>
                 <input
                   type="text"
-                  defaultValue={layout.roomName ?? ""}
-                  placeholder="Room name…"
-                  onBlur={e => updateLayout({ roomName: e.target.value })}
-                  onKeyDown={e => { if (e.key === "Enter") updateLayout({ roomName: (e.target as HTMLInputElement).value }); }}
+                  defaultValue={shape.label}
+                  placeholder="Shape label…"
+                  onBlur={e => updateS({ label: e.target.value })}
+                  onKeyDown={e => { if (e.key === "Enter") updateS({ label: (e.target as HTMLInputElement).value }); }}
                   style={{
                     marginTop: 8, width: "100%", padding: "5px 8px",
                     borderRadius: 8, border: `1px solid ${cs.border}`,
@@ -1372,211 +1439,139 @@ export default function ChartCanvas({
                 />
               </div>
 
-              <div style={{ flex: 1, overflowY: "auto", padding: "10px 14px" }}>
-                {/* DIMENSIONS */}
-                <div style={{ marginBottom: 14 }}>
-                  <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: cs.accent, marginBottom: 8 }}>Dimensions</p>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <div style={{ flex: 1 }}>
-                      <label style={{ fontSize: 10, color: cs.textMuted, display: "block", marginBottom: 2 }}>W (ft)</label>
-                      <input type="number" min={10} max={1000} value={displayW}
-                        onChange={e => {
-                          const v = +e.target.value;
-                          const newSX = v / 80;
-                          if (roomAspectLock) {
-                            const ratio = sy / sx;
-                            updateLayout({ roomScaleX: newSX, roomScaleY: newSX * ratio });
-                          } else {
-                            updateLayout({ roomScaleX: newSX });
-                          }
-                        }}
-                        style={{ width: "100%", padding: "4px 6px", borderRadius: 7, border: `1px solid ${cs.border}`, background: cs.surface2, color: cs.text, fontSize: 12, boxSizing: "border-box" }}
-                      />
+              <div style={{ flex: 1, overflowY: "auto", padding: "12px 14px", display: "flex", flexDirection: "column", gap: 16 }}>
+
+                {/* Position */}
+                <div>
+                  <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: cs.accent, marginBottom: 8 }}>Position</p>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    <div>
+                      <label style={{ fontSize: 10, color: cs.textMuted, display: "block", marginBottom: 3 }}>X</label>
+                      <input type="number" value={Math.round(shape.x)} step={10}
+                        onChange={e => updateS({ x: +e.target.value })}
+                        style={{ width: "100%", padding: "4px 6px", borderRadius: 6, border: `1px solid ${cs.border}`, background: cs.surface2, color: cs.text, fontSize: 12, boxSizing: "border-box" }}/>
                     </div>
-                    <button
-                      onClick={() => setRoomAspectLock(l => !l)}
-                      title={roomAspectLock ? "Unlock aspect ratio" : "Lock aspect ratio"}
-                      style={{
-                        marginTop: 14, padding: "4px 5px", borderRadius: 7, fontSize: 13, cursor: "pointer",
-                        border: `1px solid ${roomAspectLock ? cs.accent : cs.border}`,
-                        background: roomAspectLock ? cs.accentBg : cs.surface2,
-                        color: roomAspectLock ? cs.accent : cs.textMuted,
-                      }}>🔗</button>
-                    <div style={{ flex: 1 }}>
-                      <label style={{ fontSize: 10, color: cs.textMuted, display: "block", marginBottom: 2 }}>H (ft)</label>
-                      <input type="number" min={10} max={1000} value={displayH}
-                        onChange={e => {
-                          const v = +e.target.value;
-                          const newSY = v / 60;
-                          if (roomAspectLock) {
-                            const ratio = sx / sy;
-                            updateLayout({ roomScaleY: newSY, roomScaleX: newSY * ratio });
-                          } else {
-                            updateLayout({ roomScaleY: newSY });
-                          }
-                        }}
-                        style={{ width: "100%", padding: "4px 6px", borderRadius: 7, border: `1px solid ${cs.border}`, background: cs.surface2, color: cs.text, fontSize: 12, boxSizing: "border-box" }}
-                      />
+                    <div>
+                      <label style={{ fontSize: 10, color: cs.textMuted, display: "block", marginBottom: 3 }}>Y</label>
+                      <input type="number" value={Math.round(shape.y)} step={10}
+                        onChange={e => updateS({ y: +e.target.value })}
+                        style={{ width: "100%", padding: "4px 6px", borderRadius: 6, border: `1px solid ${cs.border}`, background: cs.surface2, color: cs.text, fontSize: 12, boxSizing: "border-box" }}/>
                     </div>
-                  </div>
-                  <div style={{ marginTop: 8 }}>
-                    <label style={{ fontSize: 10, color: cs.textMuted, display: "block", marginBottom: 2 }}>Rotation °</label>
-                    <input type="number" min={0} max={360} value={layout.roomRotation ?? 0}
-                      onChange={e => updateLayout({ roomRotation: +e.target.value })}
-                      style={{ width: "100%", padding: "4px 6px", borderRadius: 7, border: `1px solid ${cs.border}`, background: cs.surface2, color: cs.text, fontSize: 12, boxSizing: "border-box" }}
-                    />
                   </div>
                 </div>
 
-                {/* POSITION (collapsible) */}
-                <div style={{ marginBottom: 14 }}>
-                  <button
-                    onClick={() => setRoomPosOpen(o => !o)}
-                    style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: cs.accent, background: "none", border: "none", cursor: "pointer", padding: 0, marginBottom: roomPosOpen ? 8 : 0 }}>
-                    <span style={{ transition: "transform 0.15s", display: "inline-block", transform: roomPosOpen ? "rotate(90deg)" : "rotate(0deg)" }}>▶</span>
-                    &nbsp;Position
-                  </button>
-                  {roomPosOpen && (
-                    <div style={{ display: "flex", gap: 8 }}>
+                {/* Scale */}
+                <div>
+                  <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: cs.accent, marginBottom: 8 }}>Size (scale)</p>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    <div>
+                      <label style={{ fontSize: 10, color: cs.textMuted, display: "block", marginBottom: 3 }}>Width ×</label>
+                      <input type="number" value={shape.scaleX.toFixed(2)} step={0.05} min={0.05}
+                        onChange={e => updateS({ scaleX: Math.max(0.05, +e.target.value) })}
+                        style={{ width: "100%", padding: "4px 6px", borderRadius: 6, border: `1px solid ${cs.border}`, background: cs.surface2, color: cs.text, fontSize: 12, boxSizing: "border-box" }}/>
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 10, color: cs.textMuted, display: "block", marginBottom: 3 }}>Height ×</label>
+                      <input type="number" value={shape.scaleY.toFixed(2)} step={0.05} min={0.05}
+                        onChange={e => updateS({ scaleY: Math.max(0.05, +e.target.value) })}
+                        style={{ width: "100%", padding: "4px 6px", borderRadius: 6, border: `1px solid ${cs.border}`, background: cs.surface2, color: cs.text, fontSize: 12, boxSizing: "border-box" }}/>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Rotation */}
+                <div>
+                  <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: cs.accent, marginBottom: 8 }}>Rotation</p>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <input type="range" min={0} max={360} step={1} value={shape.rotation}
+                      onChange={e => updateS({ rotation: +e.target.value })}
+                      style={{ flex: 1 }}/>
+                    <span style={{ fontSize: 12, color: cs.text, width: 36, textAlign: "right" }}>{shape.rotation}°</span>
+                  </div>
+                </div>
+
+                {/* Fill (not for walls) */}
+                {!isWall && (
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: cs.accent, marginBottom: 8 }}>Fill</p>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <input type="color" value={shape.fillColor ?? cs.surface}
+                        onChange={e => updateS({ fillColor: e.target.value })}
+                        style={{ width: 32, height: 32, borderRadius: 6, border: `1px solid ${cs.border}`, cursor: "pointer", padding: 2 }}/>
                       <div style={{ flex: 1 }}>
-                        <label style={{ fontSize: 10, color: cs.textMuted, display: "block", marginBottom: 2 }}>X</label>
-                        <input type="number" value={Math.round(roomOffsetX)}
-                          onChange={e => updateLayout({ roomOffsetX: +e.target.value })}
-                          style={{ width: "100%", padding: "4px 6px", borderRadius: 7, border: `1px solid ${cs.border}`, background: cs.surface2, color: cs.text, fontSize: 12, boxSizing: "border-box" }}
-                        />
+                        <label style={{ fontSize: 10, color: cs.textMuted, display: "block", marginBottom: 3 }}>Opacity</label>
+                        <input type="range" min={0} max={1} step={0.05} value={shape.fillOpacity ?? 0.9}
+                          onChange={e => updateS({ fillOpacity: +e.target.value })}
+                          style={{ width: "100%" }}/>
                       </div>
-                      <div style={{ flex: 1 }}>
-                        <label style={{ fontSize: 10, color: cs.textMuted, display: "block", marginBottom: 2 }}>Y</label>
-                        <input type="number" value={Math.round(roomOffsetY)}
-                          onChange={e => updateLayout({ roomOffsetY: +e.target.value })}
-                          style={{ width: "100%", padding: "4px 6px", borderRadius: 7, border: `1px solid ${cs.border}`, background: cs.surface2, color: cs.text, fontSize: 12, boxSizing: "border-box" }}
-                        />
-                      </div>
+                      <span style={{ fontSize: 11, color: cs.text, width: 28, textAlign: "right" }}>{Math.round((shape.fillOpacity ?? 0.9)*100)}%</span>
                     </div>
-                  )}
+                  </div>
+                )}
+
+                {/* Border */}
+                <div>
+                  <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: cs.accent, marginBottom: 8 }}>Border</p>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
+                    <input type="color" value={shape.borderColor ?? cs.border}
+                      onChange={e => updateS({ borderColor: e.target.value })}
+                      style={{ width: 32, height: 32, borderRadius: 6, border: `1px solid ${cs.border}`, cursor: "pointer", padding: 2 }}/>
+                    <div style={{ flex: 1 }}>
+                      <label style={{ fontSize: 10, color: cs.textMuted, display: "block", marginBottom: 3 }}>Width</label>
+                      <input type="range" min={1} max={12} step={0.5} value={shape.borderWidth ?? 3}
+                        onChange={e => updateS({ borderWidth: +e.target.value })}
+                        style={{ width: "100%" }}/>
+                    </div>
+                    <span style={{ fontSize: 11, color: cs.text, width: 20 }}>{shape.borderWidth ?? 3}px</span>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+                    {(["solid","dashed","dotted"] as const).map(s => (
+                      <button key={s} onClick={() => updateS({ borderStyle: s })}
+                        style={{
+                          padding: "4px 2px", borderRadius: 6, fontSize: 11, cursor: "pointer",
+                          border: `1.5px solid ${(shape.borderStyle ?? "dashed") === s ? cs.accent : cs.border}`,
+                          background: (shape.borderStyle ?? "dashed") === s ? cs.accentBg : "transparent",
+                          color: (shape.borderStyle ?? "dashed") === s ? cs.accent : cs.textMuted,
+                        }}>{s}</button>
+                    ))}
+                  </div>
                 </div>
 
-                {/* STYLE */}
-                <div style={{ marginBottom: 14 }}>
-                  <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: cs.accent, marginBottom: 8 }}>Style</p>
-
-                  {/* Fill color */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                    <label style={{ fontSize: 11, color: cs.textMuted, flex: 1 }}>Fill</label>
-                    <div style={{ position: "relative", width: 28, height: 28 }}>
-                      <div style={{ width: 28, height: 28, borderRadius: 6, background: layout.roomFillColor ?? cs.surface, border: `1px solid ${cs.border}`, cursor: "pointer" }}
-                        onClick={() => (document.getElementById("room-fill-color") as HTMLInputElement)?.click()} />
-                      <input id="room-fill-color" type="color"
-                        value={layout.roomFillColor ?? "#ffffff"}
-                        onChange={e => updateLayout({ roomFillColor: e.target.value })}
-                        style={{ position: "absolute", inset: 0, opacity: 0, width: "100%", height: "100%", cursor: "pointer" }} />
+                {/* Corner radius for rectangle */}
+                {shape.kind === "rectangle" && (
+                  <div>
+                    <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: cs.accent, marginBottom: 8 }}>Corner Radius</p>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <input type="range" min={0} max={100} step={2} value={shape.cornerRadius ?? 0}
+                        onChange={e => updateS({ cornerRadius: +e.target.value })}
+                        style={{ flex: 1 }}/>
+                      <span style={{ fontSize: 11, color: cs.text, width: 28, textAlign: "right" }}>{shape.cornerRadius ?? 0}px</span>
                     </div>
                   </div>
+                )}
 
-                  {/* Fill opacity */}
-                  <div style={{ marginBottom: 8 }}>
-                    <label style={{ fontSize: 10, color: cs.textMuted, display: "block", marginBottom: 4 }}>Fill opacity</label>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                      <input type="range" min={0} max={100} value={Math.round((layout.roomFillOpacity ?? (darkMode ? 0.15 : 0.9)) * 100)}
-                        onChange={e => updateLayout({ roomFillOpacity: +e.target.value / 100 })}
-                        style={{ flex: 1 }} />
-                      <input type="number" min={0} max={100} value={Math.round((layout.roomFillOpacity ?? (darkMode ? 0.15 : 0.9)) * 100)}
-                        onChange={e => updateLayout({ roomFillOpacity: Math.min(100, Math.max(0, +e.target.value)) / 100 })}
-                        style={{ width: 44, padding: "3px 5px", borderRadius: 6, border: `1px solid ${cs.border}`, background: cs.surface2, color: cs.text, fontSize: 11 }} />
-                      <span style={{ fontSize: 10, color: cs.textMuted }}>%</span>
-                    </div>
-                  </div>
-
-                  {/* Border color */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                    <label style={{ fontSize: 11, color: cs.textMuted, flex: 1 }}>Border</label>
-                    <div style={{ position: "relative", width: 28, height: 28 }}>
-                      <div style={{ width: 28, height: 28, borderRadius: 6, background: layout.roomBorderColor ?? cs.border, border: `1px solid ${cs.border}`, cursor: "pointer" }}
-                        onClick={() => (document.getElementById("room-border-color") as HTMLInputElement)?.click()} />
-                      <input id="room-border-color" type="color"
-                        value={layout.roomBorderColor ?? "#888888"}
-                        onChange={e => updateLayout({ roomBorderColor: e.target.value })}
-                        style={{ position: "absolute", inset: 0, opacity: 0, width: "100%", height: "100%", cursor: "pointer" }} />
-                    </div>
-                  </div>
-
-                  {/* Border width */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                    <label style={{ fontSize: 11, color: cs.textMuted, flex: 1 }}>Width (px)</label>
-                    <input type="number" min={1} max={8} value={layout.roomBorderWidth ?? 2}
-                      onChange={e => updateLayout({ roomBorderWidth: Math.min(8, Math.max(1, +e.target.value)) })}
-                      style={{ width: 50, padding: "3px 5px", borderRadius: 6, border: `1px solid ${cs.border}`, background: cs.surface2, color: cs.text, fontSize: 11 }} />
-                  </div>
-
-                  {/* Border style */}
-                  <div style={{ marginBottom: 8 }}>
-                    <label style={{ fontSize: 10, color: cs.textMuted, display: "block", marginBottom: 4 }}>Border style</label>
-                    <div style={{ display: "flex", gap: 4 }}>
-                      {(["solid","dashed","dotted"] as const).map(s => (
-                        <button key={s} onClick={() => updateLayout({ roomBorderStyle: s })}
-                          style={{
-                            flex: 1, padding: "4px 2px", fontSize: 10, borderRadius: 7, cursor: "pointer",
-                            border: `1px solid ${(layout.roomBorderStyle ?? "dashed") === s ? cs.accent : cs.border}`,
-                            background: (layout.roomBorderStyle ?? "dashed") === s ? cs.accentBg : cs.surface2,
-                            color: (layout.roomBorderStyle ?? "dashed") === s ? cs.accent : cs.textMuted,
-                            textTransform: "capitalize",
-                          }}>
-                          {s}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Corner radius — rectangle only */}
-                  {isRectangle && (
-                    <div style={{ marginBottom: 4 }}>
-                      <label style={{ fontSize: 10, color: cs.textMuted, display: "block", marginBottom: 4 }}>Corner radius</label>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <input type="range" min={0} max={80} value={layout.roomCornerRadius ?? 0}
-                          onChange={e => updateLayout({ roomCornerRadius: +e.target.value })}
-                          style={{ flex: 1 }} />
-                        <input type="number" min={0} max={80} value={layout.roomCornerRadius ?? 0}
-                          onChange={e => updateLayout({ roomCornerRadius: Math.min(80, Math.max(0, +e.target.value)) })}
-                          style={{ width: 44, padding: "3px 5px", borderRadius: 6, border: `1px solid ${cs.border}`, background: cs.surface2, color: cs.text, fontSize: 11 }} />
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* INFO */}
-                <div style={{ marginBottom: 14, padding: "8px 10px", borderRadius: 8, background: cs.surface2, border: `1px solid ${cs.border}` }}>
-                  <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: cs.accent, marginBottom: 4 }}>Info</p>
-                  <p style={{ fontSize: 12, color: cs.textMuted }}>
-                    Area:{" "}
-                    <span style={{ color: cs.text, fontWeight: 600 }}>{area.toLocaleString()} sq ft</span>
-                    <span style={{ color: cs.textMuted, fontWeight: 400 }}> ({Math.round(area * 0.0929).toLocaleString()} m²)</span>
-                  </p>
-                  <p style={{ fontSize: 11, color: cs.textMuted, marginTop: 2 }}>
-                    <strong>{displayW} ft</strong> <span style={{ color: cs.textMuted }}>({(displayW * 0.3048).toFixed(1)} m)</span>
-                    {" × "}
-                    <strong>{displayH} ft</strong> <span style={{ color: cs.textMuted }}>({(displayH * 0.3048).toFixed(1)} m)</span>
-                  </p>
-                </div>
               </div>
 
               {/* Footer actions */}
-              <div style={{ padding: "10px 14px 14px", borderTop: `1px solid ${cs.border}`, flexShrink: 0, display: "flex", gap: 8 }}>
+              <div style={{ padding: "10px 14px", borderTop: `1px solid ${cs.border}`, display: "flex", gap: 8 }}>
                 <button
-                  onClick={() => updateLayout({ roomLocked: !layout.roomLocked })}
+                  onClick={() => updateS({ locked: !shape.locked })}
                   style={{
                     flex: 1, padding: "7px 4px", borderRadius: 9, fontSize: 12, cursor: "pointer",
-                    border: `1px solid ${layout.roomLocked ? cs.accent : cs.border}`,
-                    background: layout.roomLocked ? cs.accentBg : cs.surface2,
-                    color: layout.roomLocked ? cs.accent : cs.textMuted,
+                    border: `1px solid ${shape.locked ? cs.accent : cs.border}`,
+                    background: shape.locked ? cs.accentBg : "transparent",
+                    color: shape.locked ? cs.accent : cs.textMuted,
                     fontWeight: 600,
                   }}>
-                  {layout.roomLocked ? "🔒 Locked" : "🔓 Lock"}
+                  {shape.locked ? "🔒 Locked" : "🔓 Lock"}
                 </button>
                 <button
                   onClick={() => {
-                    if (confirm("Remove room shape? Fixtures will be kept.")) {
-                      onUpdateLayout(activeVenue.id, { ...layout, templateKind: "blank", roomPath: null });
-                      setRoomSelected(false);
+                    if (confirm("Remove this shape?")) {
+                      if (!activeVenue?.layout) return;
+                      const newShapes = layoutShapes.filter(s => s.id !== shape.id);
+                      onUpdateLayout(activeVenue.id, { ...activeVenue.layout, shapes: newShapes });
+                      setSelectedShapeId(null);
                     }
                   }}
                   style={{

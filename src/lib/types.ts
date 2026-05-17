@@ -112,10 +112,37 @@ export interface VenueFixture {
 
 export type RoomTemplateKind = 'blank' | 'rectangle' | 'lshape' | 'ushape' | 'oval' | 'marquee'
 
+export type VenueShapeKind =
+  | 'rectangle' | 'lshape' | 'ushape' | 'oval' | 'marquee'
+  | 'wall-h' | 'wall-v' | 'wall-diagonal'
+
+export interface VenueShape {
+  id: string
+  kind: VenueShapeKind
+  label: string
+  // position & transform
+  x: number
+  y: number
+  scaleX: number   // default 1
+  scaleY: number   // default 1
+  rotation: number // degrees, default 0
+  locked: boolean
+  // style
+  fillColor?: string
+  fillOpacity?: number  // 0–1
+  borderColor?: string
+  borderWidth?: number
+  borderStyle?: 'solid' | 'dashed' | 'dotted'
+  cornerRadius?: number
+}
+
 export interface VenueLayout {
   templateKind: RoomTemplateKind
   roomPath: string | null
   fixtures: VenueFixture[]
+  // Multi-shape support
+  shapes?: VenueShape[]
+  // Legacy single-shape fields (kept for backward compat)
   roomOffsetX?: number
   roomOffsetY?: number
   roomScaleX?: number
