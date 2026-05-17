@@ -60,6 +60,7 @@ create table if not exists public.venues (
   name              text not null default 'Main Venue',
   background_image  text,
   bg_opacity        numeric default 0.15,
+  layout            jsonb,
   sort_order        int default 0
 );
 alter table public.venues enable row level security;
