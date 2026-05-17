@@ -1552,6 +1552,37 @@ export default function ChartCanvas({
 
               </div>
 
+              {/* INFO — dimensions + area in both units */}
+              {(() => {
+                const BASE_W = 800, BASE_H = 600; // SVG base units for a full room shape
+                const isWall = shape.kind.startsWith("wall");
+                const wallW = shape.kind === "wall-v" ? 20 : 400;
+                const wallH = shape.kind === "wall-v" ? 400 : 20;
+                const baseW = isWall ? wallW : BASE_W;
+                const baseH = isWall ? wallH : BASE_H;
+                const w_ft = Math.round((shape.scaleX ?? 1) * baseW / 10);
+                const h_ft = Math.round((shape.scaleY ?? 1) * baseH / 10);
+                const area_sqft = w_ft * h_ft;
+                const w_m = (w_ft * 0.3048).toFixed(1);
+                const h_m = (h_ft * 0.3048).toFixed(1);
+                const area_m2 = Math.round(area_sqft * 0.0929);
+                return (
+                  <div style={{ padding: "10px 14px", borderTop: `1px solid ${cs.border}` }}>
+                    <p style={{ fontSize: 9, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: cs.accent, marginBottom: 6 }}>INFO</p>
+                    <p style={{ fontSize: 11, color: cs.textMuted, lineHeight: 1.7 }}>
+                      <span style={{ color: cs.text, fontWeight: 600 }}>{w_ft} ft</span> <span style={{ color: cs.textMuted }}>({w_m} m)</span>
+                      {" × "}
+                      <span style={{ color: cs.text, fontWeight: 600 }}>{h_ft} ft</span> <span style={{ color: cs.textMuted }}>({h_m} m)</span>
+                    </p>
+                    {!isWall && (
+                      <p style={{ fontSize: 11, color: cs.textMuted }}>
+                        Area: <span style={{ color: cs.text, fontWeight: 600 }}>{area_sqft.toLocaleString()} sq ft</span> <span style={{ color: cs.textMuted }}>({area_m2} m²)</span>
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
+
               {/* Footer actions */}
               <div style={{ padding: "10px 14px", borderTop: `1px solid ${cs.border}`, display: "flex", gap: 8 }}>
                 <button
