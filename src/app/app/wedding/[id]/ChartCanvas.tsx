@@ -87,6 +87,17 @@ export default function ChartCanvas({
   const [customFixLabel, setCustomFixLabel]     = useState("");
   const [customFixEmoji, setCustomFixEmoji]     = useState("🎪");
 
+  // Room drag/resize state
+  const [roomSelected, setRoomSelected]         = useState(false);
+  const [draggingRoom, setDraggingRoom]         = useState<{ startClientX: number; startClientY: number; startOffX: number; startOffY: number } | null>(null);
+  const [resizingRoom, setResizingRoom]         = useState<{ handle: string; startClientX: number; startClientY: number; startOffX: number; startOffY: number; startSX: number; startSY: number } | null>(null);
+
+  // Derived room transform values from layout
+  const roomOffsetX = activeVenue?.layout?.roomOffsetX ?? 0;
+  const roomOffsetY = activeVenue?.layout?.roomOffsetY ?? 0;
+  const roomScaleX  = activeVenue?.layout?.roomScaleX  ?? 1;
+  const roomScaleY  = activeVenue?.layout?.roomScaleY  ?? 1;
+
   const FIXTURE_PRESETS: { kind: import("@/lib/types").FixtureKind; emoji: string; label: string; w: number; h: number; color: string }[] = [
     { kind: "stage",       emoji: "🎭", label: "Stage",       w: 200, h: 80,  color: "#7c3aed" },
     { kind: "dancefloor",  emoji: "💃", label: "Dance Floor", w: 180, h: 180, color: "#2563eb" },
@@ -228,6 +239,7 @@ export default function ChartCanvas({
   const onPointerDownCanvas = useCallback((e: React.PointerEvent) => {
     if ((e.target as HTMLElement).closest("[data-table]")) return;
     setCtxMenu(null);
+    setRoomSelected(false);
     setPanning(true);
     setPanStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
@@ -267,9 +279,53 @@ export default function ChartCanvas({
       );
       onUpdateLayout(activeVenue.id, { ...activeVenue.layout, fixtures: updated });
     }
-  }, [panning, panStart, dragging, draggingFixture, resizingFixture, offset, scale, snapEnabled, onUpdateTable, activeVenue, onUpdateLayout]);
+    if (draggingRoom && activeVenue?.layout) {
+      const dx = (e.clientX - draggingRoom.startClientX) / scale;
+      const dy = (e.clientY - draggingRoom.startClientY) / scale;
+      const newOffX = draggingRoom.startOffX + dx;
+      const newOffY = draggingRoom.startOffY + dy;
+      onUpdateLayout(activeVenue.id, { ...activeVenue.layout, roomOffsetX: newOffX, roomOffsetY: newOffY });
+    }
+    if (resizingRoom && activeVenue?.layout) {
+      const dx = (e.clientX - resizingRoom.startClientX) / scale;
+      const dy = (e.clientY - resizingRoom.startClientY) / scale;
+      const MIN_SCALE = 0.1;
+      let nSX = resizingRoom.startSX;
+      let nSY = resizingRoom.startSY;
+      let nOX = resizingRoom.startOffX;
+      let nOY = resizingRoom.startOffY;
+      // Bounding box of unscaled shape (approx based on template)
+      const BASE_W = activeVenue.layout.templateKind === "oval" ? 800 : 800;
+      const BASE_H = activeVenue.layout.templateKind === "oval" ? 600 : 600;
+      const h = resizingRoom.handle;
+      if (h === "e" || h === "se" || h === "ne") {
+        nSX = Math.max(MIN_SCALE, resizingRoom.startSX + dx / BASE_W);
+      }
+      if (h === "w" || h === "sw" || h === "nw") {
+        const dsx = dx / BASE_W;
+        nSX = Math.max(MIN_SCALE, resizingRoom.startSX - dsx);
+        nOX = resizingRoom.startOffX + dsx * BASE_W * resizingRoom.startSX;
+      }
+      if (h === "s" || h === "se" || h === "sw") {
+        nSY = Math.max(MIN_SCALE, resizingRoom.startSY + dy / BASE_H);
+      }
+      if (h === "n" || h === "ne" || h === "nw") {
+        const dsy = dy / BASE_H;
+        nSY = Math.max(MIN_SCALE, resizingRoom.startSY - dsy);
+        nOY = resizingRoom.startOffY + dsy * BASE_H * resizingRoom.startSY;
+      }
+      onUpdateLayout(activeVenue.id, { ...activeVenue.layout, roomScaleX: nSX, roomScaleY: nSY, roomOffsetX: nOX, roomOffsetY: nOY });
+    }
+  }, [panning, panStart, dragging, draggingFixture, resizingFixture, draggingRoom, resizingRoom, offset, scale, snapEnabled, onUpdateTable, activeVenue, onUpdateLayout]);
 
-  const onPointerUpCanvas = useCallback(() => { setPanning(false); setDragging(null); setDraggingFixture(null); setResizingFixture(null); }, []);
+  const onPointerUpCanvas = useCallback(() => {
+    setPanning(false);
+    setDragging(null);
+    setDraggingFixture(null);
+    setResizingFixture(null);
+    setDraggingRoom(null);
+    setResizingRoom(null);
+  }, []);
 
   /* ── Wheel zoom ── */
   const onWheel = useCallback((e: WheelEvent) => {
@@ -1011,15 +1067,80 @@ export default function ChartCanvas({
             {/* Tables */}
             <div style={{ transform: `translate(${offset.x}px,${offset.y}px) scale(${scale})`, transformOrigin: "0 0", position: "absolute", top: 0, left: 0 }}>
               {/* Room Layout Layer */}
-              {activeVenue?.layout && (
-                <svg style={{ position: "absolute", top: 0, left: 0, overflow: "visible", pointerEvents: "none" }}>
-                  {activeVenue.layout.roomPath && activeVenue.layout.templateKind !== "oval" && (
-                    <path d={activeVenue.layout.roomPath} fill={cs.surface} fillOpacity={0.9} stroke={cs.border} strokeWidth={3} strokeDasharray="8 4" />
-                  )}
-                  {activeVenue.layout.templateKind === "oval" && (
-                    <ellipse cx={500} cy={400} rx={400} ry={300} fill={cs.surface} fillOpacity={0.9} stroke={cs.border} strokeWidth={3} strokeDasharray="8 4" />
-                  )}
-                  {activeVenue.layout.fixtures.map(f => {
+              {activeVenue?.layout && (() => {
+                const layout = activeVenue.layout;
+                const ox = roomOffsetX, oy = roomOffsetY, sx = roomScaleX, sy = roomScaleY;
+                // Bounding box in unscaled room coordinate space
+                const isOval = layout.templateKind === "oval";
+                const BBX = isOval ? 100 : 100;
+                const BBY = isOval ? 100 : 100;
+                const BBW = isOval ? 800 : 800;
+                const BBH = isOval ? 600 : 600;
+                // Screen-space bounding box (in SVG coords = canvas space)
+                const bx = ox + BBX * sx;
+                const by = oy + BBY * sy;
+                const bw = BBW * sx;
+                const bh = BBH * sy;
+                const midX = bx + bw / 2, midY = by + bh / 2;
+                const handles: { id: string; cx: number; cy: number; cursor: string }[] = [
+                  { id: "nw", cx: bx,      cy: by,      cursor: "nwse-resize" },
+                  { id: "n",  cx: midX,    cy: by,      cursor: "ns-resize"   },
+                  { id: "ne", cx: bx + bw, cy: by,      cursor: "nesw-resize" },
+                  { id: "e",  cx: bx + bw, cy: midY,    cursor: "ew-resize"   },
+                  { id: "se", cx: bx + bw, cy: by + bh, cursor: "nwse-resize" },
+                  { id: "s",  cx: midX,    cy: by + bh, cursor: "ns-resize"   },
+                  { id: "sw", cx: bx,      cy: by + bh, cursor: "nesw-resize" },
+                  { id: "w",  cx: bx,      cy: midY,    cursor: "ew-resize"   },
+                ];
+                return (
+                  <svg style={{ position: "absolute", top: 0, left: 0, overflow: "visible", pointerEvents: "none" }}>
+                    {/* Room shape wrapped in transform group */}
+                    <g
+                      transform={`translate(${ox},${oy}) scale(${sx},${sy})`}
+                      style={{ pointerEvents: "all", cursor: roomSelected ? "move" : "pointer" }}
+                      onPointerDown={e => {
+                        e.stopPropagation();
+                        setRoomSelected(true);
+                        setDraggingRoom({ startClientX: e.clientX, startClientY: e.clientY, startOffX: ox, startOffY: oy });
+                        (e.currentTarget as SVGGElement).setPointerCapture(e.pointerId);
+                      }}
+                    >
+                      {layout.roomPath && layout.templateKind !== "oval" && (
+                        <path d={layout.roomPath} fill={cs.surface} fillOpacity={0.9} stroke={cs.border} strokeWidth={3 / Math.min(sx, sy)} strokeDasharray={`${8 / Math.min(sx, sy)} ${4 / Math.min(sx, sy)}`} />
+                      )}
+                      {isOval && (
+                        <ellipse cx={500} cy={400} rx={400} ry={300} fill={cs.surface} fillOpacity={0.9} stroke={cs.border} strokeWidth={3 / Math.min(sx, sy)} strokeDasharray={`${8 / Math.min(sx, sy)} ${4 / Math.min(sx, sy)}`} />
+                      )}
+                    </g>
+                    {/* Bounding box + handles when selected */}
+                    {roomSelected && layout.templateKind !== "blank" && (<>
+                      <rect
+                        x={bx} y={by} width={bw} height={bh}
+                        fill="none" stroke={cs.accent} strokeWidth={1.5} strokeDasharray="6 3"
+                        style={{ pointerEvents: "none" }}
+                      />
+                      {handles.map(hd => (
+                        <rect
+                          key={hd.id}
+                          x={hd.cx - 5} y={hd.cy - 5} width={10} height={10} rx={2}
+                          fill={cs.surface} stroke={cs.accent} strokeWidth={1.5}
+                          style={{ cursor: hd.cursor, pointerEvents: "all" }}
+                          onPointerDown={e => {
+                            e.stopPropagation();
+                            (e.currentTarget as SVGRectElement).setPointerCapture(e.pointerId);
+                            setResizingRoom({ handle: hd.id, startClientX: e.clientX, startClientY: e.clientY, startOffX: ox, startOffY: oy, startSX: sx, startSY: sy });
+                          }}
+                        />
+                      ))}
+                    </>)}
+                    {/* Hint when no room selected and a non-blank room exists */}
+                    {!roomSelected && layout.templateKind !== "blank" && (
+                      <text x={ox + BBX * sx} y={oy + BBY * sy - 8} fontSize={11} fill={cs.textMuted} style={{ pointerEvents: "none", userSelect: "none" }}>
+                        Click room to move/resize
+                      </text>
+                    )}
+                    {/* Fixtures */}
+                    {layout.fixtures.map(f => {
                     const preset = FIXTURE_PRESETS.find(p => p.kind === f.kind);
                     const emoji = f.emoji ?? preset?.emoji ?? "📦";
                     const isSel = selectedFixtureId === f.id;
@@ -1059,7 +1180,8 @@ export default function ChartCanvas({
                     );
                   })}
                 </svg>
-              )}
+                );
+              })()}
               {tables.map((table, tableIndex) => {
                 const tg = tableGuests(table.id);
                 const isFull    = tg.length >= table.capacity;

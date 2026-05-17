@@ -116,6 +116,10 @@ export interface VenueLayout {
   templateKind: RoomTemplateKind
   roomPath: string | null
   fixtures: VenueFixture[]
+  roomOffsetX?: number
+  roomOffsetY?: number
+  roomScaleX?: number
+  roomScaleY?: number
 }
 
 // Plan limits
