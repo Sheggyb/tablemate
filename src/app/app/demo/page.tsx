@@ -58,7 +58,6 @@ export default function DemoPage() {
       initialTables={TABLES}
       initialGroups={GROUPS}
       initialRules={[]}
-      initialElements={[]}
       plan="pro"
       isDemo={true}
     />

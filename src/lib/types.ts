@@ -91,25 +91,6 @@ export interface Rule {
   type: RuleType
 }
 
-export type VenueElementKind =
-  | "stage" | "dancefloor" | "bar" | "dj" | "entrance" | "exit"
-  | "buffet" | "cake" | "gifts" | "photobooth" | "cloakroom"
-  | "toilet" | "sofa" | "plant" | "custom"
-
-export interface VenueElement {
-  id: string
-  venue_id: string
-  wedding_id: string
-  kind: VenueElementKind
-  label: string
-  x: number
-  y: number
-  w: number
-  h: number
-  rotation: number
-  color: string | null
-}
-
 // Plan limits
 export const PLAN_LIMITS: Record<Plan, { maxGuests: number; maxWeddings: number; features: string[] }> = {
   free:    { maxGuests: 50,        maxWeddings: 1,   features: ['basic-chart', 'csv-import'] },

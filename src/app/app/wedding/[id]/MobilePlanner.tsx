@@ -3,11 +3,11 @@
 import { useState, useCallback } from "react";
 import Link from "next/link";
 import type { Dispatch } from "react";
-import type { Wedding, Table, Guest, Group, Rule, Meal, Rsvp, VenueElement } from "@/lib/types";
+import type { Wedding, Table, Guest, Group, Rule, Meal, Rsvp } from "@/lib/types";
 import { createClient } from "@/lib/supabase/client";
 
 type PlannerAction =
-  | { type: "SET_ALL"; payload: { venues: any[]; guests: Guest[]; tables: Table[]; groups: Group[]; rules: Rule[]; elements: VenueElement[] } }
+  | { type: "SET_ALL"; payload: { venues: any[]; guests: Guest[]; tables: Table[]; groups: Group[]; rules: Rule[] } }
   | { type: "ADD_VENUE";    payload: any }
   | { type: "ADD_TABLE";    payload: Table }
   | { type: "UPDATE_TABLE"; id: string; data: Partial<Table> }
@@ -19,10 +19,7 @@ type PlannerAction =
   | { type: "ADD_RULE";     payload: Rule }
   | { type: "DELETE_RULE";  id: string }
   | { type: "BULK_UPDATE_GUESTS"; ids: string[]; data: Partial<Guest> }
-  | { type: "BULK_DELETE_GUESTS"; ids: string[] }
-  | { type: "ADD_ELEMENT";    payload: any }
-  | { type: "UPDATE_ELEMENT"; id: string; data: any }
-  | { type: "DELETE_ELEMENT"; id: string };
+  | { type: "BULK_DELETE_GUESTS"; ids: string[] };
 
 import MobileWishes from "./MobileWishes";
 

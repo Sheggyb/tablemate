@@ -4,7 +4,7 @@ import { useState, useCallback, useReducer, useEffect, useRef } from "react";
 import Link from "next/link";
 import QRCode from "qrcode";
 import { createClient } from "@/lib/supabase/client";
-import type { Wedding, Venue, Guest, Table, Group, Rule, Rsvp, Meal, VenueElement } from "@/lib/types";
+import type { Wedding, Venue, Guest, Table, Group, Rule, Rsvp, Meal } from "@/lib/types";
 import GuestPanel from "./GuestPanel";
 import ChartCanvas from "./ChartCanvas";
 import RulesPanel from "./RulesPanel";
@@ -16,24 +16,22 @@ import OverviewPanel from "./OverviewPanel";
 type Tab = "overview" | "chart" | "guests" | "rules" | "export" | "wishes";
 
 interface Props {
-  wedding:          Wedding;
-  initialVenues:    Venue[];
-  initialGuests:    Guest[];
-  initialTables:    Table[];
-  initialGroups:    Group[];
-  initialRules:     Rule[];
-  initialElements:  VenueElement[];
-  plan:             string;
-  isDemo?:          boolean;
+  wedding:       Wedding;
+  initialVenues: Venue[];
+  initialGuests: Guest[];
+  initialTables: Table[];
+  initialGroups: Group[];
+  initialRules:  Rule[];
+  plan:          string;
+  isDemo?:       boolean;
 }
 
 interface PlannerState {
-  venues:   Venue[];
-  guests:   Guest[];
-  tables:   Table[];
-  groups:   Group[];
-  rules:    Rule[];
-  elements: VenueElement[];
+  venues:  Venue[];
+  guests:  Guest[];
+  tables:  Table[];
+  groups:  Group[];
+  rules:   Rule[];
 }
 
 type PlannerAction =
@@ -50,10 +48,7 @@ type PlannerAction =
   | { type: "ADD_RULE";     payload: Rule }
   | { type: "DELETE_RULE";  id: string }
   | { type: "BULK_UPDATE_GUESTS"; ids: string[]; data: Partial<Guest> }
-  | { type: "BULK_DELETE_GUESTS"; ids: string[] }
-  | { type: "ADD_ELEMENT";    payload: VenueElement }
-  | { type: "UPDATE_ELEMENT"; id: string; data: Partial<VenueElement> }
-  | { type: "DELETE_ELEMENT"; id: string };
+  | { type: "BULK_DELETE_GUESTS"; ids: string[] };
 
 function reducer(state: PlannerState, action: PlannerAction): PlannerState {
   switch (action.type) {
@@ -81,9 +76,6 @@ function reducer(state: PlannerState, action: PlannerAction): PlannerState {
       ...state,
       guests: state.guests.filter(g => !action.ids.includes(g.id)),
     };
-    case "ADD_ELEMENT":    return { ...state, elements: [...state.elements, action.payload] };
-    case "UPDATE_ELEMENT": return { ...state, elements: state.elements.map(e => e.id === action.id ? { ...e, ...action.data } : e) };
-    case "DELETE_ELEMENT": return { ...state, elements: state.elements.filter(e => e.id !== action.id) };
     default: return state;
   }
 }
@@ -91,7 +83,7 @@ function reducer(state: PlannerState, action: PlannerAction): PlannerState {
 const MAX_UNDO = 30;
 
 export default function PlannerClient({
-  wedding, initialVenues, initialGuests, initialTables, initialGroups, initialRules, initialElements, plan, isDemo = false
+  wedding, initialVenues, initialGuests, initialTables, initialGroups, initialRules, plan, isDemo = false
 }: Props) {
   const supabase = createClient();
   const [isMobile, setIsMobile] = useState(false);
@@ -117,12 +109,11 @@ export default function PlannerClient({
   const skipHistory = useRef(false);
 
   const [state, dispatch] = useReducer(reducer, {
-    venues:   initialVenues,
-    guests:   initialGuests,
-    tables:   initialTables,
-    groups:   initialGroups,
-    rules:    initialRules,
-    elements: initialElements,
+    venues:  initialVenues,
+    guests:  initialGuests,
+    tables:  initialTables,
+    groups:  initialGroups,
+    rules:   initialRules,
   });
 
   // Push to undo history on every state change
@@ -369,22 +360,6 @@ export default function PlannerClient({
       await supabase.from("venues").delete().eq("id", id);
     }
   }, [supabase, isDemo, state.venues, activeVenueId, showToast]);
-
-  /* ── Venue elements ── */
-  const addElement = useCallback(async (el: VenueElement) => {
-    dispatch({ type: "ADD_ELEMENT", payload: el });
-    if (!isDemo) supabase.from("venue_elements").insert(el).then();
-  }, [supabase, isDemo]);
-
-  const updateElement = useCallback(async (id: string, data: Partial<VenueElement>) => {
-    dispatch({ type: "UPDATE_ELEMENT", id, data });
-    if (!isDemo) supabase.from("venue_elements").update(data).eq("id", id).then();
-  }, [supabase, isDemo]);
-
-  const deleteElement = useCallback(async (id: string) => {
-    dispatch({ type: "DELETE_ELEMENT", id });
-    if (!isDemo) supabase.from("venue_elements").delete().eq("id", id).then();
-  }, [supabase, isDemo]);
 
   /* ── Seat guest ── */
   const seatGuest = useCallback(async (guestId: string, tableId: string | null, seatIndex: number | null) => {
@@ -757,18 +732,12 @@ export default function PlannerClient({
             guests={state.guests}
             groups={state.groups}
             rules={state.rules}
-            elements={state.elements.filter(e => e.venue_id === activeVenueId)}
-            venueId={activeVenueId ?? ""}
-            weddingId={wedding.id}
             darkMode={darkMode}
             onAddTable={addTable}
             onUpdateTable={updateTable}
             onDeleteTable={deleteTable}
             onSeatGuest={seatGuest}
             onAutoSeat={autoSeat}
-            onAddElement={addElement}
-            onUpdateElement={updateElement}
-            onDeleteElement={deleteElement}
             isDemo={isDemo}
           />
         )}
@@ -814,7 +783,7 @@ export default function PlannerClient({
             darkMode={darkMode}
             isDemo={isDemo}
             onRestore={(data) => {
-              dispatch({ type: "SET_ALL", payload: { ...data, elements: data.elements ?? [] } });
+              dispatch({ type: "SET_ALL", payload: data });
               showToast("Backup restored ✓", "success");
             }}
             showToast={showToast}

@@ -31,7 +31,7 @@ export default async function WeddingPlannerPage({ params }: { params: Promise<{
   }
 
   // Preload all data
-  const [venuesRes, guestsRes, tablesRes, groupsRes, rulesRes, profileRes, elementsRes] = await Promise.all([
+  const [venuesRes, guestsRes, tablesRes, groupsRes, rulesRes, profileRes] = await Promise.all([
     supabase.from("venues").select("*").eq("wedding_id", id),
     supabase.from("guests").select("*").eq("wedding_id", id).order("last_name"),
     supabase.from("tables").select("*").in("venue_id",
@@ -40,7 +40,6 @@ export default async function WeddingPlannerPage({ params }: { params: Promise<{
     supabase.from("groups").select("*").eq("wedding_id", id),
     supabase.from("rules").select("*").eq("wedding_id", id),
     supabase.from("profiles").select("plan").eq("id", user.id).single(),
-    supabase.from("venue_elements").select("*").eq("wedding_id", id),
   ]);
 
   return (
@@ -51,7 +50,6 @@ export default async function WeddingPlannerPage({ params }: { params: Promise<{
       initialTables={tablesRes.data ?? []}
       initialGroups={groupsRes.data ?? []}
       initialRules={rulesRes.data ?? []}
-      initialElements={elementsRes.data ?? []}
       plan={profileRes.data?.plan ?? "free"}
     />
   );
