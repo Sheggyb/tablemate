@@ -327,6 +327,7 @@ export default function ChartCanvas({
     if ((e.target as HTMLElement).closest("[data-table]")) return;
     setCtxMenu(null);
     setSelectedShapeId(null);
+    if (e.target === e.currentTarget) setSelected(null);
     setPanning(true);
     setPanStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
@@ -991,6 +992,7 @@ export default function ChartCanvas({
                 const pct = Math.min(100, Math.round(tGuests.length / cap * 100));
                 const over = tGuests.length > cap;
                 const isDrop = dropTarget === t.id;
+                const isSel = selected === t.id;
                 return (
                   <div key={t.id} className="rounded-2xl overflow-hidden transition-all"
                     style={{
@@ -1002,7 +1004,7 @@ export default function ChartCanvas({
                     onDrop={e => onGuestDrop(e, t.id)}
                     onDragLeave={() => setDropTarget(null)}>
                     <div className="flex items-center justify-between px-4 py-3 cursor-pointer"
-                      onClick={() => setSelected(t.id)}
+                      onClick={() => setSelected(isSel ? null : t.id)}
                       style={{
                         background: isDrop ? "var(--accent-bg)" : cs.surface2,
                         borderBottom: `1px solid ${cs.border}`,
@@ -1102,7 +1104,7 @@ export default function ChartCanvas({
                         transform: isDrop ? "scale(1.02)" : "scale(1)",
                         cursor: "pointer",
                       }}
-                      onClick={() => setSelected(t.id)}
+                      onClick={() => setSelected(isSel ? null : t.id)}
                       onDragOver={e => onGuestDragOver(e, t.id)}
                       onDrop={e => onGuestDrop(e, t.id)}
                       onDragLeave={() => setDropTarget(null)}>
