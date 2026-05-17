@@ -34,6 +34,7 @@ export interface Venue {
   background_image: string | null
   bg_opacity: number
   sort_order: number
+  layout?: VenueLayout | null
 }
 
 export interface Table {
@@ -89,6 +90,31 @@ export interface Rule {
   guest1_id: string
   guest2_id: string
   type: RuleType
+}
+
+export type FixtureKind =
+  | 'stage' | 'dancefloor' | 'bar' | 'dj' | 'entrance' | 'exit'
+  | 'buffet' | 'cake' | 'gifts' | 'photobooth' | 'cloakroom' | 'toilets'
+  | 'lounge' | 'plant'
+
+export interface VenueFixture {
+  id: string
+  kind: FixtureKind
+  label: string
+  x: number
+  y: number
+  w: number
+  h: number
+  rotation: number
+  color: string
+}
+
+export type RoomTemplateKind = 'blank' | 'rectangle' | 'lshape' | 'ushape' | 'oval' | 'marquee'
+
+export interface VenueLayout {
+  templateKind: RoomTemplateKind
+  roomPath: string | null
+  fixtures: VenueFixture[]
 }
 
 // Plan limits

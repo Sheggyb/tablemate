@@ -48,7 +48,8 @@ type PlannerAction =
   | { type: "ADD_RULE";     payload: Rule }
   | { type: "DELETE_RULE";  id: string }
   | { type: "BULK_UPDATE_GUESTS"; ids: string[]; data: Partial<Guest> }
-  | { type: "BULK_DELETE_GUESTS"; ids: string[] };
+  | { type: "BULK_DELETE_GUESTS"; ids: string[] }
+  | { type: "UPDATE_VENUE_LAYOUT"; id: string; layout: import("@/lib/types").VenueLayout };
 
 function reducer(state: PlannerState, action: PlannerAction): PlannerState {
   switch (action.type) {
@@ -76,6 +77,7 @@ function reducer(state: PlannerState, action: PlannerAction): PlannerState {
       ...state,
       guests: state.guests.filter(g => !action.ids.includes(g.id)),
     };
+    case "UPDATE_VENUE_LAYOUT": return { ...state, venues: state.venues.map(v => v.id === action.id ? { ...v, layout: action.layout } : v) };
     default: return state;
   }
 }
@@ -360,6 +362,13 @@ export default function PlannerClient({
       await supabase.from("venues").delete().eq("id", id);
     }
   }, [supabase, isDemo, state.venues, activeVenueId, showToast]);
+
+  const updateVenueLayout = useCallback((venueId: string, layout: import("@/lib/types").VenueLayout) => {
+    dispatch({ type: "UPDATE_VENUE_LAYOUT", id: venueId, layout });
+    if (!isDemo) {
+      supabase.from("venues").update({ layout }).eq("id", venueId).then();
+    }
+  }, [supabase, isDemo]);
 
   /* ── Seat guest ── */
   const seatGuest = useCallback(async (guestId: string, tableId: string | null, seatIndex: number | null) => {
@@ -739,6 +748,8 @@ export default function PlannerClient({
             onSeatGuest={seatGuest}
             onAutoSeat={autoSeat}
             isDemo={isDemo}
+            activeVenue={state.venues.find(v => v.id === activeVenueId) ?? state.venues[0]}
+            onUpdateLayout={updateVenueLayout}
           />
         )}
         {activeTab === "guests" && (

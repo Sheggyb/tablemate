@@ -16,6 +16,8 @@ interface Props {
   onSeatGuest:   (guestId: string, tableId: string | null, seatIndex: number | null) => void;
   onAutoSeat:    () => void;
   isDemo?:       boolean;
+  activeVenue:   import("@/lib/types").Venue;
+  onUpdateLayout:(venueId: string, layout: import("@/lib/types").VenueLayout) => void;
 }
 
 const GROUP_COLORS = ["#c9a96e","#7B9E87","#8B7BA8","#C97B6E","#6E9EC9","#B8A86E","#e8b4cb","#9EC9A6"];
@@ -41,7 +43,7 @@ const PRESET_TABLES: { label: string; shape: "round" | "rectangle" | "oval"; cap
 
 const SNAP_GRID = 20;
 
-type SideTab = "add" | "custom" | "guests";
+type SideTab = "add" | "custom" | "guests" | "layout";
 type ViewMode = "canvas" | "list" | "grid";
 
 interface ContextMenu { x: number; y: number; tableId: string; }
@@ -52,7 +54,8 @@ function snapToGrid(v: number): number {
 
 export default function ChartCanvas({
   tables, guests, groups, rules, darkMode,
-  onAddTable, onUpdateTable, onDeleteTable, onSeatGuest, onAutoSeat, isDemo = false
+  onAddTable, onUpdateTable, onDeleteTable, onSeatGuest, onAutoSeat, isDemo = false,
+  activeVenue, onUpdateLayout,
 }: Props) {
   const canvasRef   = useRef<HTMLDivElement>(null);
   const [offset, setOffset]     = useState({ x: 40, y: 40 });
@@ -77,6 +80,43 @@ export default function ChartCanvas({
   const [focusedGuestId, setFocusedGuestId]     = useState<string | null>(null);
   const [findDropdownOpen, setFindDropdownOpen] = useState(false);
   const [findUnseatToast, setFindUnseatToast]   = useState<string | null>(null);
+  const [draggingFixture, setDraggingFixture]   = useState<{ id: string; ox: number; oy: number } | null>(null);
+
+  const FIXTURE_PRESETS: { kind: import("@/lib/types").FixtureKind; emoji: string; label: string; w: number; h: number; color: string }[] = [
+    { kind: "stage",       emoji: "🎭", label: "Stage",       w: 200, h: 80,  color: "#7c3aed" },
+    { kind: "dancefloor",  emoji: "💃", label: "Dance Floor", w: 180, h: 180, color: "#2563eb" },
+    { kind: "bar",         emoji: "🍹", label: "Bar",         w: 160, h: 60,  color: "#d97706" },
+    { kind: "dj",          emoji: "🎵", label: "DJ Booth",    w: 80,  h: 80,  color: "#0d9488" },
+    { kind: "entrance",    emoji: "🚪", label: "Entrance",    w: 80,  h: 30,  color: "#16a34a" },
+    { kind: "exit",        emoji: "🚶", label: "Exit",        w: 80,  h: 30,  color: "#16a34a" },
+    { kind: "buffet",      emoji: "🍽", label: "Buffet",      w: 180, h: 60,  color: "#ea580c" },
+    { kind: "cake",        emoji: "🎂", label: "Cake Table",  w: 80,  h: 80,  color: "#db2777" },
+    { kind: "gifts",       emoji: "🎁", label: "Gift Table",  w: 80,  h: 60,  color: "#dc2626" },
+    { kind: "photobooth",  emoji: "📷", label: "Photo Booth", w: 100, h: 100, color: "#7c3aed" },
+    { kind: "cloakroom",   emoji: "🧥", label: "Coat Check",  w: 100, h: 60,  color: "#6b7280" },
+    { kind: "toilets",     emoji: "🚻", label: "Toilets",     w: 80,  h: 80,  color: "#6b7280" },
+    { kind: "lounge",      emoji: "🛋",  label: "Lounge",      w: 140, h: 80,  color: "#92400e" },
+    { kind: "plant",       emoji: "🌿", label: "Plant",       w: 50,  h: 50,  color: "#15803d" },
+  ];
+
+  const ROOM_TEMPLATES: { kind: import("@/lib/types").RoomTemplateKind; label: string; path: string | null }[] = [
+    { kind: "blank",     label: "Blank",          path: null },
+    { kind: "rectangle", label: "Rectangle Hall", path: "M 100 100 L 900 100 L 900 700 L 100 700 Z" },
+    { kind: "lshape",    label: "L-Shape",        path: "M 100 100 L 550 100 L 550 350 L 900 350 L 900 700 L 100 700 Z" },
+    { kind: "ushape",    label: "U-Shape",        path: "M 100 100 L 300 100 L 300 400 L 700 400 L 700 100 L 900 100 L 900 700 L 100 700 Z" },
+    { kind: "oval",      label: "Oval / Marquee", path: null },
+    { kind: "marquee",   label: "Marquee Tent",   path: "M 100 100 L 900 100 L 900 700 L 100 700 Z" },
+  ];
+
+  const handleFixtureDragStart = useCallback((e: React.PointerEvent, fixtureId: string) => {
+    e.stopPropagation();
+    const fix = activeVenue?.layout?.fixtures.find(f => f.id === fixtureId);
+    if (!fix) return;
+    const cx = (e.clientX - offset.x) / scale;
+    const cy = (e.clientY - offset.y) / scale;
+    setDraggingFixture({ id: fixtureId, ox: cx - fix.x, oy: cy - fix.y });
+    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+  }, [activeVenue, offset, scale]);
 
   const cs = {
     bg: "var(--canvas-bg)", surface: "var(--surface)", surface2: "var(--surface2)",
@@ -196,9 +236,17 @@ export default function ChartCanvas({
       if (snapEnabled) { x = snapToGrid(x); y = snapToGrid(y); }
       onUpdateTable(dragging.id, { x, y });
     }
-  }, [panning, panStart, dragging, offset, scale, snapEnabled, onUpdateTable]);
+    if (draggingFixture && activeVenue?.layout) {
+      const nx = (e.clientX - offset.x) / scale - draggingFixture.ox;
+      const ny = (e.clientY - offset.y) / scale - draggingFixture.oy;
+      const updated = activeVenue.layout.fixtures.map(f =>
+        f.id === draggingFixture.id ? { ...f, x: nx, y: ny } : f
+      );
+      onUpdateLayout(activeVenue.id, { ...activeVenue.layout, fixtures: updated });
+    }
+  }, [panning, panStart, dragging, draggingFixture, offset, scale, snapEnabled, onUpdateTable, activeVenue, onUpdateLayout]);
 
-  const onPointerUpCanvas = useCallback(() => { setPanning(false); setDragging(null); }, []);
+  const onPointerUpCanvas = useCallback(() => { setPanning(false); setDragging(null); setDraggingFixture(null); }, []);
 
   /* ── Wheel zoom ── */
   const onWheel = useCallback((e: WheelEvent) => {
@@ -293,7 +341,7 @@ export default function ChartCanvas({
 
           {/* Tabs */}
           <div className="flex border-b" style={{ borderColor: cs.border }}>
-            {([["add","Add"], ["custom","Custom"], ["guests","Guests"]] as [SideTab, string][]).map(([tab, label]) => (
+            {([["add","Add"], ["custom","Custom"], ["guests","Guests"], ["layout","Layout"]] as [SideTab, string][]).map(([tab, label]) => (
               <button key={tab} onClick={() => setSideTab(tab)}
                 className="flex-1 py-2.5 text-xs font-semibold transition-colors"
                 style={{
@@ -398,6 +446,103 @@ export default function ChartCanvas({
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Tab: Layout */}
+          {sideTab === "layout" && (
+            <div className="flex-1 overflow-y-auto p-3 space-y-4">
+              {/* Room Shape */}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: cs.textMuted }}>Room Shape</p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {ROOM_TEMPLATES.map(tmpl => {
+                    const active = activeVenue?.layout?.templateKind === tmpl.kind;
+                    return (
+                      <button key={tmpl.kind}
+                        onClick={() => {
+                          const existing = activeVenue?.layout;
+                          onUpdateLayout(activeVenue.id, {
+                            templateKind: tmpl.kind as import("@/lib/types").RoomTemplateKind,
+                            roomPath: tmpl.path,
+                            fixtures: existing?.fixtures ?? [],
+                          });
+                        }}
+                        className="px-2 py-2 rounded-xl text-xs font-medium text-center hover:opacity-80 transition-opacity"
+                        style={{
+                          background: active ? cs.accentBg : cs.surface2,
+                          color: active ? cs.accent : cs.textSoft,
+                          border: `1px solid ${active ? cs.accent : cs.border}`,
+                        }}>
+                        {tmpl.kind === "blank" ? "⬜" : tmpl.kind === "rectangle" ? "▭" : tmpl.kind === "lshape" ? "⌐" : tmpl.kind === "ushape" ? "∪" : tmpl.kind === "oval" ? "⬭" : "⛺"}
+                        <span className="block mt-0.5">{tmpl.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Fixtures Palette */}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: cs.textMuted }}>Add Fixture</p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {FIXTURE_PRESETS.map(preset => (
+                    <button key={preset.kind}
+                      onClick={() => {
+                        const existing = activeVenue?.layout ?? { templateKind: "blank" as import("@/lib/types").RoomTemplateKind, roomPath: null, fixtures: [] };
+                        const newFixture: import("@/lib/types").VenueFixture = {
+                          id: crypto.randomUUID(),
+                          kind: preset.kind,
+                          label: preset.label,
+                          x: 400 - preset.w / 2,
+                          y: 300 - preset.h / 2,
+                          w: preset.w,
+                          h: preset.h,
+                          rotation: 0,
+                          color: preset.color,
+                        };
+                        onUpdateLayout(activeVenue.id, {
+                          ...existing,
+                          fixtures: [...existing.fixtures, newFixture],
+                        });
+                      }}
+                      className="px-2 py-2 rounded-xl text-xs font-medium text-left hover:opacity-80 transition-opacity"
+                      style={{ background: cs.surface2, color: cs.textSoft, border: `1px solid ${cs.border}` }}>
+                      <span className="text-base">{preset.emoji}</span>
+                      <span className="block text-xs mt-0.5 truncate">{preset.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Placed Fixtures List */}
+              {activeVenue?.layout && activeVenue.layout.fixtures.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: cs.textMuted }}>Placed Fixtures</p>
+                  <div className="space-y-1 max-h-48 overflow-y-auto">
+                    {activeVenue.layout.fixtures.map(f => {
+                      const preset = FIXTURE_PRESETS.find(p => p.kind === f.kind);
+                      return (
+                        <div key={f.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg"
+                          style={{ background: cs.surface2 }}>
+                          <span className="text-sm">{preset?.emoji}</span>
+                          <span className="text-xs flex-1 truncate" style={{ color: cs.textSoft }}>{f.label}</span>
+                          <button
+                            onClick={() => {
+                              if (!activeVenue.layout) return;
+                              onUpdateLayout(activeVenue.id, {
+                                ...activeVenue.layout,
+                                fixtures: activeVenue.layout.fixtures.filter(x => x.id !== f.id),
+                              });
+                            }}
+                            className="text-xs hover:opacity-60 transition-opacity"
+                            style={{ color: cs.textMuted }}>🗑</button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -761,6 +906,32 @@ export default function ChartCanvas({
 
             {/* Tables */}
             <div style={{ transform: `translate(${offset.x}px,${offset.y}px) scale(${scale})`, transformOrigin: "0 0", position: "absolute", top: 0, left: 0 }}>
+              {/* Room Layout Layer */}
+              {activeVenue?.layout && (
+                <svg style={{ position: "absolute", top: 0, left: 0, overflow: "visible", pointerEvents: "none" }}>
+                  {activeVenue.layout.roomPath && activeVenue.layout.templateKind !== "oval" && (
+                    <path d={activeVenue.layout.roomPath} fill="#f8f7f4" stroke="#d1c9b8" strokeWidth={3} strokeDasharray="8 4" />
+                  )}
+                  {activeVenue.layout.templateKind === "oval" && (
+                    <ellipse cx={500} cy={400} rx={400} ry={300} fill="#f8f7f4" stroke="#d1c9b8" strokeWidth={3} strokeDasharray="8 4" />
+                  )}
+                  {activeVenue.layout.fixtures.map(f => (
+                    <g key={f.id} transform={`translate(${f.x},${f.y})`}
+                      style={{ cursor: "move", pointerEvents: "all" }}
+                      onPointerDown={e => handleFixtureDragStart(e, f.id)}>
+                      <rect x={0} y={0} width={f.w} height={f.h} rx={6}
+                        fill={f.color} fillOpacity={0.25} stroke={f.color} strokeWidth={2} />
+                      <text x={f.w/2} y={f.h/2 - 8} textAnchor="middle" fontSize={18} dominantBaseline="middle">
+                        {FIXTURE_PRESETS.find(p => p.kind === f.kind)?.emoji ?? ""}
+                      </text>
+                      <text x={f.w/2} y={f.h/2 + 12} textAnchor="middle" fontSize={11}
+                        fill={f.color} fontWeight={600} dominantBaseline="middle">
+                        {f.label}
+                      </text>
+                    </g>
+                  ))}
+                </svg>
+              )}
               {tables.map((table, tableIndex) => {
                 const tg = tableGuests(table.id);
                 const isFull    = tg.length >= table.capacity;
