@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
-import type { Wedding, Guest, Table, Group, Venue, Rule } from "@/lib/types";
+import type { Wedding, Guest, Table, Group, Venue, Rule, VenueElement } from "@/lib/types";
 import { EXPORT_THEMES, DEFAULT_THEME, type ThemeKey } from "@/lib/exportThemes";
 import {
   exportSeatingChartPDF,
@@ -20,7 +20,7 @@ interface Props {
   rules:    Rule[];
   darkMode: boolean;
   isDemo?:  boolean;
-  onRestore: (data: { venues: Venue[]; guests: Guest[]; tables: Table[]; groups: Group[]; rules: Rule[] }) => void;
+  onRestore: (data: { venues: Venue[]; guests: Guest[]; tables: Table[]; groups: Group[]; rules: Rule[]; elements?: VenueElement[] }) => void;
   showToast?: (msg: string, type?: "success" | "error" | "info") => void;
 }
 

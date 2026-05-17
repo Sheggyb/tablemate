@@ -2,20 +2,27 @@
 "use client";
 
 import { useRef, useState, useCallback, useEffect, useMemo } from "react";
-import type { Table, Guest, Group, Rule } from "@/lib/types";
+import type { Table, Guest, Group, Rule, VenueElement, VenueElementKind } from "@/lib/types";
+
 
 interface Props {
-  tables:        Table[];
-  guests:        Guest[];
-  groups:        Group[];
-  rules:         Rule[];
-  darkMode:      boolean;
-  onAddTable:    (name: string, shape: "round" | "rectangle" | "oval", capacity: number) => void;
-  onUpdateTable: (id: string, data: Partial<Table>) => void;
-  onDeleteTable: (id: string) => void;
-  onSeatGuest:   (guestId: string, tableId: string | null, seatIndex: number | null) => void;
-  onAutoSeat:    () => void;
-  isDemo?:       boolean;
+  tables:           Table[];
+  guests:           Guest[];
+  groups:           Group[];
+  rules:            Rule[];
+  elements:         VenueElement[];
+  venueId:          string;
+  weddingId:        string;
+  darkMode:         boolean;
+  onAddTable:       (name: string, shape: "round" | "rectangle" | "oval", capacity: number) => void;
+  onUpdateTable:    (id: string, data: Partial<Table>) => void;
+  onDeleteTable:    (id: string) => void;
+  onSeatGuest:      (guestId: string, tableId: string | null, seatIndex: number | null) => void;
+  onAutoSeat:       () => void;
+  onAddElement:     (el: VenueElement) => void;
+  onUpdateElement:  (id: string, data: Partial<VenueElement>) => void;
+  onDeleteElement:  (id: string) => void;
+  isDemo?:          boolean;
 }
 
 const GROUP_COLORS = ["#c9a96e","#7B9E87","#8B7BA8","#C97B6E","#6E9EC9","#B8A86E","#e8b4cb","#9EC9A6"];
@@ -41,7 +48,7 @@ const PRESET_TABLES: { label: string; shape: "round" | "rectangle" | "oval"; cap
 
 const SNAP_GRID = 20;
 
-type SideTab = "add" | "custom" | "guests";
+type SideTab = "add" | "custom" | "guests" | "room";
 type ViewMode = "canvas" | "list" | "grid";
 
 interface ContextMenu { x: number; y: number; tableId: string; }
@@ -51,8 +58,9 @@ function snapToGrid(v: number): number {
 }
 
 export default function ChartCanvas({
-  tables, guests, groups, rules, darkMode,
-  onAddTable, onUpdateTable, onDeleteTable, onSeatGuest, onAutoSeat, isDemo = false
+  tables, guests, groups, rules, elements, venueId, weddingId, darkMode,
+  onAddTable, onUpdateTable, onDeleteTable, onSeatGuest, onAutoSeat,
+  onAddElement, onUpdateElement, onDeleteElement, isDemo = false
 }: Props) {
   const canvasRef   = useRef<HTMLDivElement>(null);
   const [offset, setOffset]     = useState({ x: 40, y: 40 });
@@ -77,6 +85,10 @@ export default function ChartCanvas({
   const [focusedGuestId, setFocusedGuestId]     = useState<string | null>(null);
   const [findDropdownOpen, setFindDropdownOpen] = useState(false);
   const [findUnseatToast, setFindUnseatToast]   = useState<string | null>(null);
+
+  // Element (room item) dragging
+  const [draggingEl, setDraggingEl] = useState<{ id: string; ox: number; oy: number } | null>(null);
+  const [selectedEl, setSelectedEl] = useState<string | null>(null);
 
   const cs = {
     bg: "var(--canvas-bg)", surface: "var(--surface)", surface2: "var(--surface2)",
@@ -182,6 +194,7 @@ export default function ChartCanvas({
   /* ── Pan canvas ── */
   const onPointerDownCanvas = useCallback((e: React.PointerEvent) => {
     if ((e.target as HTMLElement).closest("[data-table]")) return;
+    if ((e.target as HTMLElement).closest("[data-element]")) return;
     setCtxMenu(null);
     setPanning(true);
     setPanStart({ x: e.clientX - offset.x, y: e.clientY - offset.y });
@@ -196,9 +209,15 @@ export default function ChartCanvas({
       if (snapEnabled) { x = snapToGrid(x); y = snapToGrid(y); }
       onUpdateTable(dragging.id, { x, y });
     }
-  }, [panning, panStart, dragging, offset, scale, snapEnabled, onUpdateTable]);
+    if (draggingEl) {
+      let x = (e.clientX - offset.x) / scale - draggingEl.ox;
+      let y = (e.clientY - offset.y) / scale - draggingEl.oy;
+      if (snapEnabled) { x = snapToGrid(x); y = snapToGrid(y); }
+      onUpdateElement(draggingEl.id, { x, y });
+    }
+  }, [panning, panStart, dragging, draggingEl, offset, scale, snapEnabled, onUpdateTable, onUpdateElement]);
 
-  const onPointerUpCanvas = useCallback(() => { setPanning(false); setDragging(null); }, []);
+  const onPointerUpCanvas = useCallback(() => { setPanning(false); setDragging(null); setDraggingEl(null); }, []);
 
   /* ── Wheel zoom ── */
   const onWheel = useCallback((e: WheelEvent) => {
@@ -272,9 +291,47 @@ export default function ChartCanvas({
     setCustomName("");
   }, [customName, tables, customShape, customCap, onAddTable]);
 
+
+  // ── Element Presets ──
+  const ELEMENT_PRESETS_DATA = [
+    { kind: "stage"      as const, label: "Stage",       emoji: "🎭", color: "#9333ea", w: 200, h: 80  },
+    { kind: "dancefloor" as const, label: "Dance Floor", emoji: "💃", color: "#3b82f6", w: 160, h: 160 },
+    { kind: "bar"        as const, label: "Bar",         emoji: "🍹", color: "#f59e0b", w: 160, h: 60  },
+    { kind: "dj"         as const, label: "DJ Booth",    emoji: "🎵", color: "#14b8a6", w: 80,  h: 80  },
+    { kind: "entrance"   as const, label: "Entrance",    emoji: "🚪", color: "#22c55e", w: 120, h: 50  },
+    { kind: "exit"       as const, label: "Exit",        emoji: "🚶", color: "#84cc16", w: 100, h: 50  },
+    { kind: "buffet"     as const, label: "Buffet",      emoji: "🍽",  color: "#f97316", w: 200, h: 60  },
+    { kind: "cake"       as const, label: "Cake Table",  emoji: "🎂", color: "#ec4899", w: 80,  h: 60  },
+    { kind: "gifts"      as const, label: "Gift Table",  emoji: "🎁", color: "#ef4444", w: 80,  h: 60  },
+    { kind: "photobooth" as const, label: "Photo Booth", emoji: "📷", color: "#6366f1", w: 100, h: 100 },
+    { kind: "cloakroom"  as const, label: "Coat Check",  emoji: "🧥", color: "#6b7280", w: 120, h: 60  },
+    { kind: "toilet"     as const, label: "Toilets",     emoji: "🚻", color: "#0ea5e9", w: 80,  h: 80  },
+    { kind: "sofa"       as const, label: "Lounge Sofa", emoji: "🛋️", color: "#a3a3a3", w: 120, h: 60  },
+    { kind: "plant"      as const, label: "Plant/Tree",  emoji: "🌿", color: "#4ade80", w: 60,  h: 60  },
+  ];
+  // make it accessible in JSX without recreating on every render
+  const ELEMENT_PRESETS = ELEMENT_PRESETS_DATA;
+
+  const spawnElement = useCallback((kind: VenueElementKind) => {
+    const preset = ELEMENT_PRESETS_DATA.find(p => p.kind === kind)!;
+    const el: VenueElement = {
+      id: crypto.randomUUID(),
+      venue_id: venueId,
+      wedding_id: weddingId,
+      kind,
+      label: preset.label,
+      x: Math.round((100 + Math.random() * 200) / 20) * 20,
+      y: Math.round((100 + Math.random() * 200) / 20) * 20,
+      w: preset.w,
+      h: preset.h,
+      rotation: 0,
+      color: preset.color,
+    };
+    onAddElement(el);
+  }, [venueId, weddingId, onAddElement]);
+
   return (
     <>
-      {/* Pulse animation for find-guest highlight */}
       <style>{`
         @keyframes tablePulse {
           0%,100% { box-shadow: 0 0 0 0 rgba(201,169,110,0.7), 0 4px 24px rgba(201,169,110,0.3); }
@@ -293,7 +350,7 @@ export default function ChartCanvas({
 
           {/* Tabs */}
           <div className="flex border-b" style={{ borderColor: cs.border }}>
-            {([["add","Add"], ["custom","Custom"], ["guests","Guests"]] as [SideTab, string][]).map(([tab, label]) => (
+            {([["add","Add"], ["custom","Custom"], ["guests","Guests"], ["room","Room"]] as [SideTab, string][]).map(([tab, label]) => (
               <button key={tab} onClick={() => setSideTab(tab)}
                 className="flex-1 py-2.5 text-xs font-semibold transition-colors"
                 style={{
@@ -398,6 +455,44 @@ export default function ChartCanvas({
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* Tab: Room Elements */}
+          {sideTab === "room" && (
+            <div className="p-3 flex-1 overflow-y-auto">
+              <p className="text-xs mb-3" style={{ color: cs.textMuted }}>Click to place on canvas:</p>
+              <div className="grid grid-cols-2 gap-1.5">
+                {ELEMENT_PRESETS.map(p => (
+                  <button key={p.kind} onClick={() => spawnElement(p.kind)}
+                    className="px-2 py-2.5 rounded-xl text-xs font-medium text-left hover:opacity-80 transition-opacity"
+                    style={{ background: p.color + "22", color: p.color, border: `1px solid ${p.color}44` }}>
+                    {p.emoji} {p.label}
+                  </button>
+                ))}
+              </div>
+              {elements.length > 0 && (
+                <div className="mt-4 pt-3 border-t" style={{ borderColor: cs.border }}>
+                  <div className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: cs.textMuted }}>
+                    Placed ({elements.length})
+                  </div>
+                  <div className="space-y-1">
+                    {elements.map(el => {
+                      const preset = ELEMENT_PRESETS.find(p => p.kind === el.kind);
+                      return (
+                        <div key={el.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg group"
+                          style={{ background: cs.surface2 }}>
+                          <span className="text-sm">{preset?.emoji ?? "📦"}</span>
+                          <span className="text-xs flex-1 truncate" style={{ color: cs.text }}>{el.label}</span>
+                          <button onClick={() => onDeleteElement(el.id)}
+                            className="opacity-0 group-hover:opacity-100 text-xs hover:opacity-70"
+                            style={{ color: "var(--danger)" }}>✕</button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -758,6 +853,51 @@ export default function ChartCanvas({
               </defs>
               <rect width="100%" height="100%" fill="url(#chart-grid)"/>
             </svg>
+
+            {/* Room Elements */}
+            <div style={{ transform: `translate(${offset.x}px,${offset.y}px) scale(${scale})`, transformOrigin: "0 0", position: "absolute", top: 0, left: 0 }}>
+              {elements.map(el => {
+                const preset = ELEMENT_PRESETS_DATA.find(p => p.kind === el.kind);
+                const isSel = selectedEl === el.id;
+                return (
+                  <div key={el.id} data-element={el.id}
+                    style={{
+                      position: "absolute", left: el.x, top: el.y,
+                      width: el.w, height: el.h,
+                      background: (el.color ?? "#6b7280") + "22",
+                      border: `2px solid ${isSel ? (el.color ?? "#6b7280") : (el.color ?? "#6b7280") + "66"}`,
+                      borderRadius: 12,
+                      cursor: draggingEl?.id === el.id ? "grabbing" : "grab",
+                      display: "flex", flexDirection: "column",
+                      alignItems: "center", justifyContent: "center",
+                      gap: 4,
+                      zIndex: 0,
+                      boxShadow: isSel ? `0 0 0 3px ${el.color ?? "#6b7280"}44` : "none",
+                      userSelect: "none",
+                    }}
+                    onPointerDown={e => {
+                      e.stopPropagation();
+                      setSelectedEl(el.id);
+                      setSelected(null);
+                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                      const canvasRect = canvasRef.current!.getBoundingClientRect();
+                      const ox = (e.clientX - canvasRect.left - offset.x) / scale - el.x;
+                      const oy = (e.clientY - canvasRect.top - offset.y) / scale - el.y;
+                      setDraggingEl({ id: el.id, ox, oy });
+                      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+                    }}
+                    onContextMenu={e => {
+                      e.preventDefault();
+                      if (confirm(`Delete "${el.label}"?`)) onDeleteElement(el.id);
+                    }}>
+                    <span style={{ fontSize: el.h > 60 ? 24 : 18 }}>{preset?.emoji ?? "📦"}</span>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: el.color ?? "#6b7280", textAlign: "center", padding: "0 8px" }}>
+                      {el.label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
 
             {/* Tables */}
             <div style={{ transform: `translate(${offset.x}px,${offset.y}px) scale(${scale})`, transformOrigin: "0 0", position: "absolute", top: 0, left: 0 }}>

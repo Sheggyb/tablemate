@@ -87,6 +87,28 @@ create policy "Wedding owner manages tables" on public.tables for all
   using (exists (select 1 from public.weddings w where w.id = wedding_id and w.user_id = auth.uid()));
 
 -- ════════════════════════════════════
+-- VENUE ELEMENTS (floor plan decorations)
+-- ════════════════════════════════════
+create table if not exists public.venue_elements (
+  id          uuid default gen_random_uuid() primary key,
+  venue_id    uuid references public.venues(id) on delete cascade not null,
+  wedding_id  uuid references public.weddings(id) on delete cascade not null,
+  kind        text not null default 'custom',
+  label       text not null default '',
+  x           numeric default 80,
+  y           numeric default 80,
+  w           numeric default 120,
+  h           numeric default 60,
+  rotation    numeric default 0,
+  color       text
+);
+alter table public.venue_elements enable row level security;
+drop policy if exists "Wedding owner manages venue_elements" on public.venue_elements;
+create policy "Wedding owner manages venue_elements" on public.venue_elements for all
+  using (exists (select 1 from public.weddings w where w.id = wedding_id and w.user_id = auth.uid()));
+create index if not exists idx_venue_elements_venue_id on public.venue_elements(venue_id);
+
+-- ════════════════════════════════════
 -- GROUPS
 -- ════════════════════════════════════
 create table if not exists public.groups (
