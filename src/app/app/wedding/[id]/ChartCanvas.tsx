@@ -1622,12 +1622,31 @@ export default function ChartCanvas({
                         t.x >= shape.x && t.x <= shape.x + shapeW &&
                         t.y >= shape.y && t.y <= shape.y + shapeH
                       );
+                      // Returns true if canvas point (cx,cy) is inside the actual shape geometry
+                      const isInsideShape = (cx: number, cy: number): boolean => {
+                        const localX = (cx - shape.x) / (shape.scaleX ?? 1);
+                        const localY = (cy - shape.y) / (shape.scaleY ?? 1);
+                        switch (shape.kind) {
+                          case "oval": {
+                            const rw = BASE_W / 2, rh = BASE_H / 2;
+                            const dx = localX - rw, dy = localY - rh;
+                            return (dx / rw) ** 2 + (dy / rh) ** 2 <= 0.85;
+                          }
+                          case "lshape":
+                            return localX < BASE_W * 0.42 || localY > BASE_H * 0.58;
+                          case "ushape":
+                            return localX < BASE_W * 0.27 || localX > BASE_W * 0.73 || localY > BASE_H * 0.68;
+                          default:
+                            return true;
+                        }
+                      };
                       // Build all grid candidate cells and skip occupied ones
                       const emptyCells: { cx: number; cy: number }[] = [];
                       for (let row = 0; row < maxRows; row++) {
                         for (let col = 0; col < maxCols; col++) {
                           const cx = shape.x + PADDING + cellPx * col + cellPx / 2;
                           const cy = shape.y + PADDING + cellPx * row + cellPx / 2;
+                          if (!isInsideShape(cx, cy)) continue;
                           const occupied = existingInShape.some(t => {
                             const tx = t.x + tableW / 2;
                             const ty = t.y + tableH / 2;
