@@ -100,7 +100,7 @@ export default function ChartCanvas({
   // Generate Tables UI state
   const [genCount, setGenCount]                 = useState<string>("");
   const [genDiamCm, setGenDiamCm]               = useState<number>(150);
-  const [genResult, setGenResult]               = useState<{ n: number; tight: boolean; maxFit?: number } | null>(null);
+  const [genResult, setGenResult]               = useState<{ count: number; maxFit: number } | null>(null);
 
   // Migration: if old templateKind exists and shapes is empty, auto-create shapes from old fields
   const layoutShapes: VenueShape[] = useMemo(() => {
@@ -1599,43 +1599,51 @@ export default function ChartCanvas({
                     onClick={() => {
                       const n = parseInt(genCount, 10);
                       if (!n || n < 1 || n > 200) return;
-                      // Canvas px-to-ft ratio: base shape = 800×600px = room at scaleX/Y=1
-                      // INFO section uses: w_ft = scaleX * 800 / 10  →  10px = 1ft
+                      // Constants — per-kind base dimensions matching SVG rendering
+                      const BASE_DIMS: Record<string, [number, number]> = {
+                        rectangle: [800, 600], oval: [800, 600], marquee: [700, 500],
+                        lshape: [800, 600], ushape: [800, 600],
+                        "wall-h": [400, 20], "wall-v": [20, 400], "wall-diagonal": [200, 20],
+                      };
+                      const [BASE_W, BASE_H] = BASE_DIMS[shape.kind] ?? [800, 600];
+                      const scaledW = BASE_W * (shape.scaleX ?? 1);
+                      const scaledH = BASE_H * (shape.scaleY ?? 1);
                       const capacity = 8;
                       const { w: tableW, h: tableH } = tableSize({ shape: "round", capacity } as any);
-                      const tablePx = tableW;   // actual rendered size ~132px for cap=8
-                      const gapPx   = 20;       // 20px gap between table edges
-                      const cellPx  = tablePx + gapPx;
-                      // Determine shape bounding box in canvas pixels (same ratio as INFO)
-                      const BASE_W = 800, BASE_H = 600;
-                      const shapeW = BASE_W * (shape.scaleX ?? 1);
-                      const shapeH = BASE_H * (shape.scaleY ?? 1);
-                      const PADDING = gapPx; // half-gap border padding
-                      const areaW = shapeW - PADDING * 2;
-                      const areaH = shapeH - PADDING * 2;
-                      if (areaW <= 0 || areaH <= 0) return;
-                      // Max fit given cell size
-                      const maxCols = Math.max(1, Math.floor(areaW / cellPx));
-                      const maxRows = Math.max(1, Math.floor(areaH / cellPx));
-                      // Find existing tables inside this shape
+                      const GAP = 20;
+                      const cellPx = tableW + GAP;
+                      const PADDING = 30;
+                      // Grid in scaled (canvas) space
+                      const usableW = scaledW - 2 * PADDING;
+                      const usableH = scaledH - 2 * PADDING;
+                      const maxCols = Math.floor(usableW / cellPx);
+                      const maxRows = Math.floor(usableH / cellPx);
+                      if (maxCols <= 0 || maxRows <= 0) {
+                        setGenResult({ count: 0, maxFit: 0 });
+                        setGenCount("");
+                        return;
+                      }
+                      // Find existing tables inside this shape bounding box
                       const existingInShape = tables.filter(t =>
-                        t.x >= shape.x && t.x <= shape.x + shapeW &&
-                        t.y >= shape.y && t.y <= shape.y + shapeH
+                        t.x >= shape.x && t.x <= shape.x + scaledW &&
+                        t.y >= shape.y && t.y <= shape.y + scaledH
                       );
                       // Returns true if canvas point (cx,cy) is inside the actual shape geometry
+                      // cx/cy are absolute canvas coords; convert to shape-local base space for geometry tests
                       const isInsideShape = (cx: number, cy: number): boolean => {
-                        const localX = (cx - shape.x) / (shape.scaleX ?? 1);
-                        const localY = (cy - shape.y) / (shape.scaleY ?? 1);
+                        const lx = cx - shape.x;
+                        const ly = cy - shape.y;
+                        const bx = lx / (shape.scaleX ?? 1);
+                        const by = ly / (shape.scaleY ?? 1);
                         switch (shape.kind) {
                           case "oval": {
                             const rw = BASE_W / 2, rh = BASE_H / 2;
-                            const dx = localX - rw, dy = localY - rh;
-                            return (dx / rw) ** 2 + (dy / rh) ** 2 <= 0.85;
+                            return ((bx - rw) / rw) ** 2 + ((by - rh) / rh) ** 2 <= 0.82;
                           }
                           case "lshape":
-                            return localX < BASE_W * 0.42 || localY > BASE_H * 0.58;
+                            return bx < BASE_W * 0.42 || by > BASE_H * 0.58;
                           case "ushape":
-                            return localX < BASE_W * 0.27 || localX > BASE_W * 0.73 || localY > BASE_H * 0.68;
+                            return bx < BASE_W * 0.27 || bx > BASE_W * 0.73 || by > BASE_H * 0.68;
                           default:
                             return true;
                         }
@@ -1644,32 +1652,33 @@ export default function ChartCanvas({
                       const emptyCells: { cx: number; cy: number }[] = [];
                       for (let row = 0; row < maxRows; row++) {
                         for (let col = 0; col < maxCols; col++) {
-                          const cx = shape.x + PADDING + cellPx * col + cellPx / 2;
-                          const cy = shape.y + PADDING + cellPx * row + cellPx / 2;
+                          const cx = shape.x + PADDING + col * cellPx + cellPx / 2;
+                          const cy = shape.y + PADDING + row * cellPx + cellPx / 2;
                           if (!isInsideShape(cx, cy)) continue;
                           const occupied = existingInShape.some(t => {
                             const tx = t.x + tableW / 2;
                             const ty = t.y + tableH / 2;
-                            return Math.abs(tx - cx) < cellPx && Math.abs(ty - cy) < cellPx;
+                            return Math.abs(tx - cx) < cellPx * 0.9 && Math.abs(ty - cy) < cellPx * 0.9;
                           });
                           if (!occupied) emptyCells.push({ cx, cy });
                         }
                       }
-                      const availableSpots = emptyCells.length;
-                      if (availableSpots === 0 || n > availableSpots) {
-                        setGenResult({ n: 0, tight: true, maxFit: availableSpots });
+                      const toPlace = Math.min(n, emptyCells.length);
+                      if (toPlace === 0) {
+                        setGenResult({ count: 0, maxFit: 0 });
                         setGenCount("");
                         return;
                       }
-                      const place = Math.min(n, availableSpots);
                       const startIdx = tables.length;
-                      const entries: { name: string; shape: "round"; capacity: number; x: number; y: number }[] = [];
-                      for (let i = 0; i < place; i++) {
-                        const { cx, cy } = emptyCells[i];
-                        entries.push({ name: `Table ${startIdx + i + 1}`, shape: "round", capacity: 8, x: cx - tableW / 2, y: cy - tableH / 2 });
-                      }
+                      const entries = emptyCells.slice(0, toPlace).map(({ cx, cy }, i) => ({
+                        name: `Table ${startIdx + i + 1}`,
+                        shape: "round" as const,
+                        capacity: 8,
+                        x: cx - tableW / 2,
+                        y: cy - tableH / 2,
+                      }));
                       onAddTableAt(entries);
-                      setGenResult({ n: place, tight: false });
+                      setGenResult({ count: toPlace, maxFit: emptyCells.length });
                       setGenCount("");
                     }}
                     style={{
@@ -1678,10 +1687,10 @@ export default function ChartCanvas({
                     }}
                   >Generate</button>
                   {genResult && (
-                    <p style={{ marginTop: 6, fontSize: 11, color: genResult.tight ? "#f59e0b" : "#4caf7d" }}>
-                      {genResult.tight
+                    <p style={{ marginTop: 6, fontSize: 11, color: genResult.count === 0 ? "#f59e0b" : "#4caf7d" }}>
+                      {genResult.count === 0
                         ? `⚠️ Only ${genResult.maxFit} spots available — move existing tables or use a larger shape`
-                        : `✓ ${genResult.n} tables added`}
+                        : `✓ ${genResult.count} tables added`}
                     </p>
                   )}
                 </div>
