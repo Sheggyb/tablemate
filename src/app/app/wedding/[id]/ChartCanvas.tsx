@@ -1601,10 +1601,10 @@ export default function ChartCanvas({
                       if (!n || n < 1 || n > 200) return;
                       // Canvas px-to-ft ratio: base shape = 800×600px = room at scaleX/Y=1
                       // INFO section uses: w_ft = scaleX * 800 / 10  →  10px = 1ft
-                      const PX_PER_FT = 10;
-                      const CM_PER_FT = 30.48;
-                      const tablePx = (genDiamCm / CM_PER_FT) * PX_PER_FT;
-                      const gapPx   = (60 / CM_PER_FT) * PX_PER_FT; // 60cm gap
+                      const capacity = 8;
+                      const { w: tableW, h: tableH } = tableSize({ shape: "round", capacity } as any);
+                      const tablePx = tableW;   // actual rendered size ~132px for cap=8
+                      const gapPx   = 20;       // 20px gap between table edges
                       const cellPx  = tablePx + gapPx;
                       // Determine shape bounding box in canvas pixels (same ratio as INFO)
                       const BASE_W = 800, BASE_H = 600;
@@ -1630,7 +1630,7 @@ export default function ChartCanvas({
                         const row = Math.floor(i / cols);
                         const cx = shape.x + PADDING + cellPx * col + cellPx / 2;
                         const cy = shape.y + PADDING + cellPx * row + cellPx / 2;
-                        entries.push({ name: `Table ${startIdx + i + 1}`, shape: "round", capacity: 8, x: cx, y: cy });
+                        entries.push({ name: `Table ${startIdx + i + 1}`, shape: "round", capacity: 8, x: cx - tableW / 2, y: cy - tableH / 2 });
                       }
                       onAddTableAt(entries);
                       setGenResult({ n: place, tight: place < n, maxFit: place < n ? maxFit : undefined });
