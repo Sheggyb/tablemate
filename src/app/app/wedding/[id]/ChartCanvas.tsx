@@ -99,7 +99,8 @@ export default function ChartCanvas({
 
   // Generate Tables UI state
   const [genCount, setGenCount]                 = useState<string>("");
-  const [genResult, setGenResult]               = useState<{ n: number; tight: boolean } | null>(null);
+  const [genDiamCm, setGenDiamCm]               = useState<number>(150);
+  const [genResult, setGenResult]               = useState<{ n: number; tight: boolean; maxFit?: number } | null>(null);
 
   // Migration: if old templateKind exists and shapes is empty, auto-create shapes from old fields
   const layoutShapes: VenueShape[] = useMemo(() => {
@@ -1564,63 +1565,87 @@ export default function ChartCanvas({
                 <div style={{ padding: "12px 14px", borderTop: `1px solid ${cs.border}` }}>
                   <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: cs.accent, marginBottom: 8 }}>Generate Tables</p>
                   <label style={{ fontSize: 11, color: cs.textMuted, display: "block", marginBottom: 4 }}>How many tables?</label>
-                  <div style={{ display: "flex", gap: 6 }}>
+                  <input
+                    type="number"
+                    min={1}
+                    max={200}
+                    placeholder="e.g. 40"
+                    value={genCount}
+                    onChange={e => { setGenCount(e.target.value); setGenResult(null); }}
+                    style={{ width: "100%", padding: "5px 8px", borderRadius: 8, border: `1px solid ${cs.border}`, background: cs.surface2, color: cs.text, fontSize: 12, boxSizing: "border-box" as const, marginBottom: 8 }}
+                  />
+                  <label style={{ fontSize: 11, color: cs.textMuted, display: "block", marginBottom: 4 }}>Table diameter (cm)</label>
+                  <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
                     <input
                       type="number"
-                      min={1}
-                      max={200}
-                      placeholder="e.g. 40"
-                      value={genCount}
-                      onChange={e => { setGenCount(e.target.value); setGenResult(null); }}
+                      min={60}
+                      max={300}
+                      value={genDiamCm}
+                      onChange={e => { setGenDiamCm(Math.max(60, Math.min(300, parseInt(e.target.value, 10) || 150))); setGenResult(null); }}
                       style={{ flex: 1, padding: "5px 8px", borderRadius: 8, border: `1px solid ${cs.border}`, background: cs.surface2, color: cs.text, fontSize: 12, boxSizing: "border-box" as const }}
                     />
-                    <button
-                      onClick={() => {
-                        const n = parseInt(genCount, 10);
-                        if (!n || n < 1 || n > 200) return;
-                        // Determine shape bounding box in canvas pixels
-                        const SHAPE_BASE: Record<string, [number, number]> = {
-                          rectangle: [300, 200], oval: [300, 200],
-                          lshape: [400, 300], ushape: [400, 300], marquee: [350, 250],
-                        };
-                        const [bw, bh] = SHAPE_BASE[shape.kind] ?? [300, 200];
-                        const shapeW = bw * (shape.scaleX ?? 1);
-                        const shapeH = bh * (shape.scaleY ?? 1);
-                        const PADDING = 40;
-                        const TABLE_D = 60;
-                        const areaW = shapeW - PADDING * 2;
-                        const areaH = shapeH - PADDING * 2;
-                        if (areaW <= 0 || areaH <= 0) return;
-                        // Grid layout
-                        const aspect = areaW / areaH;
-                        const cols = Math.max(1, Math.round(Math.sqrt(n * aspect)));
-                        const rows = Math.max(1, Math.ceil(n / cols));
-                        const cellW = areaW / cols;
-                        const cellH = areaH / rows;
-                        const spacing = Math.min(cellW - TABLE_D, cellH - TABLE_D);
-                        const tight = spacing < 20;
-                        const startIdx = tables.length;
-                        const entries: { name: string; shape: "round"; capacity: number; x: number; y: number }[] = [];
-                        for (let i = 0; i < n; i++) {
-                          const col = i % cols;
-                          const row = Math.floor(i / cols);
-                          const cx = shape.x + PADDING + cellW * col + cellW / 2;
-                          const cy = shape.y + PADDING + cellH * row + cellH / 2;
-                          entries.push({ name: `Table ${startIdx + i + 1}`, shape: "round", capacity: 8, x: cx, y: cy });
-                        }
-                        onAddTableAt(entries);
-                        setGenResult({ n, tight });
-                        setGenCount("");
-                      }}
-                      style={{
-                        padding: "5px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer",
-                        border: `1px solid ${cs.accent}`, background: cs.accentBg, color: cs.accent,
-                      }}
-                    >Generate</button>
+                    <select
+                      onChange={e => { if (e.target.value) { setGenDiamCm(parseInt(e.target.value, 10)); setGenResult(null); } }}
+                      value=""
+                      style={{ padding: "5px 6px", borderRadius: 8, border: `1px solid ${cs.border}`, background: cs.surface2, color: cs.textSoft, fontSize: 11, cursor: "pointer" }}
+                    >
+                      <option value="">Preset</option>
+                      <option value="90">Small (90cm)</option>
+                      <option value="150">Medium (150cm)</option>
+                      <option value="180">Large (180cm)</option>
+                    </select>
                   </div>
+                  <button
+                    onClick={() => {
+                      const n = parseInt(genCount, 10);
+                      if (!n || n < 1 || n > 200) return;
+                      // Canvas px-to-ft ratio: base shape = 800×600px = room at scaleX/Y=1
+                      // INFO section uses: w_ft = scaleX * 800 / 10  →  10px = 1ft
+                      const PX_PER_FT = 10;
+                      const CM_PER_FT = 30.48;
+                      const tablePx = (genDiamCm / CM_PER_FT) * PX_PER_FT;
+                      const gapPx   = (60 / CM_PER_FT) * PX_PER_FT; // 60cm gap
+                      const cellPx  = tablePx + gapPx;
+                      // Determine shape bounding box in canvas pixels (same ratio as INFO)
+                      const BASE_W = 800, BASE_H = 600;
+                      const shapeW = BASE_W * (shape.scaleX ?? 1);
+                      const shapeH = BASE_H * (shape.scaleY ?? 1);
+                      const PADDING = gapPx; // half-gap border padding
+                      const areaW = shapeW - PADDING * 2;
+                      const areaH = shapeH - PADDING * 2;
+                      if (areaW <= 0 || areaH <= 0) return;
+                      // Max fit given cell size
+                      const maxCols = Math.max(1, Math.floor(areaW / cellPx));
+                      const maxRows = Math.max(1, Math.floor(areaH / cellPx));
+                      const maxFit  = maxCols * maxRows;
+                      const place   = Math.min(n, maxFit);
+                      // Grid layout for `place` tables
+                      const aspect = areaW / areaH;
+                      const cols   = Math.max(1, Math.min(maxCols, Math.round(Math.sqrt(place * aspect))));
+                      const rows   = Math.max(1, Math.ceil(place / cols));
+                      const startIdx = tables.length;
+                      const entries: { name: string; shape: "round"; capacity: number; x: number; y: number }[] = [];
+                      for (let i = 0; i < place; i++) {
+                        const col = i % cols;
+                        const row = Math.floor(i / cols);
+                        const cx = shape.x + PADDING + cellPx * col + cellPx / 2;
+                        const cy = shape.y + PADDING + cellPx * row + cellPx / 2;
+                        entries.push({ name: `Table ${startIdx + i + 1}`, shape: "round", capacity: 8, x: cx, y: cy });
+                      }
+                      onAddTableAt(entries);
+                      setGenResult({ n: place, tight: place < n, maxFit: place < n ? maxFit : undefined });
+                      setGenCount("");
+                    }}
+                    style={{
+                      width: "100%", padding: "6px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                      border: `1px solid ${cs.accent}`, background: cs.accentBg, color: cs.accent,
+                    }}
+                  >Generate</button>
                   {genResult && (
                     <p style={{ marginTop: 6, fontSize: 11, color: genResult.tight ? "#f59e0b" : "#4caf7d" }}>
-                      {genResult.tight ? `⚠️ ${genResult.n} tables added (tight fit — consider a larger shape)` : `✓ ${genResult.n} tables added`}
+                      {genResult.tight
+                        ? `⚠️ Only ${genResult.maxFit} tables fit — resize shape or use smaller tables`
+                        : `✓ ${genResult.n} tables added`}
                     </p>
                   )}
                 </div>
