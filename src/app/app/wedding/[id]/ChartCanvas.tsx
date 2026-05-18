@@ -13,6 +13,7 @@ interface Props {
   onAddTable:    (name: string, shape: "round" | "rectangle" | "oval", capacity: number) => void;
   onAddTableAt:  (entries: { name: string; shape: "round" | "rectangle" | "oval"; capacity: number; x: number; y: number }[]) => void;
   onUpdateTable: (id: string, data: Partial<Table>) => void;
+  onUpdateTablePositions: (updates: { id: string; x: number; y: number }[]) => void;
   onDeleteTable: (id: string) => void;
   onSeatGuest:   (guestId: string, tableId: string | null, seatIndex: number | null) => void;
   onAutoSeat:    () => void;
@@ -55,7 +56,7 @@ function snapToGrid(v: number): number {
 
 export default function ChartCanvas({
   tables, guests, groups, rules, darkMode,
-  onAddTable, onAddTableAt, onUpdateTable, onDeleteTable, onSeatGuest, onAutoSeat, isDemo = false,
+  onAddTable, onAddTableAt, onUpdateTable, onUpdateTablePositions, onDeleteTable, onSeatGuest, onAutoSeat, isDemo = false,
   activeVenue, onUpdateLayout,
 }: Props) {
   const canvasRef   = useRef<HTMLDivElement>(null);
@@ -100,7 +101,9 @@ export default function ChartCanvas({
   // Generate Tables UI state
   const [genCount, setGenCount]                 = useState<string>("");
   const [genDiamCm, setGenDiamCm]               = useState<number>(150);
-  const [genResult, setGenResult]               = useState<{ count: number; maxFit: number } | null>(null);
+  const [genGap, setGenGap]                     = useState(20);
+  const [genResult, setGenResult]               = useState<{ count: number; maxFit: number; filled?: boolean } | null>(null);
+  const [ghostCells, setGhostCells]             = useState<{ cx: number; cy: number }[] | null>(null);
 
   // Migration: if old templateKind exists and shapes is empty, auto-create shapes from old fields
   const layoutShapes: VenueShape[] = useMemo(() => {
@@ -435,6 +438,70 @@ export default function ChartCanvas({
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
   }, [onWheel]);
+
+  // Ghost preview: recompute whenever genCount, genGap, or selectedShapeId changes
+  useEffect(() => {
+    if (!selectedShapeId) { setGhostCells(null); return; }
+    const shape = layoutShapes.find(s => s.id === selectedShapeId);
+    if (!shape || shape.kind.startsWith("wall")) { setGhostCells(null); return; }
+    const timer = setTimeout(() => {
+      const n = parseInt(genCount, 10);
+      if (!n || n < 1) { setGhostCells(null); return; }
+      const BASE_DIMS: Record<string, [number, number]> = {
+        rectangle: [800, 600], oval: [800, 600], marquee: [700, 500],
+        lshape: [800, 600], ushape: [800, 600],
+      };
+      const [BASE_W, BASE_H] = BASE_DIMS[shape.kind] ?? [800, 600];
+      const scaledW = BASE_W * (shape.scaleX ?? 1);
+      const scaledH = BASE_H * (shape.scaleY ?? 1);
+      const capacity = 8;
+      const { w: tableW, h: tableH } = tableSize({ shape: "round", capacity } as any);
+      const GAP = genGap;
+      const cellPx = tableW + GAP;
+      const PADDING = 30;
+      const usableW = scaledW - 2 * PADDING;
+      const usableH = scaledH - 2 * PADDING;
+      const maxCols = Math.floor(usableW / cellPx);
+      const maxRows = Math.floor(usableH / cellPx);
+      if (maxCols <= 0 || maxRows <= 0) { setGhostCells(null); return; }
+      const isInsideShape = (cx: number, cy: number): boolean => {
+        const lx = cx - shape.x;
+        const ly = cy - shape.y;
+        const bx = lx / (shape.scaleX ?? 1);
+        const by = ly / (shape.scaleY ?? 1);
+        switch (shape.kind) {
+          case "oval": {
+            const rw = BASE_W / 2, rh = BASE_H / 2;
+            return ((bx - rw) / rw) ** 2 + ((by - rh) / rh) ** 2 <= 0.82;
+          }
+          case "lshape":
+            return bx < BASE_W * 0.42 || by > BASE_H * 0.58;
+          case "ushape":
+            return bx < BASE_W * 0.27 || bx > BASE_W * 0.73 || by > BASE_H * 0.68;
+          default:
+            return true;
+        }
+      };
+      const existingInShape = tables.filter(t => isInsideShape(t.x + tableW / 2, t.y + tableH / 2));
+      const emptyCells: { cx: number; cy: number }[] = [];
+      for (let row = 0; row < maxRows; row++) {
+        for (let col = 0; col < maxCols; col++) {
+          const cx = shape.x + PADDING + col * cellPx + cellPx / 2;
+          const cy = shape.y + PADDING + row * cellPx + cellPx / 2;
+          if (!isInsideShape(cx, cy)) continue;
+          const occupied = existingInShape.some(t => {
+            const tx = t.x + tableW / 2;
+            const ty = t.y + tableH / 2;
+            return Math.abs(tx - cx) < cellPx * 0.9 && Math.abs(ty - cy) < cellPx * 0.9;
+          });
+          if (!occupied) emptyCells.push({ cx, cy });
+        }
+      }
+      setGhostCells(emptyCells.slice(0, Math.min(n, emptyCells.length)));
+    }, 150);
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [genCount, genGap, selectedShapeId]);
 
   /* ── Table drag ── */
   const onTablePointerDown = useCallback((e: React.PointerEvent, id: string) => {
@@ -1263,6 +1330,24 @@ export default function ChartCanvas({
                   );
                 })}
                 {/* Fixtures */}
+                {/* Ghost preview circles */}
+                {ghostCells && ghostCells.map((gc, i) => {
+                  const { w: tableW } = tableSize({ shape: "round", capacity: 8 } as any);
+                  return (
+                    <circle
+                      key={`ghost-${i}`}
+                      cx={gc.cx}
+                      cy={gc.cy}
+                      r={tableW / 2}
+                      fill="var(--accent)"
+                      fillOpacity={0.12}
+                      stroke="var(--accent)"
+                      strokeWidth={1.5}
+                      strokeDasharray="5 3"
+                      style={{ pointerEvents: "none" }}
+                    />
+                  );
+                })}
                 {activeVenue?.layout?.fixtures.map(f => {
                     const preset = FIXTURE_PRESETS.find(p => p.kind === f.kind);
                     const emoji = f.emoji ?? preset?.emoji ?? "📦";
@@ -1595,6 +1680,22 @@ export default function ChartCanvas({
                       <option value="180">Large (180cm)</option>
                     </select>
                   </div>
+                  {/* Gap slider */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                    <label style={{ fontSize: 11, color: cs.textMuted, whiteSpace: "nowrap" }}>Gap:</label>
+                    <input
+                      type="range"
+                      min={10}
+                      max={80}
+                      step={5}
+                      value={genGap}
+                      onChange={e => { setGenGap(parseInt(e.target.value, 10)); setGenResult(null); }}
+                      style={{ flex: 1 }}
+                    />
+                    <span style={{ fontSize: 11, color: cs.textSoft, whiteSpace: "nowrap" }}>{genGap}px</span>
+                  </div>
+                  {/* Generate + Fill Shape buttons */}
+                  <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
                   <button
                     onClick={() => {
                       const n = parseInt(genCount, 10);
@@ -1610,7 +1711,7 @@ export default function ChartCanvas({
                       const scaledH = BASE_H * (shape.scaleY ?? 1);
                       const capacity = 8;
                       const { w: tableW, h: tableH } = tableSize({ shape: "round", capacity } as any);
-                      const GAP = 20;
+                      const GAP = genGap;
                       const cellPx = tableW + GAP;
                       const PADDING = 30;
                       // Grid in scaled (canvas) space
@@ -1623,13 +1724,7 @@ export default function ChartCanvas({
                         setGenCount("");
                         return;
                       }
-                      // Find existing tables inside this shape bounding box
-                      const existingInShape = tables.filter(t =>
-                        t.x >= shape.x && t.x <= shape.x + scaledW &&
-                        t.y >= shape.y && t.y <= shape.y + scaledH
-                      );
                       // Returns true if canvas point (cx,cy) is inside the actual shape geometry
-                      // cx/cy are absolute canvas coords; convert to shape-local base space for geometry tests
                       const isInsideShape = (cx: number, cy: number): boolean => {
                         const lx = cx - shape.x;
                         const ly = cy - shape.y;
@@ -1648,6 +1743,10 @@ export default function ChartCanvas({
                             return true;
                         }
                       };
+                      // Find existing tables inside this shape using geometry check
+                      const existingInShape = tables.filter(t =>
+                        isInsideShape(t.x + tableW / 2, t.y + tableH / 2)
+                      );
                       // Build all grid candidate cells and skip occupied ones
                       const emptyCells: { cx: number; cy: number }[] = [];
                       for (let row = 0; row < maxRows; row++) {
@@ -1680,17 +1779,146 @@ export default function ChartCanvas({
                       onAddTableAt(entries);
                       setGenResult({ count: toPlace, maxFit: emptyCells.length });
                       setGenCount("");
+                      setGhostCells(null);
                     }}
                     style={{
-                      width: "100%", padding: "6px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                      flex: 1, padding: "6px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer",
                       border: `1px solid ${cs.accent}`, background: cs.accentBg, color: cs.accent,
                     }}
                   >Generate</button>
+                  <button
+                    onClick={() => {
+                      // Fill Shape: place as many as fit
+                      const BASE_DIMS: Record<string, [number, number]> = {
+                        rectangle: [800, 600], oval: [800, 600], marquee: [700, 500],
+                        lshape: [800, 600], ushape: [800, 600],
+                        "wall-h": [400, 20], "wall-v": [20, 400], "wall-diagonal": [200, 20],
+                      };
+                      const [BASE_W, BASE_H] = BASE_DIMS[shape.kind] ?? [800, 600];
+                      const scaledW = BASE_W * (shape.scaleX ?? 1);
+                      const scaledH = BASE_H * (shape.scaleY ?? 1);
+                      const capacity = 8;
+                      const { w: tableW, h: tableH } = tableSize({ shape: "round", capacity } as any);
+                      const GAP = genGap;
+                      const cellPx = tableW + GAP;
+                      const PADDING = 30;
+                      const usableW = scaledW - 2 * PADDING;
+                      const usableH = scaledH - 2 * PADDING;
+                      const maxCols = Math.floor(usableW / cellPx);
+                      const maxRows = Math.floor(usableH / cellPx);
+                      if (maxCols <= 0 || maxRows <= 0) { setGenResult({ count: 0, maxFit: 0 }); return; }
+                      const isInsideShape = (cx: number, cy: number): boolean => {
+                        const lx = cx - shape.x;
+                        const ly = cy - shape.y;
+                        const bx = lx / (shape.scaleX ?? 1);
+                        const by = ly / (shape.scaleY ?? 1);
+                        switch (shape.kind) {
+                          case "oval": { const rw = BASE_W / 2, rh = BASE_H / 2; return ((bx - rw) / rw) ** 2 + ((by - rh) / rh) ** 2 <= 0.82; }
+                          case "lshape": return bx < BASE_W * 0.42 || by > BASE_H * 0.58;
+                          case "ushape": return bx < BASE_W * 0.27 || bx > BASE_W * 0.73 || by > BASE_H * 0.68;
+                          default: return true;
+                        }
+                      };
+                      const existingInShape = tables.filter(t => isInsideShape(t.x + tableW / 2, t.y + tableH / 2));
+                      const emptyCells: { cx: number; cy: number }[] = [];
+                      for (let row = 0; row < maxRows; row++) {
+                        for (let col = 0; col < maxCols; col++) {
+                          const cx = shape.x + PADDING + col * cellPx + cellPx / 2;
+                          const cy = shape.y + PADDING + row * cellPx + cellPx / 2;
+                          if (!isInsideShape(cx, cy)) continue;
+                          const occupied = existingInShape.some(t => {
+                            const tx = t.x + tableW / 2;
+                            const ty = t.y + tableH / 2;
+                            return Math.abs(tx - cx) < cellPx * 0.9 && Math.abs(ty - cy) < cellPx * 0.9;
+                          });
+                          if (!occupied) emptyCells.push({ cx, cy });
+                        }
+                      }
+                      if (emptyCells.length === 0) { setGenResult({ count: 0, maxFit: 0 }); return; }
+                      const startIdx = tables.length;
+                      const entries = emptyCells.map(({ cx, cy }, i) => ({
+                        name: `Table ${startIdx + i + 1}`,
+                        shape: "round" as const,
+                        capacity: 8,
+                        x: cx - tableW / 2,
+                        y: cy - tableH / 2,
+                      }));
+                      onAddTableAt(entries);
+                      setGenResult({ count: emptyCells.length, maxFit: emptyCells.length, filled: true });
+                      setGhostCells(null);
+                    }}
+                    style={{
+                      flex: 1, padding: "6px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                      border: `1px solid ${cs.border}`, background: cs.surface2, color: cs.text,
+                    }}
+                  >Fill Shape</button>
+                  </div>
+                  {/* Rearrange button — only when tables are inside shape */}
+                  {(() => {
+                    const BASE_DIMS: Record<string, [number, number]> = {
+                      rectangle: [800, 600], oval: [800, 600], marquee: [700, 500],
+                      lshape: [800, 600], ushape: [800, 600],
+                    };
+                    const [BASE_W, BASE_H] = BASE_DIMS[shape.kind] ?? [800, 600];
+                    const { w: tableW, h: tableH } = tableSize({ shape: "round", capacity: 8 } as any);
+                    const isInsideShapeCheck = (cx: number, cy: number): boolean => {
+                      const lx = cx - shape.x; const ly = cy - shape.y;
+                      const bx = lx / (shape.scaleX ?? 1); const by = ly / (shape.scaleY ?? 1);
+                      switch (shape.kind) {
+                        case "oval": { const rw = BASE_W / 2, rh = BASE_H / 2; return ((bx - rw) / rw) ** 2 + ((by - rh) / rh) ** 2 <= 0.82; }
+                        case "lshape": return bx < BASE_W * 0.42 || by > BASE_H * 0.58;
+                        case "ushape": return bx < BASE_W * 0.27 || bx > BASE_W * 0.73 || by > BASE_H * 0.68;
+                        default: return true;
+                      }
+                    };
+                    const tablesInShape = tables.filter(t => isInsideShapeCheck(t.x + tableW / 2, t.y + tableH / 2));
+                    if (tablesInShape.length === 0) return null;
+                    return (
+                      <button
+                        onClick={() => {
+                          const GAP = genGap;
+                          const cellPx = tableW + GAP;
+                          const PADDING = 30;
+                          const scaledW = BASE_W * (shape.scaleX ?? 1);
+                          const scaledH = BASE_H * (shape.scaleY ?? 1);
+                          const usableW = scaledW - 2 * PADDING;
+                          const usableH = scaledH - 2 * PADDING;
+                          const maxCols = Math.floor(usableW / cellPx);
+                          const maxRows = Math.floor(usableH / cellPx);
+                          if (maxCols <= 0 || maxRows <= 0) return;
+                          const allGridCells: { cx: number; cy: number }[] = [];
+                          for (let row = 0; row < maxRows; row++) {
+                            for (let col = 0; col < maxCols; col++) {
+                              const cx = shape.x + PADDING + col * cellPx + cellPx / 2;
+                              const cy = shape.y + PADDING + row * cellPx + cellPx / 2;
+                              if (!isInsideShapeCheck(cx, cy)) continue;
+                              allGridCells.push({ cx, cy });
+                            }
+                          }
+                          const toMove = Math.min(tablesInShape.length, allGridCells.length);
+                          const updates = tablesInShape.slice(0, toMove).map((t, i) => ({
+                            id: t.id,
+                            x: allGridCells[i].cx - tableW / 2,
+                            y: allGridCells[i].cy - tableH / 2,
+                          }));
+                          onUpdateTablePositions(updates);
+                          setGenResult({ count: toMove, maxFit: toMove });
+                          setGhostCells(null);
+                        }}
+                        style={{
+                          width: "100%", padding: "6px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                          border: `1px solid ${cs.border}`, background: cs.surface2, color: cs.text, marginBottom: 6,
+                        }}
+                      >⟳ Rearrange {tablesInShape.length} Tables</button>
+                    );
+                  })()}
                   {genResult && (
                     <p style={{ marginTop: 6, fontSize: 11, color: genResult.count === 0 ? "#f59e0b" : "#4caf7d" }}>
                       {genResult.count === 0
                         ? `⚠️ Only ${genResult.maxFit} spots available — move existing tables or use a larger shape`
-                        : `✓ ${genResult.count} tables added`}
+                        : genResult.filled
+                          ? `✓ Filled with ${genResult.count} tables`
+                          : `✓ ${genResult.count} tables added`}
                     </p>
                   )}
                 </div>

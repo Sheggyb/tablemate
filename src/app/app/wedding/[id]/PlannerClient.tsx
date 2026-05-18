@@ -344,6 +344,15 @@ export default function PlannerClient({
     }
   }, [supabase, isDemo]);
 
+  const updateTablePositions = useCallback((updates: { id: string; x: number; y: number }[]) => {
+    updates.forEach(({ id, x, y }) => {
+      dispatch({ type: "UPDATE_TABLE", id, data: { x, y } });
+    });
+    updates.forEach(async ({ id, x, y }) => {
+      await supabase.from("tables").update({ x, y }).eq("id", id);
+    });
+  }, [dispatch, supabase]);
+
   const deleteTable = useCallback(async (id: string) => {
     const prevTables = state.tables;
     const prevGuests = state.guests;
@@ -767,6 +776,7 @@ export default function PlannerClient({
             onAddTable={addTable}
             onAddTableAt={addTableAt}
             onUpdateTable={updateTable}
+            onUpdateTablePositions={updateTablePositions}
             onDeleteTable={deleteTable}
             onSeatGuest={seatGuest}
             onAutoSeat={autoSeat}
