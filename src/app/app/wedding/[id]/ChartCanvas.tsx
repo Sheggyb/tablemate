@@ -11,6 +11,7 @@ interface Props {
   rules:         Rule[];
   darkMode:      boolean;
   onAddTable:    (name: string, shape: "round" | "rectangle" | "oval", capacity: number) => void;
+  onAddTableAt:  (entries: { name: string; shape: "round" | "rectangle" | "oval"; capacity: number; x: number; y: number }[]) => void;
   onUpdateTable: (id: string, data: Partial<Table>) => void;
   onDeleteTable: (id: string) => void;
   onSeatGuest:   (guestId: string, tableId: string | null, seatIndex: number | null) => void;
@@ -54,7 +55,7 @@ function snapToGrid(v: number): number {
 
 export default function ChartCanvas({
   tables, guests, groups, rules, darkMode,
-  onAddTable, onUpdateTable, onDeleteTable, onSeatGuest, onAutoSeat, isDemo = false,
+  onAddTable, onAddTableAt, onUpdateTable, onDeleteTable, onSeatGuest, onAutoSeat, isDemo = false,
   activeVenue, onUpdateLayout,
 }: Props) {
   const canvasRef   = useRef<HTMLDivElement>(null);
@@ -95,6 +96,10 @@ export default function ChartCanvas({
   // Room Properties panel local UI state
   const [roomPosOpen, setRoomPosOpen]           = useState(false);
   const [roomAspectLock, setRoomAspectLock]     = useState(false);
+
+  // Generate Tables UI state
+  const [genCount, setGenCount]                 = useState<string>("");
+  const [genResult, setGenResult]               = useState<{ n: number; tight: boolean } | null>(null);
 
   // Migration: if old templateKind exists and shapes is empty, auto-create shapes from old fields
   const layoutShapes: VenueShape[] = useMemo(() => {
@@ -1553,6 +1558,73 @@ export default function ChartCanvas({
                 )}
 
               </div>
+
+              {/* ── Generate Tables ── */}
+              {!isWall && (
+                <div style={{ padding: "12px 14px", borderTop: `1px solid ${cs.border}` }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: cs.accent, marginBottom: 8 }}>Generate Tables</p>
+                  <label style={{ fontSize: 11, color: cs.textMuted, display: "block", marginBottom: 4 }}>How many tables?</label>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <input
+                      type="number"
+                      min={1}
+                      max={200}
+                      placeholder="e.g. 40"
+                      value={genCount}
+                      onChange={e => { setGenCount(e.target.value); setGenResult(null); }}
+                      style={{ flex: 1, padding: "5px 8px", borderRadius: 8, border: `1px solid ${cs.border}`, background: cs.surface2, color: cs.text, fontSize: 12, boxSizing: "border-box" as const }}
+                    />
+                    <button
+                      onClick={() => {
+                        const n = parseInt(genCount, 10);
+                        if (!n || n < 1 || n > 200) return;
+                        // Determine shape bounding box in canvas pixels
+                        const SHAPE_BASE: Record<string, [number, number]> = {
+                          rectangle: [300, 200], oval: [300, 200],
+                          lshape: [400, 300], ushape: [400, 300], marquee: [350, 250],
+                        };
+                        const [bw, bh] = SHAPE_BASE[shape.kind] ?? [300, 200];
+                        const shapeW = bw * (shape.scaleX ?? 1);
+                        const shapeH = bh * (shape.scaleY ?? 1);
+                        const PADDING = 40;
+                        const TABLE_D = 60;
+                        const areaW = shapeW - PADDING * 2;
+                        const areaH = shapeH - PADDING * 2;
+                        if (areaW <= 0 || areaH <= 0) return;
+                        // Grid layout
+                        const aspect = areaW / areaH;
+                        const cols = Math.max(1, Math.round(Math.sqrt(n * aspect)));
+                        const rows = Math.max(1, Math.ceil(n / cols));
+                        const cellW = areaW / cols;
+                        const cellH = areaH / rows;
+                        const spacing = Math.min(cellW - TABLE_D, cellH - TABLE_D);
+                        const tight = spacing < 20;
+                        const startIdx = tables.length;
+                        const entries: { name: string; shape: "round"; capacity: number; x: number; y: number }[] = [];
+                        for (let i = 0; i < n; i++) {
+                          const col = i % cols;
+                          const row = Math.floor(i / cols);
+                          const cx = shape.x + PADDING + cellW * col + cellW / 2;
+                          const cy = shape.y + PADDING + cellH * row + cellH / 2;
+                          entries.push({ name: `Table ${startIdx + i + 1}`, shape: "round", capacity: 8, x: cx, y: cy });
+                        }
+                        onAddTableAt(entries);
+                        setGenResult({ n, tight });
+                        setGenCount("");
+                      }}
+                      style={{
+                        padding: "5px 12px", borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                        border: `1px solid ${cs.accent}`, background: cs.accentBg, color: cs.accent,
+                      }}
+                    >Generate</button>
+                  </div>
+                  {genResult && (
+                    <p style={{ marginTop: 6, fontSize: 11, color: genResult.tight ? "#f59e0b" : "#4caf7d" }}>
+                      {genResult.tight ? `⚠️ ${genResult.n} tables added (tight fit — consider a larger shape)` : `✓ ${genResult.n} tables added`}
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* INFO — dimensions + area in both units */}
               {(() => {

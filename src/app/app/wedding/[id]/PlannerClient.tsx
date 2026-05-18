@@ -312,6 +312,28 @@ export default function PlannerClient({
     });
   }, [supabase, isDemo, activeVenueId, showToast]);
 
+  const addTableAt = useCallback(async (tables_to_add: { name: string; shape: "round" | "rectangle" | "oval"; capacity: number; x: number; y: number }[]) => {
+    if (!activeVenueId) return;
+    const newTables: Table[] = tables_to_add.map(t => ({
+      id: crypto.randomUUID(),
+      wedding_id: wedding.id,
+      venue_id: activeVenueId,
+      name: t.name,
+      shape: t.shape,
+      capacity: t.capacity,
+      x: t.x,
+      y: t.y,
+    }));
+    for (const t of newTables) dispatch({ type: "ADD_TABLE", payload: t });
+    if (!isDemo) {
+      for (const t of newTables) {
+        supabase.from("tables").insert(t).then(({ error }) => {
+          if (error) console.error("Insert table failed:", error.message);
+        });
+      }
+    }
+  }, [supabase, isDemo, activeVenueId, wedding.id]);
+
   const updateTable = useCallback(async (id: string, data: Partial<Table>) => {
     dispatch({ type: "UPDATE_TABLE", id, data });
     if (!isDemo) {
@@ -743,6 +765,7 @@ export default function PlannerClient({
             rules={state.rules}
             darkMode={darkMode}
             onAddTable={addTable}
+            onAddTableAt={addTableAt}
             onUpdateTable={updateTable}
             onDeleteTable={deleteTable}
             onSeatGuest={seatGuest}
