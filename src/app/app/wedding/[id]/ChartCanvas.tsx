@@ -1617,23 +1617,40 @@ export default function ChartCanvas({
                       // Max fit given cell size
                       const maxCols = Math.max(1, Math.floor(areaW / cellPx));
                       const maxRows = Math.max(1, Math.floor(areaH / cellPx));
-                      const maxFit  = maxCols * maxRows;
-                      const place   = Math.min(n, maxFit);
-                      // Grid layout for `place` tables
-                      const aspect = areaW / areaH;
-                      const cols   = Math.max(1, Math.min(maxCols, Math.round(Math.sqrt(place * aspect))));
-                      const rows   = Math.max(1, Math.ceil(place / cols));
+                      // Find existing tables inside this shape
+                      const existingInShape = tables.filter(t =>
+                        t.x >= shape.x && t.x <= shape.x + shapeW &&
+                        t.y >= shape.y && t.y <= shape.y + shapeH
+                      );
+                      // Build all grid candidate cells and skip occupied ones
+                      const emptyCells: { cx: number; cy: number }[] = [];
+                      for (let row = 0; row < maxRows; row++) {
+                        for (let col = 0; col < maxCols; col++) {
+                          const cx = shape.x + PADDING + cellPx * col + cellPx / 2;
+                          const cy = shape.y + PADDING + cellPx * row + cellPx / 2;
+                          const occupied = existingInShape.some(t => {
+                            const tx = t.x + tableW / 2;
+                            const ty = t.y + tableH / 2;
+                            return Math.abs(tx - cx) < cellPx && Math.abs(ty - cy) < cellPx;
+                          });
+                          if (!occupied) emptyCells.push({ cx, cy });
+                        }
+                      }
+                      const availableSpots = emptyCells.length;
+                      if (availableSpots === 0 || n > availableSpots) {
+                        setGenResult({ n: 0, tight: true, maxFit: availableSpots });
+                        setGenCount("");
+                        return;
+                      }
+                      const place = Math.min(n, availableSpots);
                       const startIdx = tables.length;
                       const entries: { name: string; shape: "round"; capacity: number; x: number; y: number }[] = [];
                       for (let i = 0; i < place; i++) {
-                        const col = i % cols;
-                        const row = Math.floor(i / cols);
-                        const cx = shape.x + PADDING + cellPx * col + cellPx / 2;
-                        const cy = shape.y + PADDING + cellPx * row + cellPx / 2;
+                        const { cx, cy } = emptyCells[i];
                         entries.push({ name: `Table ${startIdx + i + 1}`, shape: "round", capacity: 8, x: cx - tableW / 2, y: cy - tableH / 2 });
                       }
                       onAddTableAt(entries);
-                      setGenResult({ n: place, tight: place < n, maxFit: place < n ? maxFit : undefined });
+                      setGenResult({ n: place, tight: false });
                       setGenCount("");
                     }}
                     style={{
@@ -1644,7 +1661,7 @@ export default function ChartCanvas({
                   {genResult && (
                     <p style={{ marginTop: 6, fontSize: 11, color: genResult.tight ? "#f59e0b" : "#4caf7d" }}>
                       {genResult.tight
-                        ? `⚠️ Only ${genResult.maxFit} tables fit — resize shape or use smaller tables`
+                        ? `⚠️ Only ${genResult.maxFit} spots available — move existing tables or use a larger shape`
                         : `✓ ${genResult.n} tables added`}
                     </p>
                   )}
