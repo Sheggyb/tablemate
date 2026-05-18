@@ -276,6 +276,15 @@ export default function ChartCanvas({
     return { w: 140 + t.capacity * 5, h: 80 };
   }, []);
 
+  const cmToCapacity = useCallback((cm: number): number => {
+    if (cm <= 75)  return 2;
+    if (cm <= 100) return 4;
+    if (cm <= 130) return 6;
+    if (cm <= 160) return 8;
+    if (cm <= 190) return 10;
+    return 12;
+  }, []);
+
   // ── Find: matching guests and tables for dropdown ──
   const findGuestMatches = useMemo(() => {
     if (findQuery.trim().length < 2) return [] as Guest[];
@@ -454,9 +463,9 @@ export default function ChartCanvas({
       const [BASE_W, BASE_H] = BASE_DIMS[shape.kind] ?? [800, 600];
       const scaledW = BASE_W * (shape.scaleX ?? 1);
       const scaledH = BASE_H * (shape.scaleY ?? 1);
-      const capacity = 8;
+      const capacity = cmToCapacity(genDiamCm);
       const { w: tableW, h: tableH } = tableSize({ shape: "round", capacity } as any);
-      const GAP = genGapCm * (tableSize({ shape: "round", capacity } as any).w / 150);
+      const GAP = genGapCm * (tableW / 150);
       const cellPx = tableW + GAP;
       const PADDING = 30;
       const usableW = scaledW - 2 * PADDING;
@@ -479,7 +488,7 @@ export default function ChartCanvas({
           case "ushape":
             return bx < BASE_W * 0.27 || bx > BASE_W * 0.73 || by > BASE_H * 0.68;
           default:
-            return true;
+            return bx >= 0 && bx <= BASE_W && by >= 0 && by <= BASE_H;
         }
       };
       const existingInShape = tables.filter(t => isInsideShape(t.x + tableW / 2, t.y + tableH / 2));
@@ -501,7 +510,7 @@ export default function ChartCanvas({
     }, 150);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [genCount, genGapCm, selectedShapeId]);
+  }, [genCount, genGapCm, genDiamCm, selectedShapeId]);
 
   /* ── Table drag ── */
   const onTablePointerDown = useCallback((e: React.PointerEvent, id: string) => {
@@ -1332,7 +1341,7 @@ export default function ChartCanvas({
                 {/* Fixtures */}
                 {/* Ghost preview circles */}
                 {ghostCells && ghostCells.map((gc, i) => {
-                  const { w: tableW } = tableSize({ shape: "round", capacity: 8 } as any);
+                  const { w: tableW } = tableSize({ shape: "round", capacity: cmToCapacity(genDiamCm) } as any);
                   return (
                     <circle
                       key={`ghost-${i}`}
@@ -1705,9 +1714,9 @@ export default function ChartCanvas({
                       const [BASE_W, BASE_H] = BASE_DIMS[shape.kind] ?? [800, 600];
                       const scaledW = BASE_W * (shape.scaleX ?? 1);
                       const scaledH = BASE_H * (shape.scaleY ?? 1);
-                      const capacity = 8;
+                      const capacity = cmToCapacity(genDiamCm);
                       const { w: tableW, h: tableH } = tableSize({ shape: "round", capacity } as any);
-                      const GAP = genGapCm * (tableSize({ shape: "round", capacity } as any).w / 150);
+                      const GAP = genGapCm * (tableW / 150);
                       const cellPx = tableW + GAP;
                       const PADDING = 30;
                       // Grid in scaled (canvas) space
@@ -1736,7 +1745,7 @@ export default function ChartCanvas({
                           case "ushape":
                             return bx < BASE_W * 0.27 || bx > BASE_W * 0.73 || by > BASE_H * 0.68;
                           default:
-                            return true;
+                            return bx >= 0 && bx <= BASE_W && by >= 0 && by <= BASE_H;
                         }
                       };
                       // Find existing tables inside this shape using geometry check
@@ -1768,7 +1777,7 @@ export default function ChartCanvas({
                       const entries = emptyCells.slice(0, toPlace).map(({ cx, cy }, i) => ({
                         name: `Table ${startIdx + i + 1}`,
                         shape: "round" as const,
-                        capacity: 8,
+                        capacity,
                         x: cx - tableW / 2,
                         y: cy - tableH / 2,
                       }));
@@ -1793,9 +1802,9 @@ export default function ChartCanvas({
                       const [BASE_W, BASE_H] = BASE_DIMS[shape.kind] ?? [800, 600];
                       const scaledW = BASE_W * (shape.scaleX ?? 1);
                       const scaledH = BASE_H * (shape.scaleY ?? 1);
-                      const capacity = 8;
+                      const capacity = cmToCapacity(genDiamCm);
                       const { w: tableW, h: tableH } = tableSize({ shape: "round", capacity } as any);
-                      const GAP = genGapCm * (tableSize({ shape: "round", capacity } as any).w / 150);
+                      const GAP = genGapCm * (tableW / 150);
                       const cellPx = tableW + GAP;
                       const PADDING = 30;
                       const usableW = scaledW - 2 * PADDING;
@@ -1812,7 +1821,7 @@ export default function ChartCanvas({
                           case "oval": { const rw = BASE_W / 2, rh = BASE_H / 2; return ((bx - rw) / rw) ** 2 + ((by - rh) / rh) ** 2 <= 0.82; }
                           case "lshape": return bx < BASE_W * 0.42 || by > BASE_H * 0.58;
                           case "ushape": return bx < BASE_W * 0.27 || bx > BASE_W * 0.73 || by > BASE_H * 0.68;
-                          default: return true;
+                          default: return bx >= 0 && bx <= BASE_W && by >= 0 && by <= BASE_H;
                         }
                       };
                       const existingInShape = tables.filter(t => isInsideShape(t.x + tableW / 2, t.y + tableH / 2));
@@ -1835,7 +1844,7 @@ export default function ChartCanvas({
                       const entries = emptyCells.map(({ cx, cy }, i) => ({
                         name: `Table ${startIdx + i + 1}`,
                         shape: "round" as const,
-                        capacity: 8,
+                        capacity,
                         x: cx - tableW / 2,
                         y: cy - tableH / 2,
                       }));
@@ -1856,7 +1865,7 @@ export default function ChartCanvas({
                       lshape: [800, 600], ushape: [800, 600],
                     };
                     const [BASE_W, BASE_H] = BASE_DIMS[shape.kind] ?? [800, 600];
-                    const { w: tableW, h: tableH } = tableSize({ shape: "round", capacity: 8 } as any);
+                    const { w: tableW, h: tableH } = tableSize({ shape: "round", capacity: cmToCapacity(genDiamCm) } as any);
                     const isInsideShapeCheck = (cx: number, cy: number): boolean => {
                       const lx = cx - shape.x; const ly = cy - shape.y;
                       const bx = lx / (shape.scaleX ?? 1); const by = ly / (shape.scaleY ?? 1);
@@ -1864,7 +1873,7 @@ export default function ChartCanvas({
                         case "oval": { const rw = BASE_W / 2, rh = BASE_H / 2; return ((bx - rw) / rw) ** 2 + ((by - rh) / rh) ** 2 <= 0.82; }
                         case "lshape": return bx < BASE_W * 0.42 || by > BASE_H * 0.58;
                         case "ushape": return bx < BASE_W * 0.27 || bx > BASE_W * 0.73 || by > BASE_H * 0.68;
-                        default: return true;
+                        default: return bx >= 0 && bx <= BASE_W && by >= 0 && by <= BASE_H;
                       }
                     };
                     const tablesInShape = tables.filter(t => isInsideShapeCheck(t.x + tableW / 2, t.y + tableH / 2));
@@ -1872,7 +1881,7 @@ export default function ChartCanvas({
                     return (
                       <button
                         onClick={() => {
-                          const GAP = genGapCm * (tableSize({ shape: "round", capacity: 8 } as any).w / 150);
+                          const GAP = genGapCm * (tableW / 150);
                           const cellPx = tableW + GAP;
                           const PADDING = 30;
                           const scaledW = BASE_W * (shape.scaleX ?? 1);
