@@ -102,7 +102,7 @@ export default function ChartCanvas({
   const [genCount, setGenCount]                 = useState<string>("");
   const [genDiamCm, setGenDiamCm]               = useState<number>(150);
   const [genGapCm, setGenGapCm]                 = useState(60);
-  const [genResult, setGenResult]               = useState<{ count: number; maxFit: number; filled?: boolean } | null>(null);
+  const [genResult, setGenResult]               = useState<{ count: number; maxFit: number; filled?: boolean; warned?: boolean } | null>(null);
   const [ghostCells, setGhostCells]             = useState<{ cx: number; cy: number }[] | null>(null);
 
   // Migration: if old templateKind exists and shapes is empty, auto-create shapes from old fields
@@ -465,7 +465,8 @@ export default function ChartCanvas({
       const scaledH = BASE_H * (shape.scaleY ?? 1);
       const capacity = cmToCapacity(genDiamCm);
       const { w: tableW, h: tableH } = tableSize({ shape: "round", capacity } as any);
-      const GAP = genGapCm * (tableW / 150);
+      const PX_PER_CM = 132 / 150;
+      const GAP = genGapCm * PX_PER_CM;
       const cellPx = tableW + GAP;
       const PADDING = 30;
       const usableW = scaledW - 2 * PADDING;
@@ -499,9 +500,11 @@ export default function ChartCanvas({
           const cy = shape.y + PADDING + row * cellPx + cellPx / 2;
           if (!isInsideShape(cx, cy)) continue;
           const occupied = existingInShape.some(t => {
-            const tx = t.x + tableW / 2;
-            const ty = t.y + tableH / 2;
-            return Math.abs(tx - cx) < cellPx * 0.9 && Math.abs(ty - cy) < cellPx * 0.9;
+            const { w: ew } = tableSize(t);
+            const tx = t.x + ew / 2;
+            const ty = t.y + ew / 2;
+            const minDist = ew / 2 + tableW / 2 + 8;
+            return Math.abs(tx - cx) < minDist && Math.abs(ty - cy) < minDist;
           });
           if (!occupied) emptyCells.push({ cx, cy });
         }
@@ -1716,7 +1719,8 @@ export default function ChartCanvas({
                       const scaledH = BASE_H * (shape.scaleY ?? 1);
                       const capacity = cmToCapacity(genDiamCm);
                       const { w: tableW, h: tableH } = tableSize({ shape: "round", capacity } as any);
-                      const GAP = genGapCm * (tableW / 150);
+                      const PX_PER_CM = 132 / 150;
+                      const GAP = genGapCm * PX_PER_CM;
                       const cellPx = tableW + GAP;
                       const PADDING = 30;
                       // Grid in scaled (canvas) space
@@ -1760,19 +1764,16 @@ export default function ChartCanvas({
                           const cy = shape.y + PADDING + row * cellPx + cellPx / 2;
                           if (!isInsideShape(cx, cy)) continue;
                           const occupied = existingInShape.some(t => {
-                            const tx = t.x + tableW / 2;
-                            const ty = t.y + tableH / 2;
-                            return Math.abs(tx - cx) < cellPx * 0.9 && Math.abs(ty - cy) < cellPx * 0.9;
+                            const { w: ew } = tableSize(t);
+                            const tx = t.x + ew / 2;
+                            const ty = t.y + ew / 2;
+                            const minDist = ew / 2 + tableW / 2 + 8;
+                            return Math.abs(tx - cx) < minDist && Math.abs(ty - cy) < minDist;
                           });
                           if (!occupied) emptyCells.push({ cx, cy });
                         }
                       }
                       const toPlace = Math.min(n, emptyCells.length);
-                      if (toPlace === 0) {
-                        setGenResult({ count: 0, maxFit: 0 });
-                        setGenCount("");
-                        return;
-                      }
                       const startIdx = tables.length;
                       const entries = emptyCells.slice(0, toPlace).map(({ cx, cy }, i) => ({
                         name: `Table ${startIdx + i + 1}`,
@@ -1781,8 +1782,12 @@ export default function ChartCanvas({
                         x: cx - tableW / 2,
                         y: cy - tableH / 2,
                       }));
-                      onAddTableAt(entries);
-                      setGenResult({ count: toPlace, maxFit: emptyCells.length });
+                      if (toPlace > 0) onAddTableAt(entries);
+                      setGenResult({
+                        count: toPlace,
+                        maxFit: emptyCells.length,
+                        warned: toPlace < n,
+                      });
                       setGenCount("");
                       setGhostCells(null);
                     }}
@@ -1804,7 +1809,8 @@ export default function ChartCanvas({
                       const scaledH = BASE_H * (shape.scaleY ?? 1);
                       const capacity = cmToCapacity(genDiamCm);
                       const { w: tableW, h: tableH } = tableSize({ shape: "round", capacity } as any);
-                      const GAP = genGapCm * (tableW / 150);
+                      const PX_PER_CM = 132 / 150;
+                      const GAP = genGapCm * PX_PER_CM;
                       const cellPx = tableW + GAP;
                       const PADDING = 30;
                       const usableW = scaledW - 2 * PADDING;
@@ -1832,9 +1838,11 @@ export default function ChartCanvas({
                           const cy = shape.y + PADDING + row * cellPx + cellPx / 2;
                           if (!isInsideShape(cx, cy)) continue;
                           const occupied = existingInShape.some(t => {
-                            const tx = t.x + tableW / 2;
-                            const ty = t.y + tableH / 2;
-                            return Math.abs(tx - cx) < cellPx * 0.9 && Math.abs(ty - cy) < cellPx * 0.9;
+                            const { w: ew } = tableSize(t);
+                            const tx = t.x + ew / 2;
+                            const ty = t.y + ew / 2;
+                            const minDist = ew / 2 + tableW / 2 + 8;
+                            return Math.abs(tx - cx) < minDist && Math.abs(ty - cy) < minDist;
                           });
                           if (!occupied) emptyCells.push({ cx, cy });
                         }
@@ -1881,7 +1889,8 @@ export default function ChartCanvas({
                     return (
                       <button
                         onClick={() => {
-                          const GAP = genGapCm * (tableW / 150);
+                          const PX_PER_CM = 132 / 150;
+                          const GAP = genGapCm * PX_PER_CM;
                           const cellPx = tableW + GAP;
                           const PADDING = 30;
                           const scaledW = BASE_W * (shape.scaleX ?? 1);
@@ -1921,9 +1930,11 @@ export default function ChartCanvas({
                     <p style={{ marginTop: 6, fontSize: 11, color: genResult.count === 0 ? "#f59e0b" : "#4caf7d" }}>
                       {genResult.count === 0
                         ? `⚠️ Only ${genResult.maxFit} spots available — move existing tables or use a larger shape`
-                        : genResult.filled
-                          ? `✓ Filled with ${genResult.count} tables`
-                          : `✓ ${genResult.count} tables added`}
+                        : genResult.warned
+                          ? `⚠️ Shape fits ${genResult.maxFit} — added ${genResult.count} tables`
+                          : genResult.filled
+                            ? `✓ Filled with ${genResult.count} tables`
+                            : `✓ ${genResult.count} tables added`}
                     </p>
                   )}
                 </div>
