@@ -101,7 +101,7 @@ export default function ChartCanvas({
   // Generate Tables UI state
   const [genCount, setGenCount]                 = useState<string>("");
   const [genDiamCm, setGenDiamCm]               = useState<number>(150);
-  const [genGap, setGenGap]                     = useState(20);
+  const [genGapCm, setGenGapCm]                 = useState(60);
   const [genResult, setGenResult]               = useState<{ count: number; maxFit: number; filled?: boolean } | null>(null);
   const [ghostCells, setGhostCells]             = useState<{ cx: number; cy: number }[] | null>(null);
 
@@ -456,7 +456,7 @@ export default function ChartCanvas({
       const scaledH = BASE_H * (shape.scaleY ?? 1);
       const capacity = 8;
       const { w: tableW, h: tableH } = tableSize({ shape: "round", capacity } as any);
-      const GAP = genGap;
+      const GAP = genGapCm * (tableSize({ shape: "round", capacity } as any).w / 150);
       const cellPx = tableW + GAP;
       const PADDING = 30;
       const usableW = scaledW - 2 * PADDING;
@@ -501,7 +501,7 @@ export default function ChartCanvas({
     }, 150);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [genCount, genGap, selectedShapeId]);
+  }, [genCount, genGapCm, selectedShapeId]);
 
   /* ── Table drag ── */
   const onTablePointerDown = useCallback((e: React.PointerEvent, id: string) => {
@@ -1648,51 +1648,47 @@ export default function ChartCanvas({
               {/* ── Generate Tables ── */}
               {!isWall && (
                 <div style={{ padding: "12px 14px", borderTop: `1px solid ${cs.border}` }}>
-                  <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: cs.accent, marginBottom: 8 }}>Generate Tables</p>
-                  <label style={{ fontSize: 11, color: cs.textMuted, display: "block", marginBottom: 4 }}>How many tables?</label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={200}
-                    placeholder="e.g. 40"
-                    value={genCount}
-                    onChange={e => { setGenCount(e.target.value); setGenResult(null); }}
-                    style={{ width: "100%", padding: "5px 8px", borderRadius: 8, border: `1px solid ${cs.border}`, background: cs.surface2, color: cs.text, fontSize: 12, boxSizing: "border-box" as const, marginBottom: 8 }}
-                  />
-                  <label style={{ fontSize: 11, color: cs.textMuted, display: "block", marginBottom: 4 }}>Table diameter (cm)</label>
-                  <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: cs.accent, marginBottom: 10 }}>Generate Tables</p>
+                  {/* Row: Tables */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                    <label style={{ fontSize: 11, color: cs.textMuted, width: 72, textAlign: "right", flexShrink: 0 }}>Tables</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={200}
+                      placeholder="40"
+                      value={genCount}
+                      onChange={e => { setGenCount(e.target.value); setGenResult(null); }}
+                      style={{ width: 72, padding: "5px 8px", borderRadius: 8, border: `1px solid ${cs.border}`, background: cs.surface2, color: cs.text, fontSize: 12, boxSizing: "border-box" as const }}
+                    />
+                  </div>
+                  {/* Row: Table size */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                    <label style={{ fontSize: 11, color: cs.textMuted, width: 72, textAlign: "right", flexShrink: 0 }}>Table size</label>
                     <input
                       type="number"
                       min={60}
                       max={300}
+                      step={10}
                       value={genDiamCm}
                       onChange={e => { setGenDiamCm(Math.max(60, Math.min(300, parseInt(e.target.value, 10) || 150))); setGenResult(null); }}
-                      style={{ flex: 1, padding: "5px 8px", borderRadius: 8, border: `1px solid ${cs.border}`, background: cs.surface2, color: cs.text, fontSize: 12, boxSizing: "border-box" as const }}
+                      style={{ width: 72, padding: "5px 8px", borderRadius: 8, border: `1px solid ${cs.border}`, background: cs.surface2, color: cs.text, fontSize: 12, boxSizing: "border-box" as const }}
                     />
-                    <select
-                      onChange={e => { if (e.target.value) { setGenDiamCm(parseInt(e.target.value, 10)); setGenResult(null); } }}
-                      value=""
-                      style={{ padding: "5px 6px", borderRadius: 8, border: `1px solid ${cs.border}`, background: cs.surface2, color: cs.textSoft, fontSize: 11, cursor: "pointer" }}
-                    >
-                      <option value="">Preset</option>
-                      <option value="90">Small (90cm)</option>
-                      <option value="150">Medium (150cm)</option>
-                      <option value="180">Large (180cm)</option>
-                    </select>
+                    <span style={{ fontSize: 11, color: cs.textSoft }}>cm</span>
                   </div>
-                  {/* Gap slider */}
+                  {/* Row: Gap */}
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                    <label style={{ fontSize: 11, color: cs.textMuted, whiteSpace: "nowrap" }}>Gap:</label>
+                    <label style={{ fontSize: 11, color: cs.textMuted, width: 72, textAlign: "right", flexShrink: 0 }}>Gap</label>
                     <input
-                      type="range"
-                      min={10}
-                      max={80}
-                      step={5}
-                      value={genGap}
-                      onChange={e => { setGenGap(parseInt(e.target.value, 10)); setGenResult(null); }}
-                      style={{ flex: 1 }}
+                      type="number"
+                      min={20}
+                      max={200}
+                      step={10}
+                      value={genGapCm}
+                      onChange={e => { setGenGapCm(Math.max(20, Math.min(200, parseInt(e.target.value, 10) || 60))); setGenResult(null); }}
+                      style={{ width: 72, padding: "5px 8px", borderRadius: 8, border: `1px solid ${cs.border}`, background: cs.surface2, color: cs.text, fontSize: 12, boxSizing: "border-box" as const }}
                     />
-                    <span style={{ fontSize: 11, color: cs.textSoft, whiteSpace: "nowrap" }}>{genGap}px</span>
+                    <span style={{ fontSize: 11, color: cs.textSoft }}>cm</span>
                   </div>
                   {/* Generate + Fill Shape buttons */}
                   <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
@@ -1711,7 +1707,7 @@ export default function ChartCanvas({
                       const scaledH = BASE_H * (shape.scaleY ?? 1);
                       const capacity = 8;
                       const { w: tableW, h: tableH } = tableSize({ shape: "round", capacity } as any);
-                      const GAP = genGap;
+                      const GAP = genGapCm * (tableSize({ shape: "round", capacity } as any).w / 150);
                       const cellPx = tableW + GAP;
                       const PADDING = 30;
                       // Grid in scaled (canvas) space
@@ -1799,7 +1795,7 @@ export default function ChartCanvas({
                       const scaledH = BASE_H * (shape.scaleY ?? 1);
                       const capacity = 8;
                       const { w: tableW, h: tableH } = tableSize({ shape: "round", capacity } as any);
-                      const GAP = genGap;
+                      const GAP = genGapCm * (tableSize({ shape: "round", capacity } as any).w / 150);
                       const cellPx = tableW + GAP;
                       const PADDING = 30;
                       const usableW = scaledW - 2 * PADDING;
@@ -1876,7 +1872,7 @@ export default function ChartCanvas({
                     return (
                       <button
                         onClick={() => {
-                          const GAP = genGap;
+                          const GAP = genGapCm * (tableSize({ shape: "round", capacity: 8 } as any).w / 150);
                           const cellPx = tableW + GAP;
                           const PADDING = 30;
                           const scaledW = BASE_W * (shape.scaleX ?? 1);
