@@ -4,7 +4,7 @@ import { useState, useCallback, useReducer, useEffect, useRef } from "react";
 import Link from "next/link";
 import QRCode from "qrcode";
 import { createClient } from "@/lib/supabase/client";
-import type { Wedding, Venue, Guest, Table, Group, Rule, Rsvp, Meal, MenuItem } from "@/lib/types";
+import type { Wedding, Venue, Guest, Table, Group, Rule, Rsvp, Meal } from "@/lib/types";
 import GuestPanel from "./GuestPanel";
 import ChartCanvas from "./ChartCanvas";
 import RulesPanel from "./RulesPanel";
@@ -12,8 +12,9 @@ import ExportPanel from "./ExportPanel";
 import MobilePlanner from "./MobilePlanner";
 import WishingWall from "./WishingWall";
 import OverviewPanel from "./OverviewPanel";
+import MenuPanel from "./MenuPanel";
 
-type Tab = "overview" | "chart" | "guests" | "rules" | "export" | "wishes";
+type Tab = "overview" | "chart" | "guests" | "rules" | "export" | "wishes" | "menu";
 
 interface Props {
   wedding:       Wedding;
@@ -104,9 +105,6 @@ export default function PlannerClient({
   const [weddingName, setWeddingName] = useState(wedding.name);
   const [venueName, setVenueName] = useState("");
   const [shareCode, setShareCode] = useState<string | null>(wedding.share_code);
-  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
-  const [menuItemForm, setMenuItemForm] = useState({ name: "", description: "", price: "", category: "Main" });
-  const [menuQrDataUrl, setMenuQrDataUrl] = useState<string | null>(null);
 
   // Undo/redo stacks
   const [history, setHistory] = useState<PlannerState[]>([]);
@@ -120,24 +118,6 @@ export default function PlannerClient({
     groups:  initialGroups,
     rules:   initialRules,
   });
-
-  // Load menu items when settings modal opens
-  useEffect(() => {
-    if (!showSettings || isDemo) return;
-    const venueId = state.venues[0]?.id;
-    if (!venueId) return;
-    supabase
-      .from("menu_items")
-      .select("*")
-      .eq("venue_id", venueId)
-      .order("sort_order", { ascending: true })
-      .order("created_at", { ascending: true })
-      .then(({ data }) => { if (data) setMenuItems(data as MenuItem[]); });
-
-    // Generate QR
-    const qrUrl = `https://tablemate-beta.vercel.app/menu/${venueId}`;
-    QRCode.toDataURL(qrUrl, { width: 200, margin: 2 }).then(setMenuQrDataUrl);
-  }, [showSettings]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Push to undo history on every state change
   const prevState = useRef<PlannerState>(state);
@@ -732,7 +712,7 @@ export default function PlannerClient({
         className="flex items-center gap-0.5 px-4 flex-shrink-0"
         style={{ background: cs.surface, borderBottom: `1px solid ${cs.border}` }}
       >
-        {([["overview","🏠 Overview"],["chart","📐 Seating Chart"], ["guests","👥 Guests"], ["rules","📋 Rules"], ["export","📤 Export"], ["wishes","💌 Wishes"]] as [Tab,string][]).map(([tab, label]) => (
+        {([["overview","🏠 Overview"],["chart","📐 Seating Chart"], ["guests","👥 Guests"], ["rules","📋 Rules"], ["menu","🍽️ Menu"], ["export","📤 Export"], ["wishes","💌 Wishes"]] as [Tab,string][]).map(([tab, label]) => (
           <button key={tab} onClick={() => setActiveTab(tab)}
             className="py-2.5 px-4 text-sm font-medium border-b-2 transition-colors capitalize"
             style={{
@@ -837,6 +817,14 @@ export default function PlannerClient({
             onDeleteRule={deleteRule}
           />
         )}
+        {activeTab === "menu" && (
+          <MenuPanel
+            venues={state.venues}
+            darkMode={darkMode}
+            isDemo={isDemo}
+            showToast={showToast}
+          />
+        )}
         {activeTab === "export" && (
           <ExportPanel
             wedding={{ ...wedding, name: weddingName }}
@@ -886,116 +874,14 @@ export default function PlannerClient({
                   className="w-full px-3 py-2 border rounded-lg text-sm"
                   style={{ background: cs.surface2, borderColor: cs.borderSoft, color: cs.text }}/>
               </div>
-              <div>
-                <label className="block text-xs font-medium mb-2" style={{ color: cs.textSoft }}>🍽️ Menu Builder</label>
-
-                {/* Add item form */}
-                <div className="space-y-2 mb-3">
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="Item name *"
-                      value={menuItemForm.name}
-                      onChange={e => setMenuItemForm(f => ({ ...f, name: e.target.value }))}
-                      className="flex-1 px-2.5 py-1.5 border rounded-lg text-xs"
-                      style={{ background: cs.surface2, borderColor: cs.borderSoft, color: cs.text }}
-                    />
-                    <select
-                      value={menuItemForm.category}
-                      onChange={e => setMenuItemForm(f => ({ ...f, category: e.target.value }))}
-                      className="px-2 py-1.5 border rounded-lg text-xs"
-                      style={{ background: cs.surface2, borderColor: cs.borderSoft, color: cs.text }}
-                    >
-                      {["Starter", "Main", "Dessert", "Drinks"].map(c => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="Description (optional)"
-                      value={menuItemForm.description}
-                      onChange={e => setMenuItemForm(f => ({ ...f, description: e.target.value }))}
-                      className="flex-1 px-2.5 py-1.5 border rounded-lg text-xs"
-                      style={{ background: cs.surface2, borderColor: cs.borderSoft, color: cs.text }}
-                    />
-                    <input
-                      type="text"
-                      placeholder="Price"
-                      value={menuItemForm.price}
-                      onChange={e => setMenuItemForm(f => ({ ...f, price: e.target.value }))}
-                      className="w-20 px-2.5 py-1.5 border rounded-lg text-xs"
-                      style={{ background: cs.surface2, borderColor: cs.borderSoft, color: cs.text }}
-                    />
-                  </div>
-                  <button
-                    disabled={!menuItemForm.name.trim()}
-                    onClick={async () => {
-                      const venueId = state.venues[0]?.id;
-                      if (!venueId || !menuItemForm.name.trim()) return;
-                      const newItem = {
-                        venue_id: venueId,
-                        category: menuItemForm.category,
-                        name: menuItemForm.name.trim(),
-                        description: menuItemForm.description.trim() || null,
-                        price: menuItemForm.price.trim() || null,
-                        sort_order: menuItems.length,
-                      };
-                      const { data } = await supabase.from("menu_items").insert(newItem).select().single();
-                      if (data) setMenuItems(items => [...items, data as MenuItem]);
-                      setMenuItemForm(f => ({ ...f, name: "", description: "", price: "" }));
-                    }}
-                    className="w-full py-1.5 rounded-lg text-xs font-semibold text-white disabled:opacity-40"
-                    style={{ background: cs.accent }}
-                  >
-                    + Add Item
-                  </button>
-                </div>
-
-                {/* Item list grouped by category */}
-                {menuItems.length > 0 && (
-                  <div className="space-y-3 max-h-48 overflow-y-auto mb-3">
-                    {["Starter", "Main", "Dessert", "Drinks", ...Array.from(new Set(menuItems.map(i => i.category))).filter(c => !["Starter","Main","Dessert","Drinks"].includes(c))].map(cat => {
-                      const catItems = menuItems.filter(i => i.category === cat);
-                      if (catItems.length === 0) return null;
-                      return (
-                        <div key={cat}>
-                          <p className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: cs.textMuted }}>{cat}</p>
-                          {catItems.map(item => (
-                            <div key={item.id} className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg mb-1"
-                              style={{ background: cs.surface2 }}>
-                              <div className="flex-1 min-w-0">
-                                <span className="text-xs font-medium" style={{ color: cs.text }}>{item.name}</span>
-                                {item.price && <span className="text-xs ml-2" style={{ color: cs.textSoft }}>{item.price}</span>}
-                              </div>
-                              <button
-                                onClick={async () => {
-                                  await supabase.from("menu_items").delete().eq("id", item.id);
-                                  setMenuItems(items => items.filter(i => i.id !== item.id));
-                                }}
-                                className="text-xs hover:opacity-70 flex-shrink-0"
-                                style={{ color: cs.textMuted }}
-                              >✕</button>
-                            </div>
-                          ))}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* QR Code */}
-                {menuQrDataUrl && (
-                  <div className="flex flex-col items-center gap-2 mt-3">
-                    <img src={menuQrDataUrl} alt="Menu QR Code" className="rounded-lg border w-28 h-28" style={{ borderColor: cs.border }} />
-                    <a href={menuQrDataUrl} download="menu-qr.png"
-                      className="text-xs underline hover:opacity-70"
-                      style={{ color: cs.textSoft }}>
-                      Download QR Code
-                    </a>
-                  </div>
-                )}
+              <div className="rounded-lg px-3 py-2.5 border" style={{ background: cs.surface2, borderColor: cs.borderSoft }}>
+                <p className="text-xs font-medium" style={{ color: cs.textSoft }}>🍽️ Menu Builder</p>
+                <p className="text-xs mt-0.5" style={{ color: cs.textMuted }}>Build and share your menu from the <strong>Menu</strong> tab</p>
+                <button
+                  onClick={() => { setShowSettings(false); setActiveTab("menu"); }}
+                  className="mt-2 text-xs font-semibold hover:opacity-70"
+                  style={{ color: cs.accent }}
+                >Open Menu Builder →</button>
               </div>
 
             </div>
