@@ -39,6 +39,7 @@ type PlannerAction =
   | { type: "SET_ALL"; payload: PlannerState }
   | { type: "ADD_VENUE";    payload: Venue }
   | { type: "DELETE_VENUE"; id: string }
+  | { type: "UPDATE_VENUE"; id: string; data: Partial<Venue> }
   | { type: "ADD_TABLE";    payload: Table }
   | { type: "UPDATE_TABLE"; id: string; data: Partial<Table> }
   | { type: "DELETE_TABLE"; id: string }
@@ -57,6 +58,7 @@ function reducer(state: PlannerState, action: PlannerAction): PlannerState {
     case "SET_ALL": return action.payload;
     case "ADD_VENUE":    return { ...state, venues: [...state.venues, action.payload] };
     case "DELETE_VENUE": return { ...state, venues: state.venues.filter(v => v.id !== action.id), tables: state.tables.filter(t => t.venue_id !== action.id) };
+    case "UPDATE_VENUE": return { ...state, venues: state.venues.map(v => v.id === action.id ? { ...v, ...action.data } : v) };
     case "ADD_TABLE":    return { ...state, tables: [...state.tables, action.payload] };
     case "UPDATE_TABLE": return { ...state, tables: state.tables.map(t => t.id === action.id ? { ...t, ...action.data } : t) };
     case "DELETE_TABLE": return {
@@ -394,6 +396,12 @@ export default function PlannerClient({
       await supabase.from("venues").delete().eq("id", id);
     }
   }, [supabase, isDemo, state.venues, activeVenueId, showToast]);
+
+  const renameVenue = useCallback(async (id: string, name: string) => {
+    if (!name.trim() || isDemo) return;
+    dispatch({ type: "UPDATE_VENUE", id, data: { name: name.trim() } });
+    await supabase.from("venues").update({ name: name.trim() }).eq("id", id);
+  }, [supabase, isDemo]);
 
   const updateVenueLayout = useCallback((venueId: string, layout: import("@/lib/types").VenueLayout) => {
     dispatch({ type: "UPDATE_VENUE_LAYOUT", id: venueId, layout });
@@ -823,6 +831,7 @@ export default function PlannerClient({
             darkMode={darkMode}
             isDemo={isDemo}
             showToast={showToast}
+            onRenameVenue={(name) => { const v = state.venues[0]; if (v) renameVenue(v.id, name); }}
           />
         )}
         {activeTab === "export" && (

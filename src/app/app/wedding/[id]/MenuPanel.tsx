@@ -18,9 +18,10 @@ interface Props {
   darkMode: boolean;
   isDemo: boolean;
   showToast: (msg: string, type: "success" | "error" | "info") => void;
+  onRenameVenue?: (name: string) => void;
 }
 
-export default function MenuPanel({ venues, isDemo, showToast }: Props) {
+export default function MenuPanel({ venues, isDemo, showToast, onRenameVenue }: Props) {
   const cs = {
     bg: "var(--bg)",
     surface: "var(--surface)",
@@ -45,6 +46,10 @@ export default function MenuPanel({ venues, isDemo, showToast }: Props) {
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [previewMode, setPreviewMode] = useState(false);
   const [form, setForm] = useState({ name: "", description: "", price: "", category: "Main" });
+  const [venueNameEdit, setVenueNameEdit] = useState(venue?.name ?? "");
+
+  // Keep local edit state in sync if the venue prop changes externally
+  useEffect(() => { setVenueNameEdit(venue?.name ?? ""); }, [venue?.name]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load items from DB
   useEffect(() => {
@@ -192,6 +197,23 @@ export default function MenuPanel({ venues, isDemo, showToast }: Props) {
         ) : (
           /* ── Edit Mode ── */
           <div className="p-6 space-y-6 max-w-2xl">
+
+            {/* Venue / Menu title */}
+            <div className="rounded-xl p-4 border" style={{ background: cs.surface2, borderColor: cs.borderSoft }}>
+              <label className="block text-xs font-medium mb-1.5" style={{ color: cs.textSoft }}>Menu page title</label>
+              <input
+                type="text"
+                value={venueNameEdit}
+                onChange={e => setVenueNameEdit(e.target.value)}
+                onBlur={() => { if (venueNameEdit.trim() && venueNameEdit.trim() !== venue.name) onRenameVenue?.(venueNameEdit.trim()); }}
+                onKeyDown={e => { if (e.key === "Enter") { (e.target as HTMLInputElement).blur(); } }}
+                placeholder="e.g. The Grand Ballroom"
+                className="w-full px-3 py-2 border rounded-lg text-sm font-medium"
+                style={{ background: cs.surface, borderColor: cs.borderSoft, color: cs.text }}
+                disabled={isDemo}
+              />
+              <p className="text-xs mt-1.5" style={{ color: cs.textMuted }}>Shown as the title on your guest menu page</p>
+            </div>
 
             {/* Add Item Form */}
             <div className="rounded-xl p-4 border" style={{ background: cs.surface2, borderColor: cs.borderSoft }}>
