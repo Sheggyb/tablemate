@@ -874,15 +874,7 @@ export default function PlannerClient({
                   className="w-full px-3 py-2 border rounded-lg text-sm"
                   style={{ background: cs.surface2, borderColor: cs.borderSoft, color: cs.text }}/>
               </div>
-              <div className="rounded-lg px-3 py-2.5 border" style={{ background: cs.surface2, borderColor: cs.borderSoft }}>
-                <p className="text-xs font-medium" style={{ color: cs.textSoft }}>🍽️ Menu Builder</p>
-                <p className="text-xs mt-0.5" style={{ color: cs.textMuted }}>Build and share your menu from the <strong>Menu</strong> tab</p>
-                <button
-                  onClick={() => { setShowSettings(false); setActiveTab("menu"); }}
-                  className="mt-2 text-xs font-semibold hover:opacity-70"
-                  style={{ color: cs.accent }}
-                >Open Menu Builder →</button>
-              </div>
+
 
             </div>
             <div className="flex gap-3 mt-6">

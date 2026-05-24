@@ -307,7 +307,7 @@ export default function MenuPanel({ venues, isDemo, showToast }: Props) {
             )}
 
             {/* QR Code Section */}
-            {menuItems.length > 0 && qrDataUrl && menuUrl && (
+            {qrDataUrl && menuUrl && (
               <div className="rounded-xl p-4 border text-center" style={{ background: cs.surface2, borderColor: cs.borderSoft }}>
                 <h3 className="text-sm font-semibold mb-3" style={{ color: cs.text }}>📱 Guest QR Code</h3>
                 <img src={qrDataUrl} alt="Menu QR Code" className="w-36 h-36 rounded-lg mx-auto mb-3 border" style={{ borderColor: cs.border }} />
