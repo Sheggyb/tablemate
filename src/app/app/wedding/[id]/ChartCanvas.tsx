@@ -709,7 +709,9 @@ export default function ChartCanvas({
             <div className="flex-1 overflow-y-auto p-3 space-y-5">
               {/* ADD SHAPE */}
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest mb-2.5" style={{ color: cs.accent }}>Add Shape</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest mb-0.5" style={{ color: cs.accent }}>Canvas Elements</p>
+                <p className="text-[9px] mb-2.5" style={{ color: cs.textMuted }}>Click to place shapes &amp; fixtures on the canvas</p>
+                <p className="text-[10px] font-semibold uppercase tracking-widest mb-2" style={{ color: cs.textSoft }}>Shapes</p>
                 <div className="grid grid-cols-4 gap-1.5">
                   {SHAPE_BUTTONS.map(btn => (
                     <button key={btn.kind}
@@ -726,7 +728,7 @@ export default function ChartCanvas({
                 {/* Shapes list */}
                 {layoutShapes.length > 0 && (
                   <div className="mt-3 space-y-1">
-                    <p className="text-[9px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: cs.textMuted }}>Canvas shapes</p>
+                    <p className="text-[9px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: cs.textMuted }}>On canvas ({layoutShapes.length})</p>
                     {layoutShapes.map(shape => {
                       const isSel = selectedShapeId === shape.id;
                       return (
@@ -760,19 +762,20 @@ export default function ChartCanvas({
 
               {/* Fixtures Palette */}
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest mb-2.5" style={{ color: cs.accent }}>Add Fixture</p>
+                <p className="text-[10px] font-semibold uppercase tracking-widest mb-2" style={{ color: cs.textSoft }}>Fixtures</p>
                 <div className="grid grid-cols-2 gap-1.5">
                   {FIXTURE_PRESETS.map(preset => (
                     <button key={preset.kind}
                       onClick={() => {
                         const existing = activeVenue?.layout ?? { templateKind: "blank" as import("@/lib/types").RoomTemplateKind, roomPath: null, fixtures: [] };
+                        const offset_n = existing.fixtures.length * 20;
                         const newFixture: import("@/lib/types").VenueFixture = {
                           id: crypto.randomUUID(),
                           kind: preset.kind,
                           label: preset.label,
                           emoji: preset.emoji,
-                          x: 400 - preset.w / 2,
-                          y: 300 - preset.h / 2,
+                          x: 400 - preset.w / 2 + offset_n,
+                          y: 300 - preset.h / 2 + offset_n,
                           w: preset.w,
                           h: preset.h,
                           rotation: 0,
@@ -855,7 +858,7 @@ export default function ChartCanvas({
               {/* Placed Fixtures List */}
               {activeVenue?.layout && activeVenue.layout.fixtures.length > 0 && (
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: cs.accent }}>Placed ({activeVenue.layout.fixtures.length})</p>
+                  <p className="text-[9px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: cs.textMuted }}>On canvas ({activeVenue.layout.fixtures.length})</p>
                   <div className="space-y-1 max-h-48 overflow-y-auto">
                     {activeVenue.layout.fixtures.map(f => {
                       const preset = FIXTURE_PRESETS.find(p => p.kind === f.kind);
