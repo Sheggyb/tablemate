@@ -35,6 +35,7 @@ export interface Venue {
   bg_opacity: number
   sort_order: number
   layout?: VenueLayout | null
+  menu_url?: string | null
 }
 
 export interface Table {

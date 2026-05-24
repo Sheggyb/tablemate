@@ -104,6 +104,8 @@ export default function PlannerClient({
   const [weddingName, setWeddingName] = useState(wedding.name);
   const [venueName, setVenueName] = useState("");
   const [shareCode, setShareCode] = useState<string | null>(wedding.share_code);
+  const [menuUrl, setMenuUrl] = useState<string>(initialVenues[0]?.menu_url ?? "");
+  const [menuQrDataUrl, setMenuQrDataUrl] = useState<string | null>(null);
 
   // Undo/redo stacks
   const [history, setHistory] = useState<PlannerState[]>([]);
@@ -865,6 +867,37 @@ export default function PlannerClient({
                   className="w-full px-3 py-2 border rounded-lg text-sm"
                   style={{ background: cs.surface2, borderColor: cs.borderSoft, color: cs.text }}/>
               </div>
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: cs.textSoft }}>Menu URL (link to PDF, Google Doc, etc.)</label>
+                <input type="url" value={menuUrl}
+                  onChange={e => { setMenuUrl(e.target.value); setMenuQrDataUrl(null); }}
+                  placeholder="https://example.com/menu.pdf"
+                  className="w-full px-3 py-2 border rounded-lg text-sm"
+                  style={{ background: cs.surface2, borderColor: cs.borderSoft, color: cs.text }}/>
+                {menuUrl && (
+                  <button onClick={async () => {
+                    const venueId = state.venues[0]?.id;
+                    if (!venueId) return;
+                    const qrUrl = `${window.location.origin}/menu/${venueId}`;
+                    const dataUrl = await QRCode.toDataURL(qrUrl, { width: 240, margin: 2, color: { dark: "#1a1218", light: "#FDFBF8" } });
+                    setMenuQrDataUrl(dataUrl);
+                  }}
+                    className="mt-2 text-xs underline hover:opacity-70"
+                    style={{ color: cs.accent }}>
+                    Generate Menu QR Code
+                  </button>
+                )}
+                {menuQrDataUrl && (
+                  <div className="mt-3 flex flex-col items-center gap-2">
+                    <img src={menuQrDataUrl} alt="Menu QR Code" className="rounded-lg border" style={{ borderColor: cs.border }} />
+                    <a href={menuQrDataUrl} download="menu-qr.png"
+                      className="text-xs underline hover:opacity-70"
+                      style={{ color: cs.textSoft }}>
+                      Download QR Code
+                    </a>
+                  </div>
+                )}
+              </div>
 
             </div>
             <div className="flex gap-3 mt-6">
@@ -877,6 +910,9 @@ export default function PlannerClient({
                 setShowSettings(false);
                 if (venueName.trim() && state.venues[0]) {
                   supabase.from("venues").update({ name: venueName.trim() }).eq("id", state.venues[0].id).then();
+                }
+                if (state.venues[0] && !isDemo) {
+                  supabase.from("venues").update({ menu_url: menuUrl || null }).eq("id", state.venues[0].id).then();
                 }
                 if (!isDemo && weddingName !== wedding.name) {
                   supabase.from("weddings").update({ name: weddingName }).eq("id", wedding.id).then();
