@@ -35,7 +35,17 @@ export interface Venue {
   bg_opacity: number
   sort_order: number
   layout?: VenueLayout | null
-  menu_url?: string | null
+}
+
+export interface MenuItem {
+  id: string
+  venue_id: string
+  category: string
+  name: string
+  description?: string | null
+  price?: string | null
+  sort_order: number
+  created_at?: string
 }
 
 export interface Table {
