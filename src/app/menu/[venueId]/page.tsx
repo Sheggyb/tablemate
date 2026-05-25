@@ -5,37 +5,37 @@ import type { MenuItem } from "@/lib/types";
 // ALTER TABLE venues ADD COLUMN IF NOT EXISTS menu_template text DEFAULT 'classic';
 //
 // MIGRATION NEEDED (per-item text overrides):
-// ALTER TABLE public.menu_items ADD COLUMN IF NOT EXISTS name_size text DEFAULT 'md';
+// ALTER TABLE public.menu_items ADD COLUMN IF NOT EXISTS name_size text DEFAULT '20';
+// ALTER TABLE public.menu_items ADD COLUMN IF NOT EXISTS price_size text DEFAULT '18';
+// ALTER TABLE public.menu_items ADD COLUMN IF NOT EXISTS desc_size text DEFAULT '14';
 // ALTER TABLE public.menu_items ADD COLUMN IF NOT EXISTS name_weight text DEFAULT 'normal';
-// ALTER TABLE public.menu_items ADD COLUMN IF NOT EXISTS price_size text DEFAULT 'md';
-// ALTER TABLE public.menu_items ADD COLUMN IF NOT EXISTS desc_size text DEFAULT 'sm';
 
 // ─── Per-item override helpers ───────────────────────────────────────────────
+function toSizePx(val: string | null | undefined, def: string): string {
+  if (!val) return def;
+  const legacyMap: Record<string, string> = { sm: "14", md: "18", lg: "24", xl: "32" };
+  if (legacyMap[val]) return legacyMap[val];
+  const n = parseInt(val);
+  if (!isNaN(n)) return String(n);
+  return def;
+}
+
 const WEIGHT_MAP: Record<string, string | number> = { normal: "inherit", medium: 500, bold: 700 };
 
 function applyNameOverrides(base: React.CSSProperties, item: MenuItem): React.CSSProperties {
   const s: React.CSSProperties = { ...base };
-  if (item.name_size) {
-    const px = parseInt(item.name_size);
-    if (!isNaN(px)) s.fontSize = `${px}px`;
-  }
+  s.fontSize = `${toSizePx(item.name_size, "20")}px`;
   if (item.name_weight && item.name_weight !== "normal") s.fontWeight = WEIGHT_MAP[item.name_weight] ?? base.fontWeight;
   return s;
 }
 function applyPriceOverrides(base: React.CSSProperties, item: MenuItem): React.CSSProperties {
   const s: React.CSSProperties = { ...base };
-  if (item.price_size) {
-    const px = parseInt(item.price_size);
-    if (!isNaN(px)) s.fontSize = `${px}px`;
-  }
+  s.fontSize = `${toSizePx(item.price_size, "18")}px`;
   return s;
 }
 function applyDescOverrides(base: React.CSSProperties, item: MenuItem): React.CSSProperties {
   const s: React.CSSProperties = { ...base };
-  if (item.desc_size) {
-    const px = parseInt(item.desc_size);
-    if (!isNaN(px)) s.fontSize = `${px}px`;
-  }
+  s.fontSize = `${toSizePx(item.desc_size, "14")}px`;
   return s;
 }
 

@@ -9,12 +9,21 @@ import type { MenuItem, Venue } from "@/lib/types";
 // ALTER TABLE venues ADD COLUMN IF NOT EXISTS menu_template text DEFAULT 'classic';
 //
 // MIGRATION NEEDED (per-item text overrides):
-// ALTER TABLE public.menu_items ADD COLUMN IF NOT EXISTS name_size text DEFAULT 'md';
+// ALTER TABLE public.menu_items ADD COLUMN IF NOT EXISTS name_size text DEFAULT '20';
+// ALTER TABLE public.menu_items ADD COLUMN IF NOT EXISTS price_size text DEFAULT '18';
+// ALTER TABLE public.menu_items ADD COLUMN IF NOT EXISTS desc_size text DEFAULT '14';
 // ALTER TABLE public.menu_items ADD COLUMN IF NOT EXISTS name_weight text DEFAULT 'normal';
-// ALTER TABLE public.menu_items ADD COLUMN IF NOT EXISTS price_size text DEFAULT 'md';
-// ALTER TABLE public.menu_items ADD COLUMN IF NOT EXISTS desc_size text DEFAULT 'sm';
 
 const CATEGORIES = ["Starter", "Main", "Dessert", "Drinks"] as const;
+
+function toSizePx(val: string | null | undefined, def: string): string {
+  if (!val) return def;
+  const legacyMap: Record<string, string> = { sm: "14", md: "18", lg: "24", xl: "32" };
+  if (legacyMap[val]) return legacyMap[val];
+  const n = parseInt(val);
+  if (!isNaN(n)) return String(n);
+  return def;
+}
 const CAT_ICONS: Record<string, string> = {
   Starter: "🥗",
   Main: "🍖",
@@ -198,6 +207,10 @@ export default function MenuPanel({ venues, isDemo, showToast, onRenameVenue }: 
       description: form.description.trim() || null,
       price: form.price.trim() || null,
       sort_order: menuItems.length,
+      name_size: "20",
+      name_weight: "normal",
+      price_size: "18",
+      desc_size: "14",
     };
     const { data, error } = await supabase.from("menu_items").insert(newItem).select().single();
     setSaving(false);
@@ -228,10 +241,10 @@ export default function MenuPanel({ venues, isDemo, showToast, onRenameVenue }: 
       description: item.description ?? "",
       price: item.price ?? "",
       category: item.category,
-      name_size: item.name_size || "20",
+      name_size: toSizePx(item.name_size, "20"),
       name_weight: item.name_weight || "normal",
-      price_size: item.price_size || "18",
-      desc_size: item.desc_size || "14",
+      price_size: toSizePx(item.price_size, "18"),
+      desc_size: toSizePx(item.desc_size, "14"),
     });
   };
 
@@ -348,10 +361,10 @@ export default function MenuPanel({ venues, isDemo, showToast, onRenameVenue }: 
                               {catItems.map(item => (
                                 <div key={item.id} className="bg-white rounded-xl p-3 shadow-sm border border-stone-100 flex justify-between items-start gap-2">
                                   <div className="flex-1 min-w-0">
-                                    <p className="font-semibold text-stone-800 text-xs">{item.name}</p>
-                                    {item.description && <p className="text-stone-500 text-xs mt-0.5 leading-relaxed">{item.description}</p>}
+                                    <p className="font-semibold text-stone-800" style={{ fontSize: toSizePx(item.name_size, "20") + "px", fontWeight: item.name_weight === "bold" ? 700 : item.name_weight === "medium" ? 500 : 400 }}>{item.name}</p>
+                                    {item.description && <p className="text-stone-500 mt-0.5 leading-relaxed" style={{ fontSize: toSizePx(item.desc_size, "14") + "px" }}>{item.description}</p>}
                                   </div>
-                                  {item.price && <span className="text-stone-700 font-semibold text-xs whitespace-nowrap">{item.price}</span>}
+                                  {item.price && <span className="text-stone-700 font-semibold whitespace-nowrap" style={{ fontSize: toSizePx(item.price_size, "18") + "px" }}>{item.price}</span>}
                                 </div>
                               ))}
                             </div>
