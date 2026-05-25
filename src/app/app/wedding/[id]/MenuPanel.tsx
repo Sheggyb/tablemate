@@ -7,6 +7,12 @@ import type { MenuItem, Venue } from "@/lib/types";
 
 // MIGRATION NEEDED:
 // ALTER TABLE venues ADD COLUMN IF NOT EXISTS menu_template text DEFAULT 'classic';
+//
+// MIGRATION NEEDED (per-item text overrides):
+// ALTER TABLE public.menu_items ADD COLUMN IF NOT EXISTS name_size text DEFAULT 'md';
+// ALTER TABLE public.menu_items ADD COLUMN IF NOT EXISTS name_weight text DEFAULT 'normal';
+// ALTER TABLE public.menu_items ADD COLUMN IF NOT EXISTS price_size text DEFAULT 'md';
+// ALTER TABLE public.menu_items ADD COLUMN IF NOT EXISTS desc_size text DEFAULT 'sm';
 
 const CATEGORIES = ["Starter", "Main", "Dessert", "Drinks"] as const;
 const CAT_ICONS: Record<string, string> = {
@@ -89,6 +95,10 @@ interface EditForm {
   description: string;
   price: string;
   category: string;
+  name_size: string;
+  name_weight: string;
+  price_size: string;
+  desc_size: string;
 }
 
 export default function MenuPanel({ venues, isDemo, showToast, onRenameVenue }: Props) {
@@ -122,7 +132,7 @@ export default function MenuPanel({ venues, isDemo, showToast, onRenameVenue }: 
 
   // Inline edit state
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState<EditForm>({ name: "", description: "", price: "", category: "Main" });
+  const [editForm, setEditForm] = useState<EditForm>({ name: "", description: "", price: "", category: "Main", name_size: "md", name_weight: "normal", price_size: "md", desc_size: "sm" });
   const [editSaving, setEditSaving] = useState(false);
 
   useEffect(() => { setVenueNameEdit(venue?.name ?? ""); }, [venue?.name]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -218,6 +228,10 @@ export default function MenuPanel({ venues, isDemo, showToast, onRenameVenue }: 
       description: item.description ?? "",
       price: item.price ?? "",
       category: item.category,
+      name_size: item.name_size || "md",
+      name_weight: item.name_weight || "normal",
+      price_size: item.price_size || "md",
+      desc_size: item.desc_size || "sm",
     });
   };
 
@@ -235,6 +249,10 @@ export default function MenuPanel({ venues, isDemo, showToast, onRenameVenue }: 
         description: editForm.description.trim() || null,
         price: editForm.price.trim() || null,
         category: editForm.category,
+        name_size: editForm.name_size,
+        name_weight: editForm.name_weight,
+        price_size: editForm.price_size,
+        desc_size: editForm.desc_size,
       })
       .eq("id", id);
     setEditSaving(false);
@@ -245,7 +263,7 @@ export default function MenuPanel({ venues, isDemo, showToast, onRenameVenue }: 
     setMenuItems(prev =>
       prev.map(item =>
         item.id === id
-          ? { ...item, name: editForm.name.trim(), description: editForm.description.trim() || null, price: editForm.price.trim() || null, category: editForm.category }
+          ? { ...item, name: editForm.name.trim(), description: editForm.description.trim() || null, price: editForm.price.trim() || null, category: editForm.category, name_size: editForm.name_size, name_weight: editForm.name_weight, price_size: editForm.price_size, desc_size: editForm.desc_size }
           : item
       )
     );
@@ -455,8 +473,8 @@ export default function MenuPanel({ venues, isDemo, showToast, onRenameVenue }: 
                     <select
                       value={form.category}
                       onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
-                      className="px-3 py-2.5 border rounded-lg text-sm h-full"
-                      style={inputStyle}
+                      className="px-3 py-2.5 border rounded-lg text-sm"
+                      style={{ background: cs.surface, borderColor: cs.borderSoft, color: cs.text, appearance: "auto" as const }}
                     >
                       {CATEGORIES.map(c => <option key={c} value={c}>{CAT_ICONS[c]} {c}</option>)}
                     </select>
@@ -550,7 +568,7 @@ export default function MenuPanel({ venues, isDemo, showToast, onRenameVenue }: 
                                         value={editForm.category}
                                         onChange={e => setEditForm(f => ({ ...f, category: e.target.value }))}
                                         className="px-2.5 py-2 border rounded-lg text-sm"
-                                        style={inputStyle}
+                                        style={{ background: cs.surface, borderColor: cs.borderSoft, color: cs.text, appearance: "auto" as const }}
                                       >
                                         {CATEGORIES.map(c => <option key={c} value={c}>{CAT_ICONS[c]} {c}</option>)}
                                       </select>
@@ -578,6 +596,64 @@ export default function MenuPanel({ venues, isDemo, showToast, onRenameVenue }: 
                                         className="w-full px-2.5 py-2 border rounded-lg text-sm font-semibold"
                                         style={inputStyle}
                                       />
+                                    </div>
+                                  </div>
+                                  {/* ── Per-item text style overrides ── */}
+                                  <div className="rounded-lg p-2.5 border space-y-2" style={{ background: cs.surface, borderColor: cs.borderSoft }}>
+                                    <p className="text-xs font-semibold" style={{ color: cs.textSoft }}>🎨 Text style overrides</p>
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <div>
+                                        <label className="block text-xs mb-0.5" style={{ color: cs.textMuted }}>Name size</label>
+                                        <select
+                                          value={editForm.name_size}
+                                          onChange={e => setEditForm(f => ({ ...f, name_size: e.target.value }))}
+                                          className="w-full px-2 py-1.5 border rounded-lg text-xs"
+                                          style={{ background: cs.surface2, borderColor: cs.borderSoft, color: cs.text, appearance: "auto" as const }}
+                                        >
+                                          <option value="sm">Small</option>
+                                          <option value="md">Medium (default)</option>
+                                          <option value="lg">Large</option>
+                                          <option value="xl">XL</option>
+                                        </select>
+                                      </div>
+                                      <div>
+                                        <label className="block text-xs mb-0.5" style={{ color: cs.textMuted }}>Name weight</label>
+                                        <select
+                                          value={editForm.name_weight}
+                                          onChange={e => setEditForm(f => ({ ...f, name_weight: e.target.value }))}
+                                          className="w-full px-2 py-1.5 border rounded-lg text-xs"
+                                          style={{ background: cs.surface2, borderColor: cs.borderSoft, color: cs.text, appearance: "auto" as const }}
+                                        >
+                                          <option value="normal">Normal (default)</option>
+                                          <option value="medium">Medium</option>
+                                          <option value="bold">Bold</option>
+                                        </select>
+                                      </div>
+                                      <div>
+                                        <label className="block text-xs mb-0.5" style={{ color: cs.textMuted }}>Price size</label>
+                                        <select
+                                          value={editForm.price_size}
+                                          onChange={e => setEditForm(f => ({ ...f, price_size: e.target.value }))}
+                                          className="w-full px-2 py-1.5 border rounded-lg text-xs"
+                                          style={{ background: cs.surface2, borderColor: cs.borderSoft, color: cs.text, appearance: "auto" as const }}
+                                        >
+                                          <option value="sm">Small</option>
+                                          <option value="md">Medium (default)</option>
+                                          <option value="lg">Large</option>
+                                        </select>
+                                      </div>
+                                      <div>
+                                        <label className="block text-xs mb-0.5" style={{ color: cs.textMuted }}>Description size</label>
+                                        <select
+                                          value={editForm.desc_size}
+                                          onChange={e => setEditForm(f => ({ ...f, desc_size: e.target.value }))}
+                                          className="w-full px-2 py-1.5 border rounded-lg text-xs"
+                                          style={{ background: cs.surface2, borderColor: cs.borderSoft, color: cs.text, appearance: "auto" as const }}
+                                        >
+                                          <option value="sm">Small (default)</option>
+                                          <option value="md">Medium</option>
+                                        </select>
+                                      </div>
                                     </div>
                                   </div>
                                   <div className="flex gap-2 pt-1">

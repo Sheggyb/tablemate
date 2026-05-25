@@ -3,6 +3,35 @@ import type { MenuItem } from "@/lib/types";
 
 // MIGRATION NEEDED:
 // ALTER TABLE venues ADD COLUMN IF NOT EXISTS menu_template text DEFAULT 'classic';
+//
+// MIGRATION NEEDED (per-item text overrides):
+// ALTER TABLE public.menu_items ADD COLUMN IF NOT EXISTS name_size text DEFAULT 'md';
+// ALTER TABLE public.menu_items ADD COLUMN IF NOT EXISTS name_weight text DEFAULT 'normal';
+// ALTER TABLE public.menu_items ADD COLUMN IF NOT EXISTS price_size text DEFAULT 'md';
+// ALTER TABLE public.menu_items ADD COLUMN IF NOT EXISTS desc_size text DEFAULT 'sm';
+
+// ─── Per-item override helpers ───────────────────────────────────────────────
+const NAME_SIZE_MAP: Record<string, string> = { sm: "0.85rem", md: "inherit", lg: "1.35rem", xl: "1.6rem" };
+const PRICE_SIZE_MAP: Record<string, string> = { sm: "0.8rem", md: "inherit", lg: "1.25rem" };
+const DESC_SIZE_MAP: Record<string, string> = { sm: "inherit", md: "0.95rem" };
+const WEIGHT_MAP: Record<string, string | number> = { normal: "inherit", medium: 500, bold: 700 };
+
+function applyNameOverrides(base: React.CSSProperties, item: MenuItem): React.CSSProperties {
+  const s: React.CSSProperties = { ...base };
+  if (item.name_size && item.name_size !== "md") s.fontSize = NAME_SIZE_MAP[item.name_size] ?? base.fontSize;
+  if (item.name_weight && item.name_weight !== "normal") s.fontWeight = WEIGHT_MAP[item.name_weight] ?? base.fontWeight;
+  return s;
+}
+function applyPriceOverrides(base: React.CSSProperties, item: MenuItem): React.CSSProperties {
+  const s: React.CSSProperties = { ...base };
+  if (item.price_size && item.price_size !== "md") s.fontSize = PRICE_SIZE_MAP[item.price_size] ?? base.fontSize;
+  return s;
+}
+function applyDescOverrides(base: React.CSSProperties, item: MenuItem): React.CSSProperties {
+  const s: React.CSSProperties = { ...base };
+  if (item.desc_size && item.desc_size !== "sm") s.fontSize = DESC_SIZE_MAP[item.desc_size] ?? base.fontSize;
+  return s;
+}
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -204,15 +233,15 @@ export default async function MenuPage({ params }: { params: Promise<{ venueId: 
                         }}
                       >
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <p style={t.itemNameStyle}>{item.name}</p>
+                          <p style={applyNameOverrides(t.itemNameStyle, item)}>{item.name}</p>
                           {item.description && (
-                            <p style={{ ...t.itemDescStyle, marginTop: "0.25rem" }}>
+                            <p style={{ ...applyDescOverrides(t.itemDescStyle, item), marginTop: "0.25rem" }}>
                               {item.description}
                             </p>
                           )}
                         </div>
                         {item.price && (
-                          <span style={{ ...t.priceStyle, whiteSpace: "nowrap", paddingTop: "2px" }}>
+                          <span style={{ ...applyPriceOverrides(t.priceStyle, item), whiteSpace: "nowrap", paddingTop: "2px" }}>
                             {item.price}
                           </span>
                         )}

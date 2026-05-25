@@ -46,6 +46,10 @@ export interface MenuItem {
   price?: string | null
   sort_order: number
   created_at?: string
+  name_size?: string | null
+  name_weight?: string | null
+  price_size?: string | null
+  desc_size?: string | null
 }
 
 export interface Table {
