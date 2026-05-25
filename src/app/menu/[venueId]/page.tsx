@@ -11,25 +11,31 @@ import type { MenuItem } from "@/lib/types";
 // ALTER TABLE public.menu_items ADD COLUMN IF NOT EXISTS desc_size text DEFAULT 'sm';
 
 // ─── Per-item override helpers ───────────────────────────────────────────────
-const NAME_SIZE_MAP: Record<string, string> = { sm: "0.85rem", md: "inherit", lg: "1.35rem", xl: "1.6rem" };
-const PRICE_SIZE_MAP: Record<string, string> = { sm: "0.8rem", md: "inherit", lg: "1.25rem" };
-const DESC_SIZE_MAP: Record<string, string> = { sm: "inherit", md: "0.95rem" };
 const WEIGHT_MAP: Record<string, string | number> = { normal: "inherit", medium: 500, bold: 700 };
 
 function applyNameOverrides(base: React.CSSProperties, item: MenuItem): React.CSSProperties {
   const s: React.CSSProperties = { ...base };
-  if (item.name_size && item.name_size !== "md") s.fontSize = NAME_SIZE_MAP[item.name_size] ?? base.fontSize;
+  if (item.name_size) {
+    const px = parseInt(item.name_size);
+    if (!isNaN(px)) s.fontSize = `${px}px`;
+  }
   if (item.name_weight && item.name_weight !== "normal") s.fontWeight = WEIGHT_MAP[item.name_weight] ?? base.fontWeight;
   return s;
 }
 function applyPriceOverrides(base: React.CSSProperties, item: MenuItem): React.CSSProperties {
   const s: React.CSSProperties = { ...base };
-  if (item.price_size && item.price_size !== "md") s.fontSize = PRICE_SIZE_MAP[item.price_size] ?? base.fontSize;
+  if (item.price_size) {
+    const px = parseInt(item.price_size);
+    if (!isNaN(px)) s.fontSize = `${px}px`;
+  }
   return s;
 }
 function applyDescOverrides(base: React.CSSProperties, item: MenuItem): React.CSSProperties {
   const s: React.CSSProperties = { ...base };
-  if (item.desc_size && item.desc_size !== "sm") s.fontSize = DESC_SIZE_MAP[item.desc_size] ?? base.fontSize;
+  if (item.desc_size) {
+    const px = parseInt(item.desc_size);
+    if (!isNaN(px)) s.fontSize = `${px}px`;
+  }
   return s;
 }
 

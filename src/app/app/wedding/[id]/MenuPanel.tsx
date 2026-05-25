@@ -132,7 +132,7 @@ export default function MenuPanel({ venues, isDemo, showToast, onRenameVenue }: 
 
   // Inline edit state
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState<EditForm>({ name: "", description: "", price: "", category: "Main", name_size: "md", name_weight: "normal", price_size: "md", desc_size: "sm" });
+  const [editForm, setEditForm] = useState<EditForm>({ name: "", description: "", price: "", category: "Main", name_size: "20", name_weight: "normal", price_size: "18", desc_size: "14" });
   const [editSaving, setEditSaving] = useState(false);
 
   useEffect(() => { setVenueNameEdit(venue?.name ?? ""); }, [venue?.name]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -228,10 +228,10 @@ export default function MenuPanel({ venues, isDemo, showToast, onRenameVenue }: 
       description: item.description ?? "",
       price: item.price ?? "",
       category: item.category,
-      name_size: item.name_size || "md",
+      name_size: item.name_size || "20",
       name_weight: item.name_weight || "normal",
-      price_size: item.price_size || "md",
-      desc_size: item.desc_size || "sm",
+      price_size: item.price_size || "18",
+      desc_size: item.desc_size || "14",
     });
   };
 
@@ -599,61 +599,79 @@ export default function MenuPanel({ venues, isDemo, showToast, onRenameVenue }: 
                                     </div>
                                   </div>
                                   {/* ── Per-item text style overrides ── */}
-                                  <div className="rounded-lg p-2.5 border space-y-2" style={{ background: cs.surface, borderColor: cs.borderSoft }}>
+                                  <div className="rounded-lg p-2.5 border space-y-3" style={{ background: cs.surface, borderColor: cs.borderSoft }}>
                                     <p className="text-xs font-semibold" style={{ color: cs.textSoft }}>🎨 Text style overrides</p>
-                                    <div className="grid grid-cols-2 gap-2">
-                                      <div>
-                                        <label className="block text-xs mb-0.5" style={{ color: cs.textMuted }}>Name size</label>
-                                        <select
-                                          value={editForm.name_size}
-                                          onChange={e => setEditForm(f => ({ ...f, name_size: e.target.value }))}
-                                          className="w-full px-2 py-1.5 border rounded-lg text-xs"
-                                          style={{ background: cs.surface2, borderColor: cs.borderSoft, color: cs.text, appearance: "auto" as const }}
-                                        >
-                                          <option value="sm">Small</option>
-                                          <option value="md">Medium (default)</option>
-                                          <option value="lg">Large</option>
-                                          <option value="xl">XL</option>
-                                        </select>
+                                    <style>{`
+                                      .tm-slider { -webkit-appearance: none; appearance: none; width: 100%; height: 4px; border-radius: 2px; outline: none; cursor: pointer; }
+                                      .tm-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--accent); cursor: pointer; transition: transform 0.15s; }
+                                      .tm-slider::-webkit-slider-thumb:hover { transform: scale(1.25); }
+                                      .tm-slider::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: var(--accent); cursor: pointer; border: none; }
+                                    `}</style>
+                                    {/* Name size */}
+                                    <div>
+                                      <div className="flex items-center justify-between mb-1">
+                                        <label className="text-xs" style={{ color: cs.textMuted }}>Name size</label>
+                                        <span className="text-xs font-bold" style={{ color: cs.accent }}>{editForm.name_size}px</span>
                                       </div>
-                                      <div>
-                                        <label className="block text-xs mb-0.5" style={{ color: cs.textMuted }}>Name weight</label>
-                                        <select
-                                          value={editForm.name_weight}
-                                          onChange={e => setEditForm(f => ({ ...f, name_weight: e.target.value }))}
-                                          className="w-full px-2 py-1.5 border rounded-lg text-xs"
-                                          style={{ background: cs.surface2, borderColor: cs.borderSoft, color: cs.text, appearance: "auto" as const }}
-                                        >
-                                          <option value="normal">Normal (default)</option>
-                                          <option value="medium">Medium</option>
-                                          <option value="bold">Bold</option>
-                                        </select>
+                                      <input
+                                        type="range"
+                                        min={14} max={48} step={2}
+                                        value={editForm.name_size}
+                                        onChange={e => setEditForm(f => ({ ...f, name_size: e.target.value }))}
+                                        className="tm-slider"
+                                        style={{ background: `linear-gradient(to right, var(--accent) 0%, var(--accent) ${((parseInt(editForm.name_size) - 14) / (48 - 14)) * 100}%, var(--border-soft) ${((parseInt(editForm.name_size) - 14) / (48 - 14)) * 100}%, var(--border-soft) 100%)` }}
+                                      />
+                                    </div>
+                                    {/* Name weight */}
+                                    <div>
+                                      <label className="block text-xs mb-1" style={{ color: cs.textMuted }}>Name weight</label>
+                                      <div className="flex gap-1">
+                                        {(["normal", "medium", "bold"] as const).map(w => (
+                                          <button
+                                            key={w}
+                                            type="button"
+                                            onClick={() => setEditForm(f => ({ ...f, name_weight: w }))}
+                                            className="flex-1 py-1 rounded-full text-xs font-medium transition-all"
+                                            style={{
+                                              background: editForm.name_weight === w ? cs.accent : cs.surface2,
+                                              color: editForm.name_weight === w ? "white" : cs.textSoft,
+                                              border: `1px solid ${editForm.name_weight === w ? cs.accent : cs.borderSoft}`,
+                                            }}
+                                          >
+                                            {w.charAt(0).toUpperCase() + w.slice(1)}
+                                          </button>
+                                        ))}
                                       </div>
-                                      <div>
-                                        <label className="block text-xs mb-0.5" style={{ color: cs.textMuted }}>Price size</label>
-                                        <select
-                                          value={editForm.price_size}
-                                          onChange={e => setEditForm(f => ({ ...f, price_size: e.target.value }))}
-                                          className="w-full px-2 py-1.5 border rounded-lg text-xs"
-                                          style={{ background: cs.surface2, borderColor: cs.borderSoft, color: cs.text, appearance: "auto" as const }}
-                                        >
-                                          <option value="sm">Small</option>
-                                          <option value="md">Medium (default)</option>
-                                          <option value="lg">Large</option>
-                                        </select>
+                                    </div>
+                                    {/* Price size */}
+                                    <div>
+                                      <div className="flex items-center justify-between mb-1">
+                                        <label className="text-xs" style={{ color: cs.textMuted }}>Price size</label>
+                                        <span className="text-xs font-bold" style={{ color: cs.accent }}>{editForm.price_size}px</span>
                                       </div>
-                                      <div>
-                                        <label className="block text-xs mb-0.5" style={{ color: cs.textMuted }}>Description size</label>
-                                        <select
-                                          value={editForm.desc_size}
-                                          onChange={e => setEditForm(f => ({ ...f, desc_size: e.target.value }))}
-                                          className="w-full px-2 py-1.5 border rounded-lg text-xs"
-                                          style={{ background: cs.surface2, borderColor: cs.borderSoft, color: cs.text, appearance: "auto" as const }}
-                                        >
-                                          <option value="sm">Small (default)</option>
-                                          <option value="md">Medium</option>
-                                        </select>
+                                      <input
+                                        type="range"
+                                        min={14} max={42} step={2}
+                                        value={editForm.price_size}
+                                        onChange={e => setEditForm(f => ({ ...f, price_size: e.target.value }))}
+                                        className="tm-slider"
+                                        style={{ background: `linear-gradient(to right, var(--accent) 0%, var(--accent) ${((parseInt(editForm.price_size) - 14) / (42 - 14)) * 100}%, var(--border-soft) ${((parseInt(editForm.price_size) - 14) / (42 - 14)) * 100}%, var(--border-soft) 100%)` }}
+                                      />
+                                    </div>
+                                    {/* Description size */}
+                                    <div>
+                                      <div className="flex items-center justify-between mb-1">
+                                        <label className="text-xs" style={{ color: cs.textMuted }}>Description size</label>
+                                        <span className="text-xs font-bold" style={{ color: cs.accent }}>{editForm.desc_size}px</span>
                                       </div>
+                                      <input
+                                        type="range"
+                                        min={12} max={24} step={1}
+                                        value={editForm.desc_size}
+                                        onChange={e => setEditForm(f => ({ ...f, desc_size: e.target.value }))}
+                                        className="tm-slider"
+                                        style={{ background: `linear-gradient(to right, var(--accent) 0%, var(--accent) ${((parseInt(editForm.desc_size) - 12) / (24 - 12)) * 100}%, var(--border-soft) ${((parseInt(editForm.desc_size) - 12) / (24 - 12)) * 100}%, var(--border-soft) 100%)` }}
+                                      />
                                     </div>
                                   </div>
                                   <div className="flex gap-2 pt-1">
