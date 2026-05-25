@@ -5,6 +5,9 @@ import QRCode from "qrcode";
 import { createClient } from "@/lib/supabase/client";
 import type { MenuItem, Venue } from "@/lib/types";
 
+// MIGRATION NEEDED:
+// ALTER TABLE venues ADD COLUMN IF NOT EXISTS menu_template text DEFAULT 'classic';
+
 const CATEGORIES = ["Starter", "Main", "Dessert", "Drinks"] as const;
 const CAT_ICONS: Record<string, string> = {
   Starter: "🥗",
@@ -13,12 +16,79 @@ const CAT_ICONS: Record<string, string> = {
   Drinks: "🍷",
 };
 
+interface TemplateOption {
+  id: string;
+  name: string;
+  preview: React.CSSProperties;
+  textColor: string;
+  accentColor: string;
+  subColor: string;
+}
+
+const TEMPLATES: TemplateOption[] = [
+  {
+    id: "classic",
+    name: "Classic",
+    preview: { background: "linear-gradient(135deg, #faf8f4, #f3ede3)", border: "1px solid #c4a97d" },
+    textColor: "#2c2416",
+    accentColor: "#c4a97d",
+    subColor: "#9c8b72",
+  },
+  {
+    id: "modern",
+    name: "Modern",
+    preview: { background: "#ffffff", border: "1px solid #e0e0e0" },
+    textColor: "#111111",
+    accentColor: "#111111",
+    subColor: "#666666",
+  },
+  {
+    id: "dark_elegant",
+    name: "Dark Elegant",
+    preview: { background: "linear-gradient(135deg, #1a1a1a, #111)", border: "1px solid #c4a97d" },
+    textColor: "#f5e6c8",
+    accentColor: "#c4a97d",
+    subColor: "#b89b6a",
+  },
+  {
+    id: "rustic",
+    name: "Rustic",
+    preview: { background: "linear-gradient(135deg, #f5e6d0, #e8d5b7)", border: "1px solid #8b6340" },
+    textColor: "#4a2e0d",
+    accentColor: "#8b6340",
+    subColor: "#7a5230",
+  },
+  {
+    id: "floral",
+    name: "Floral",
+    preview: { background: "linear-gradient(135deg, #fce4ec, #f8bbd9)", border: "1px solid #e91e8c" },
+    textColor: "#4a1942",
+    accentColor: "#c2185b",
+    subColor: "#880e4f",
+  },
+  {
+    id: "bold",
+    name: "Bold",
+    preview: { background: "linear-gradient(135deg, #0d1b4b, #1a2f7a)", border: "1px solid #4fc3f7" },
+    textColor: "#ffffff",
+    accentColor: "#4fc3f7",
+    subColor: "#90caf9",
+  },
+];
+
 interface Props {
   venues: Venue[];
   darkMode: boolean;
   isDemo: boolean;
   showToast: (msg: string, type: "success" | "error" | "info") => void;
   onRenameVenue?: (name: string) => void;
+}
+
+interface EditForm {
+  name: string;
+  description: string;
+  price: string;
+  category: string;
 }
 
 export default function MenuPanel({ venues, isDemo, showToast, onRenameVenue }: Props) {
@@ -47,14 +117,22 @@ export default function MenuPanel({ venues, isDemo, showToast, onRenameVenue }: 
   const [previewMode, setPreviewMode] = useState(false);
   const [form, setForm] = useState({ name: "", description: "", price: "", category: "Main" });
   const [venueNameEdit, setVenueNameEdit] = useState(venue?.name ?? "");
+  const [selectedTemplate, setSelectedTemplate] = useState("classic");
+  const [savingTemplate, setSavingTemplate] = useState(false);
 
-  // Keep local edit state in sync if the venue prop changes externally
+  // Inline edit state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<EditForm>({ name: "", description: "", price: "", category: "Main" });
+  const [editSaving, setEditSaving] = useState(false);
+
   useEffect(() => { setVenueNameEdit(venue?.name ?? ""); }, [venue?.name]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load items from DB
+  // Load items and template from DB
   useEffect(() => {
     if (!venueId || isDemo) return;
     setLoading(true);
+
+    // Load menu items
     supabase
       .from("menu_items")
       .select("*")
@@ -66,10 +144,39 @@ export default function MenuPanel({ venues, isDemo, showToast, onRenameVenue }: 
         if (error) { showToast("Failed to load menu items", "error"); return; }
         if (data) setMenuItems(data as MenuItem[]);
       });
+
+    // Load template — gracefully handle if column doesn't exist
+    supabase
+      .from("venues")
+      .select("menu_template")
+      .eq("id", venueId)
+      .single()
+      .then(({ data }) => {
+        if (data && (data as Record<string, unknown>).menu_template) {
+          setSelectedTemplate((data as Record<string, unknown>).menu_template as string);
+        }
+      });
+
     // Generate QR code
     const menuUrl = `https://tablemate-beta.vercel.app/menu/${venueId}`;
     QRCode.toDataURL(menuUrl, { width: 200, margin: 2 }).then(setQrDataUrl);
   }, [venueId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSelectTemplate = async (templateId: string) => {
+    setSelectedTemplate(templateId);
+    if (!venueId || isDemo) return;
+    setSavingTemplate(true);
+    const { error } = await supabase
+      .from("venues")
+      .update({ menu_template: templateId })
+      .eq("id", venueId);
+    setSavingTemplate(false);
+    if (error) {
+      showToast("Could not save template — " + error.message, "error");
+    } else {
+      showToast(`Template set to ${TEMPLATES.find(t => t.id === templateId)?.name ?? templateId} ✓`, "success");
+    }
+  };
 
   const handleAdd = async () => {
     if (!venueId || !form.name.trim() || isDemo) return;
@@ -98,11 +205,52 @@ export default function MenuPanel({ venues, isDemo, showToast, onRenameVenue }: 
     const { error } = await supabase.from("menu_items").delete().eq("id", id);
     if (error) {
       showToast("Failed to delete item", "error");
-      // Reload to restore correct state
       supabase.from("menu_items").select("*").eq("venue_id", venueId!).then(({ data }) => {
         if (data) setMenuItems(data as MenuItem[]);
       });
     }
+  };
+
+  const startEdit = (item: MenuItem) => {
+    setEditingId(item.id);
+    setEditForm({
+      name: item.name,
+      description: item.description ?? "",
+      price: item.price ?? "",
+      category: item.category,
+    });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+  };
+
+  const saveEdit = async (id: string) => {
+    if (!editForm.name.trim()) return;
+    setEditSaving(true);
+    const { error } = await supabase
+      .from("menu_items")
+      .update({
+        name: editForm.name.trim(),
+        description: editForm.description.trim() || null,
+        price: editForm.price.trim() || null,
+        category: editForm.category,
+      })
+      .eq("id", id);
+    setEditSaving(false);
+    if (error) {
+      showToast("Failed to save changes — " + error.message, "error");
+      return;
+    }
+    setMenuItems(prev =>
+      prev.map(item =>
+        item.id === id
+          ? { ...item, name: editForm.name.trim(), description: editForm.description.trim() || null, price: editForm.price.trim() || null, category: editForm.category }
+          : item
+      )
+    );
+    setEditingId(null);
+    showToast("Item updated ✓", "success");
   };
 
   // Group items by category
@@ -115,6 +263,12 @@ export default function MenuPanel({ venues, isDemo, showToast, onRenameVenue }: 
   const allCats = [...CATEGORIES, ...extraCats];
 
   const menuUrl = venueId ? `https://tablemate-beta.vercel.app/menu/${venueId}` : null;
+
+  const inputStyle = {
+    background: cs.surface,
+    borderColor: cs.borderSoft,
+    color: cs.text,
+  };
 
   if (!venueId) {
     return (
@@ -153,7 +307,6 @@ export default function MenuPanel({ venues, isDemo, showToast, onRenameVenue }: 
           /* ── Live Preview ── */
           <div className="p-6">
             <div className="max-w-sm mx-auto">
-              {/* Phone frame */}
               <div className="rounded-2xl overflow-hidden shadow-xl border-2" style={{ borderColor: cs.border }}>
                 <div className="bg-stone-50 py-8 px-5">
                   <div className="text-center mb-6">
@@ -215,51 +368,128 @@ export default function MenuPanel({ venues, isDemo, showToast, onRenameVenue }: 
               <p className="text-xs mt-1.5" style={{ color: cs.textMuted }}>Shown as the title on your guest menu page</p>
             </div>
 
+            {/* ── Style Templates ── */}
+            <div className="rounded-xl p-4 border" style={{ background: cs.surface2, borderColor: cs.borderSoft }}>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold" style={{ color: cs.text }}>🎨 Menu Style</h3>
+                {savingTemplate && <span className="text-xs" style={{ color: cs.textMuted }}>Saving…</span>}
+              </div>
+              <div
+                className="flex gap-3 overflow-x-auto pb-2"
+                style={{ scrollbarWidth: "thin" }}
+              >
+                {TEMPLATES.map(tpl => {
+                  const isActive = selectedTemplate === tpl.id;
+                  return (
+                    <button
+                      key={tpl.id}
+                      onClick={() => handleSelectTemplate(tpl.id)}
+                      disabled={isDemo}
+                      title={tpl.name}
+                      style={{
+                        flexShrink: 0,
+                        width: 90,
+                        borderRadius: 10,
+                        border: isActive ? `2px solid ${cs.accent}` : "2px solid transparent",
+                        padding: 3,
+                        background: "transparent",
+                        cursor: isDemo ? "not-allowed" : "pointer",
+                        opacity: isDemo ? 0.5 : 1,
+                        outline: "none",
+                      }}
+                    >
+                      {/* Mini preview card */}
+                      <div
+                        style={{
+                          ...tpl.preview,
+                          borderRadius: 7,
+                          height: 60,
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          gap: 4,
+                          padding: "6px 4px",
+                        }}
+                      >
+                        <div style={{ width: 40, height: 3, borderRadius: 2, background: tpl.accentColor, opacity: 0.9 }} />
+                        <div style={{ width: 52, height: 2, borderRadius: 2, background: tpl.textColor, opacity: 0.6 }} />
+                        <div style={{ width: 36, height: 2, borderRadius: 2, background: tpl.subColor, opacity: 0.5 }} />
+                      </div>
+                      <p
+                        className="text-center mt-1.5"
+                        style={{
+                          fontSize: 11,
+                          fontWeight: isActive ? 700 : 500,
+                          color: isActive ? cs.accent : cs.textSoft,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {isActive ? "✓ " : ""}{tpl.name}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Add Item Form */}
             <div className="rounded-xl p-4 border" style={{ background: cs.surface2, borderColor: cs.borderSoft }}>
               <h3 className="text-sm font-semibold mb-3" style={{ color: cs.text }}>Add Menu Item</h3>
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Item name *"
-                    value={form.name}
-                    onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                    onKeyDown={e => { if (e.key === "Enter" && form.name.trim()) handleAdd(); }}
-                    className="flex-1 px-3 py-2 border rounded-lg text-sm"
-                    style={{ background: cs.surface, borderColor: cs.borderSoft, color: cs.text }}
-                  />
-                  <select
-                    value={form.category}
-                    onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
-                    className="px-3 py-2 border rounded-lg text-sm"
-                    style={{ background: cs.surface, borderColor: cs.borderSoft, color: cs.text }}
-                  >
-                    {CATEGORIES.map(c => <option key={c} value={c}>{CAT_ICONS[c]} {c}</option>)}
-                  </select>
+                  <div className="flex-1">
+                    <label className="block text-xs font-medium mb-1" style={{ color: cs.textSoft }}>Item name *</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Grilled Salmon"
+                      value={form.name}
+                      onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                      onKeyDown={e => { if (e.key === "Enter" && form.name.trim()) handleAdd(); }}
+                      className="w-full px-3 py-2.5 border rounded-lg text-sm"
+                      style={inputStyle}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium mb-1" style={{ color: cs.textSoft }}>Category</label>
+                    <select
+                      value={form.category}
+                      onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
+                      className="px-3 py-2.5 border rounded-lg text-sm h-full"
+                      style={inputStyle}
+                    >
+                      {CATEGORIES.map(c => <option key={c} value={c}>{CAT_ICONS[c]} {c}</option>)}
+                    </select>
+                  </div>
                 </div>
                 <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Description (optional)"
-                    value={form.description}
-                    onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                    className="flex-1 px-3 py-2 border rounded-lg text-sm"
-                    style={{ background: cs.surface, borderColor: cs.borderSoft, color: cs.text }}
-                  />
-                  <input
-                    type="text"
-                    placeholder="Price (e.g. £12)"
-                    value={form.price}
-                    onChange={e => setForm(f => ({ ...f, price: e.target.value }))}
-                    className="w-28 px-3 py-2 border rounded-lg text-sm"
-                    style={{ background: cs.surface, borderColor: cs.borderSoft, color: cs.text }}
-                  />
+                  <div className="flex-1">
+                    <label className="block text-xs font-medium mb-1" style={{ color: cs.textSoft }}>Description</label>
+                    <input
+                      type="text"
+                      placeholder="Optional description…"
+                      value={form.description}
+                      onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                      className="w-full px-3 py-2.5 border rounded-lg text-sm"
+                      style={inputStyle}
+                    />
+                  </div>
+                  <div style={{ width: 130 }}>
+                    <label className="block text-xs font-medium mb-1" style={{ color: cs.textSoft }}>Price</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. £12.00"
+                      value={form.price}
+                      onChange={e => setForm(f => ({ ...f, price: e.target.value }))}
+                      className="w-full px-3 py-2.5 border rounded-lg text-sm font-semibold"
+                      style={inputStyle}
+                    />
+                  </div>
                 </div>
                 <button
                   disabled={!form.name.trim() || saving || isDemo}
                   onClick={handleAdd}
-                  className="w-full py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-40 transition-opacity"
+                  className="w-full py-2.5 rounded-lg text-sm font-semibold text-white disabled:opacity-40 transition-opacity"
                   style={{ background: cs.accent }}
                 >
                   {saving ? "Adding…" : isDemo ? "Sign up to add items" : "+ Add Item"}
@@ -293,33 +523,122 @@ export default function MenuPanel({ venues, isDemo, showToast, onRenameVenue }: 
                           {CAT_ICONS[cat] ?? "🍽️"} {cat}
                         </p>
                         <div className="space-y-1.5">
-                          {catItems.map(item => (
-                            <div
-                              key={item.id}
-                              className="flex items-start gap-3 px-3 py-2.5 rounded-lg border"
-                              style={{ background: cs.surface2, borderColor: cs.borderSoft }}
-                            >
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-sm font-medium" style={{ color: cs.text }}>{item.name}</span>
-                                  {item.price && (
-                                    <span className="text-xs px-1.5 py-0.5 rounded font-semibold" style={{ background: cs.surface, color: cs.textSoft }}>
-                                      {item.price}
-                                    </span>
+                          {catItems.map(item => {
+                            if (editingId === item.id) {
+                              /* ── Inline Edit Form ── */
+                              return (
+                                <div
+                                  key={item.id}
+                                  className="rounded-lg border p-3 space-y-2"
+                                  style={{ background: cs.surface2, borderColor: cs.accent }}
+                                >
+                                  <div className="flex gap-2">
+                                    <div className="flex-1">
+                                      <label className="block text-xs font-medium mb-0.5" style={{ color: cs.textSoft }}>Name *</label>
+                                      <input
+                                        type="text"
+                                        value={editForm.name}
+                                        onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
+                                        className="w-full px-2.5 py-2 border rounded-lg text-sm"
+                                        style={inputStyle}
+                                        autoFocus
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-xs font-medium mb-0.5" style={{ color: cs.textSoft }}>Category</label>
+                                      <select
+                                        value={editForm.category}
+                                        onChange={e => setEditForm(f => ({ ...f, category: e.target.value }))}
+                                        className="px-2.5 py-2 border rounded-lg text-sm"
+                                        style={inputStyle}
+                                      >
+                                        {CATEGORIES.map(c => <option key={c} value={c}>{CAT_ICONS[c]} {c}</option>)}
+                                      </select>
+                                    </div>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <div className="flex-1">
+                                      <label className="block text-xs font-medium mb-0.5" style={{ color: cs.textSoft }}>Description</label>
+                                      <input
+                                        type="text"
+                                        value={editForm.description}
+                                        onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
+                                        placeholder="Optional…"
+                                        className="w-full px-2.5 py-2 border rounded-lg text-sm"
+                                        style={inputStyle}
+                                      />
+                                    </div>
+                                    <div style={{ width: 120 }}>
+                                      <label className="block text-xs font-medium mb-0.5" style={{ color: cs.textSoft }}>Price</label>
+                                      <input
+                                        type="text"
+                                        value={editForm.price}
+                                        onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))}
+                                        placeholder="e.g. £12"
+                                        className="w-full px-2.5 py-2 border rounded-lg text-sm font-semibold"
+                                        style={inputStyle}
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="flex gap-2 pt-1">
+                                    <button
+                                      disabled={!editForm.name.trim() || editSaving}
+                                      onClick={() => saveEdit(item.id)}
+                                      className="flex-1 py-1.5 rounded-lg text-xs font-semibold text-white disabled:opacity-40"
+                                      style={{ background: cs.accent }}
+                                    >
+                                      {editSaving ? "Saving…" : "✓ Save"}
+                                    </button>
+                                    <button
+                                      onClick={cancelEdit}
+                                      className="px-4 py-1.5 rounded-lg text-xs font-medium border"
+                                      style={{ borderColor: cs.borderSoft, color: cs.textSoft }}
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            }
+
+                            /* ── Normal Item Row ── */
+                            return (
+                              <div
+                                key={item.id}
+                                className="flex items-start gap-3 px-3 py-2.5 rounded-lg border"
+                                style={{ background: cs.surface2, borderColor: cs.borderSoft }}
+                              >
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm font-medium" style={{ color: cs.text }}>{item.name}</span>
+                                    {item.price && (
+                                      <span className="text-xs px-1.5 py-0.5 rounded font-semibold" style={{ background: cs.surface, color: cs.textSoft }}>
+                                        {item.price}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {item.description && (
+                                    <p className="text-xs mt-0.5 leading-relaxed" style={{ color: cs.textMuted }}>{item.description}</p>
                                   )}
                                 </div>
-                                {item.description && (
-                                  <p className="text-xs mt-0.5 leading-relaxed" style={{ color: cs.textMuted }}>{item.description}</p>
-                                )}
+                                {/* Edit button */}
+                                <button
+                                  onClick={() => startEdit(item)}
+                                  className="text-xs p-1 rounded hover:opacity-70 flex-shrink-0 mt-0.5"
+                                  style={{ color: cs.textSoft }}
+                                  title="Edit item"
+                                >
+                                  ✏️
+                                </button>
+                                <button
+                                  onClick={() => handleDelete(item.id)}
+                                  className="text-xs p-1 rounded hover:opacity-70 flex-shrink-0 mt-0.5"
+                                  style={{ color: cs.textMuted }}
+                                  title="Remove item"
+                                >✕</button>
                               </div>
-                              <button
-                                onClick={() => handleDelete(item.id)}
-                                className="text-xs p-1 rounded hover:opacity-70 flex-shrink-0 mt-0.5"
-                                style={{ color: cs.textMuted }}
-                                title="Remove item"
-                              >✕</button>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     );
