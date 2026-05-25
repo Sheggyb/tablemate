@@ -358,6 +358,7 @@ export default function MobilePlanner({ wedding, tables, guests, groups, rules, 
     setSaving(true);
     dispatch({ type: "DELETE_TABLE", id });
     if (!isDemo) {
+      await supabase.from("guests").update({ table_id: null, seat_index: null }).eq("table_id", id);
       const { error } = await supabase.from("tables").delete().eq("id", id);
       if (error) {
         if (prevTable) dispatch({ type: "ADD_TABLE", payload: prevTable });

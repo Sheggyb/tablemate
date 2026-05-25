@@ -57,7 +57,15 @@ function reducer(state: PlannerState, action: PlannerAction): PlannerState {
   switch (action.type) {
     case "SET_ALL": return action.payload;
     case "ADD_VENUE":    return { ...state, venues: [...state.venues, action.payload] };
-    case "DELETE_VENUE": return { ...state, venues: state.venues.filter(v => v.id !== action.id), tables: state.tables.filter(t => t.venue_id !== action.id) };
+    case "DELETE_VENUE": {
+      const venueTableIds = new Set(state.tables.filter(t => t.venue_id === action.id).map(t => t.id));
+      return {
+        ...state,
+        venues: state.venues.filter(v => v.id !== action.id),
+        tables: state.tables.filter(t => t.venue_id !== action.id),
+        guests: state.guests.map(g => g.table_id && venueTableIds.has(g.table_id) ? { ...g, table_id: null, seat_index: null } : g),
+      };
+    }
     case "UPDATE_VENUE": return { ...state, venues: state.venues.map(v => v.id === action.id ? { ...v, ...action.data } : v) };
     case "ADD_TABLE":    return { ...state, tables: [...state.tables, action.payload] };
     case "UPDATE_TABLE": return { ...state, tables: state.tables.map(t => t.id === action.id ? { ...t, ...action.data } : t) };
@@ -392,6 +400,11 @@ export default function PlannerClient({
     dispatch({ type: "DELETE_VENUE", id });
     if (activeVenueId === id) setActiveVenueId(state.venues.find(v => v.id !== id)?.id ?? null);
     if (!isDemo) {
+      const { data: venueTables } = await supabase.from("tables").select("id").eq("venue_id", id);
+      const tableIds = venueTables?.map(t => t.id) ?? [];
+      if (tableIds.length > 0) {
+        await supabase.from("guests").update({ table_id: null, seat_index: null }).in("table_id", tableIds);
+      }
       await supabase.from("tables").delete().eq("venue_id", id);
       await supabase.from("venues").delete().eq("id", id);
     }
