@@ -136,6 +136,13 @@ export default function ChartCanvas({
   const [roomPosOpen, setRoomPosOpen]           = useState(false);
   const [roomAspectLock, setRoomAspectLock]     = useState(false);
 
+  // Demo-mode toast
+  const [demoToast, setDemoToast]               = useState(false);
+  const showDemoToast = useCallback(() => {
+    setDemoToast(true);
+    setTimeout(() => setDemoToast(false), 2500);
+  }, []);
+
   // Generate Tables UI state
   const [genCount, setGenCount]                 = useState<string>("");
   const [genDiamCm, setGenDiamCm]               = useState<number>(150);
@@ -179,6 +186,7 @@ export default function ChartCanvas({
 
   // Helper to update a specific shape in layout.shapes
   const updateShape = useCallback((id: string, patch: Partial<VenueShape>) => {
+    if (isDemo) { showDemoToast(); return; }
     if (!activeVenue?.layout) return;
     const existingShapes = activeVenue.layout.shapes && activeVenue.layout.shapes.length > 0
       ? activeVenue.layout.shapes
@@ -230,6 +238,7 @@ export default function ChartCanvas({
   ];
 
   const addShape = useCallback((kind: VenueShapeKind) => {
+    if (isDemo) { showDemoToast(); return; }
     const existing = activeVenue?.layout ?? { templateKind: "blank" as import("@/lib/types").RoomTemplateKind, roomPath: null, fixtures: [] };
     const existingShapes = existing.shapes ?? layoutShapes;
     const offset_n = existingShapes.length * 20;
@@ -260,6 +269,7 @@ export default function ChartCanvas({
 
   const handleFixtureDragStart = useCallback((e: React.PointerEvent, fixtureId: string) => {
     e.stopPropagation();
+    if (isDemo) { showDemoToast(); return; }
     const fix = activeVenue?.layout?.fixtures.find(f => f.id === fixtureId);
     if (!fix) return;
     const cx = (e.clientX - offset.x) / scale;
@@ -553,19 +563,21 @@ export default function ChartCanvas({
   /* ── Table drag ── */
   const onTablePointerDown = useCallback((e: React.PointerEvent, id: string) => {
     e.stopPropagation();
+    if (isDemo) { showDemoToast(); return; }
     setSelected(id);
     const t = tables.find(t => t.id === id)!;
     setDragging({ id, ox: (e.clientX - offset.x) / scale - t.x, oy: (e.clientY - offset.y) / scale - t.y });
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-  }, [tables, offset, scale]);
+  }, [tables, offset, scale, isDemo, showDemoToast]);
 
   /* ── Right-click context menu ── */
   const onTableContextMenu = useCallback((e: React.MouseEvent, id: string) => {
     e.preventDefault();
+    if (isDemo) { showDemoToast(); return; }
     e.stopPropagation();
     setSelected(id);
     setCtxMenu({ x: e.clientX, y: e.clientY, tableId: id });
-  }, []);
+  }, [isDemo, showDemoToast]);
 
   /* ── Guest drag-and-drop ── */
   const onGuestDragOver = useCallback((e: React.DragEvent, tableId: string) => {
@@ -600,15 +612,17 @@ export default function ChartCanvas({
   }, [tables]);
 
   const addPreset = useCallback((p: typeof PRESET_TABLES[number]) => {
+    if (isDemo) { showDemoToast(); return; }
     const n = tables.filter(t => t.shape === p.shape && t.capacity === p.capacity).length;
     onAddTable(customName.trim() || `${p.label} ${n + 1}`, p.shape, p.capacity);
     setCustomName("");
-  }, [tables, customName, onAddTable]);
+  }, [tables, customName, onAddTable, isDemo, showDemoToast]);
 
   const addCustomTable = useCallback(() => {
+    if (isDemo) { showDemoToast(); return; }
     onAddTable(customName.trim() || `Table ${tables.length + 1}`, customShape, customCap);
     setCustomName("");
-  }, [customName, tables, customShape, customCap, onAddTable]);
+  }, [customName, tables, customShape, customCap, onAddTable, isDemo, showDemoToast]);
 
   return (
     <>
@@ -781,6 +795,7 @@ export default function ChartCanvas({
                           <button
                             onClick={e => {
                               e.stopPropagation();
+                              if (isDemo) { showDemoToast(); return; }
                               if (!activeVenue?.layout) return;
                               const newShapes = layoutShapes.filter(s => s.id !== shape.id);
                               onUpdateLayout(activeVenue.id, { ...activeVenue.layout, shapes: newShapes });
@@ -802,6 +817,7 @@ export default function ChartCanvas({
                   {FIXTURE_PRESETS.map(preset => (
                     <button key={preset.kind}
                       onClick={() => {
+                        if (isDemo) { showDemoToast(); return; }
                         const existing = activeVenue?.layout ?? { templateKind: "blank" as import("@/lib/types").RoomTemplateKind, roomPath: null, fixtures: [] };
                         const offset_n = existing.fixtures.length * 20;
                         const newFixture: import("@/lib/types").VenueFixture = {
@@ -860,6 +876,7 @@ export default function ChartCanvas({
                   </div>
                   <button
                     onClick={() => {
+                      if (isDemo) { showDemoToast(); return; }
                       const label = customFixLabel.trim() || "Custom";
                       const existing = activeVenue?.layout ?? { templateKind: "blank" as import("@/lib/types").RoomTemplateKind, roomPath: null, fixtures: [] };
                       const newFixture: import("@/lib/types").VenueFixture = {
@@ -1077,7 +1094,7 @@ export default function ChartCanvas({
               ))}
             </div>
 
-            <button onClick={onAutoSeat}
+            <button onClick={() => { if (isDemo) { showDemoToast(); return; } onAutoSeat(); }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
               style={{ background: cs.accentBg, border: `1px solid var(--accent)`, color: "var(--accent)" }}>
               ✨ Auto-Seat
@@ -1347,6 +1364,7 @@ export default function ChartCanvas({
                         onPointerDown={e => {
                           e.stopPropagation();
                           setSelectedShapeId(shape.id);
+                          if (isDemo) { showDemoToast(); return; }
                           if (shape.locked) return;
                           const capturedTables = tables
                             .filter(t => isInsideShape(t.x + tableSize(t).w / 2, t.y + tableSize(t).h / 2, shape))
@@ -1373,6 +1391,7 @@ export default function ChartCanvas({
                             style={{ cursor: hd.cursor, pointerEvents: "all" }}
                             onPointerDown={e => {
                               e.stopPropagation();
+                              if (isDemo) { showDemoToast(); return; }
                               (e.currentTarget as SVGRectElement).setPointerCapture(e.pointerId);
                               setResizingShapeId({ id: shape.id, handle: hd.id, startClientX: e.clientX, startClientY: e.clientY, startX: shape.x, startY: shape.y, startSX: sx, startSY: sy });
                             }}
@@ -1432,6 +1451,7 @@ export default function ChartCanvas({
                             style={{ cursor: corner === "nw" || corner === "se" ? "nwse-resize" : "nesw-resize" }}
                             onPointerDown={e => {
                               e.stopPropagation();
+                              if (isDemo) { showDemoToast(); return; }
                               (e.currentTarget as SVGElement).setPointerCapture(e.pointerId);
                               setResizingFixture({ id: f.id, corner, startX: e.clientX, startY: e.clientY, startW: f.w, startH: f.h, startFX: f.x, startFY: f.y });
                             }}
@@ -1747,6 +1767,7 @@ export default function ChartCanvas({
                   <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
                   <button
                     onClick={() => {
+                      if (isDemo) { showDemoToast(); return; }
                       const n = parseInt(genCount, 10);
                       if (!n || n < 1 || n > 200) return;
                       // Constants — per-kind base dimensions matching SVG rendering
@@ -1820,6 +1841,7 @@ export default function ChartCanvas({
                   >Generate</button>
                   <button
                     onClick={() => {
+                      if (isDemo) { showDemoToast(); return; }
                       // Fill Shape: place as many as fit
                       const BASE_DIMS: Record<string, [number, number]> = {
                         rectangle: [800, 600], oval: [800, 600], marquee: [700, 500],
@@ -1885,6 +1907,7 @@ export default function ChartCanvas({
                     return (
                       <button
                         onClick={() => {
+                          if (isDemo) { showDemoToast(); return; }
                           const PX_PER_CM = 132 / 150;
                           const GAP = genGapCm * PX_PER_CM;
                           const cellPx = tableW + GAP;
@@ -1982,6 +2005,7 @@ export default function ChartCanvas({
                 </button>
                 <button
                   onClick={() => {
+                    if (isDemo) { showDemoToast(); return; }
                     if (confirm("Remove this shape?")) {
                       if (!activeVenue?.layout) return;
                       const newShapes = layoutShapes.filter(s => s.id !== shape.id);
@@ -2152,6 +2176,11 @@ export default function ChartCanvas({
             </button>
           </div>
         )}
+      {demoToast && (
+        <div style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', background: 'var(--accent)', color: '#fff', padding: '8px 18px', borderRadius: 8, zIndex: 100, fontWeight: 600, fontSize: 14, pointerEvents: 'none', whiteSpace: 'nowrap' }}>
+          🔒 Sign in to make changes
+        </div>
+      )}
       </div>
     </>
   );
