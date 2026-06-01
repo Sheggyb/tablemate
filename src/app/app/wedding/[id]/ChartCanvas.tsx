@@ -45,6 +45,44 @@ const PRESET_TABLES: { label: string; shape: "round" | "rectangle" | "oval"; cap
 
 const SNAP_GRID = 20;
 
+// ── Module-level shape-geometry helpers ──
+const BASE_DIMS_FOR_SHAPE: Record<string, [number, number]> = {
+  rectangle: [800, 600], oval: [800, 600], marquee: [700, 500],
+  lshape: [800, 600], ushape: [800, 600],
+  "wall-h": [400, 20], "wall-v": [20, 400], "wall-diagonal": [300, 20],
+};
+
+function isInsideShape(cx: number, cy: number, shape: import("@/lib/types").VenueShape): boolean {
+  const [BASE_W, BASE_H] = BASE_DIMS_FOR_SHAPE[shape.kind] ?? [800, 600];
+  // Rotate point back by -rotation around shape center for rotation-aware containment
+  const shapeCenterX = shape.x + (BASE_W * (shape.scaleX ?? 1)) / 2;
+  const shapeCenterY = shape.y + (BASE_H * (shape.scaleY ?? 1)) / 2;
+  const angleRad = -((shape.rotation ?? 0) * Math.PI) / 180;
+  const cosA = Math.cos(angleRad);
+  const sinA = Math.sin(angleRad);
+  const rdx = cx - shapeCenterX;
+  const rdy = cy - shapeCenterY;
+  const rotatedCx = shapeCenterX + rdx * cosA - rdy * sinA;
+  const rotatedCy = shapeCenterY + rdx * sinA + rdy * cosA;
+
+  const lx = rotatedCx - shape.x;
+  const ly = rotatedCy - shape.y;
+  const bx = lx / (shape.scaleX ?? 1);
+  const by = ly / (shape.scaleY ?? 1);
+  switch (shape.kind) {
+    case "oval": {
+      const rw = BASE_W / 2, rh = BASE_H / 2;
+      return ((bx - rw) / rw) ** 2 + ((by - rh) / rh) ** 2 <= 0.82;
+    }
+    case "lshape":
+      return bx < BASE_W * 0.42 || by > BASE_H * 0.58;
+    case "ushape":
+      return bx < BASE_W * 0.27 || bx > BASE_W * 0.73 || by > BASE_H * 0.68;
+    default:
+      return bx >= 0 && bx <= BASE_W && by >= 0 && by <= BASE_H;
+  }
+}
+
 type SideTab = "add" | "custom" | "guests" | "layout";
 type ViewMode = "canvas" | "list" | "grid";
 
@@ -91,7 +129,7 @@ export default function ChartCanvas({
 
   // Shape drag/resize state (replaces single-room state)
   const [selectedShapeId, setSelectedShapeId]   = useState<string | null>(null);
-  const [draggingShapeId, setDraggingShapeId]   = useState<{ id: string; startClientX: number; startClientY: number; startX: number; startY: number } | null>(null);
+  const [draggingShapeId, setDraggingShapeId]   = useState<{ id: string; startClientX: number; startClientY: number; startX: number; startY: number; capturedTables: { id: string; startX: number; startY: number }[] } | null>(null);
   const [resizingShapeId, setResizingShapeId]   = useState<{ id: string; handle: string; startClientX: number; startClientY: number; startX: number; startY: number; startSX: number; startSY: number } | null>(null);
 
   // Room Properties panel local UI state
@@ -300,12 +338,14 @@ export default function ChartCanvas({
     return tables.filter(t => t.name.toLowerCase().includes(q));
   }, [findQuery, tables]);
 
-  // IDs of highlighted tables (floor plan) — all tables of focused guest
+  // IDs of highlighted tables (floor plan) — all tables of focused guest, or tables in selected shape
+  const [shapeHighlightIds, setShapeHighlightIds] = useState<string[]>([]);
   const highlightedTableIds = useMemo(() => {
+    if (shapeHighlightIds.length > 0) return shapeHighlightIds;
     if (!focusedGuestId) return [] as string[];
     const g = guests.find(x => x.id === focusedGuestId);
     return g?.table_id ? [g.table_id] : [];
-  }, [focusedGuestId, guests]);
+  }, [focusedGuestId, guests, shapeHighlightIds]);
 
   // Close context menu on outside click
   useEffect(() => {
@@ -392,6 +432,12 @@ export default function ChartCanvas({
         x: draggingShapeId.startX + dx,
         y: draggingShapeId.startY + dy,
       });
+      // Move captured tables locally (optimistic, no DB call)
+      if (draggingShapeId.capturedTables.length > 0) {
+        draggingShapeId.capturedTables.forEach(ct => {
+          onUpdateTable(ct.id, { x: ct.startX + dx, y: ct.startY + dy });
+        });
+      }
     }
     if (resizingShapeId && activeVenue?.layout) {
       const shape = layoutShapes.find(s => s.id === resizingShapeId.id);
@@ -427,14 +473,21 @@ export default function ChartCanvas({
     }
   }, [panning, panStart, dragging, draggingFixture, resizingFixture, draggingShapeId, resizingShapeId, offset, scale, snapEnabled, onUpdateTable, activeVenue, onUpdateLayout, updateShape, layoutShapes]);
 
-  const onPointerUpCanvas = useCallback(() => {
+  const onPointerUpCanvas = useCallback((e?: React.PointerEvent) => {
+    if (draggingShapeId && draggingShapeId.capturedTables.length > 0 && e) {
+      const dx = (e.clientX - draggingShapeId.startClientX) / scale;
+      const dy = (e.clientY - draggingShapeId.startClientY) / scale;
+      onUpdateTablePositions(
+        draggingShapeId.capturedTables.map(ct => ({ id: ct.id, x: ct.startX + dx, y: ct.startY + dy }))
+      );
+    }
     setPanning(false);
     setDragging(null);
     setDraggingFixture(null);
     setResizingFixture(null);
     setDraggingShapeId(null);
     setResizingShapeId(null);
-  }, []);
+  }, [draggingShapeId, scale, onUpdateTablePositions]);
 
   /* ── Wheel zoom ── */
   const onWheel = useCallback((e: WheelEvent) => {
@@ -474,31 +527,13 @@ export default function ChartCanvas({
       const maxCols = Math.floor(usableW / cellPx);
       const maxRows = Math.floor(usableH / cellPx);
       if (maxCols <= 0 || maxRows <= 0) { setGhostCells(null); return; }
-      const isInsideShape = (cx: number, cy: number): boolean => {
-        const lx = cx - shape.x;
-        const ly = cy - shape.y;
-        const bx = lx / (shape.scaleX ?? 1);
-        const by = ly / (shape.scaleY ?? 1);
-        switch (shape.kind) {
-          case "oval": {
-            const rw = BASE_W / 2, rh = BASE_H / 2;
-            return ((bx - rw) / rw) ** 2 + ((by - rh) / rh) ** 2 <= 0.82;
-          }
-          case "lshape":
-            return bx < BASE_W * 0.42 || by > BASE_H * 0.58;
-          case "ushape":
-            return bx < BASE_W * 0.27 || bx > BASE_W * 0.73 || by > BASE_H * 0.68;
-          default:
-            return bx >= 0 && bx <= BASE_W && by >= 0 && by <= BASE_H;
-        }
-      };
-      const existingInShape = tables.filter(t => isInsideShape(t.x + tableW / 2, t.y + tableH / 2));
+      const existingInShape = tables.filter(t => isInsideShape(t.x + tableW / 2, t.y + tableH / 2, shape));
       const emptyCells: { cx: number; cy: number }[] = [];
       for (let row = 0; row < maxRows; row++) {
         for (let col = 0; col < maxCols; col++) {
           const cx = shape.x + PADDING + col * cellPx + cellPx / 2;
           const cy = shape.y + PADDING + row * cellPx + cellPx / 2;
-          if (!isInsideShape(cx, cy)) continue;
+          if (!isInsideShape(cx, cy, shape)) continue;
           const occupied = existingInShape.some(t => {
             const { w: ew } = tableSize(t);
             const tx = t.x + ew / 2;
@@ -1313,7 +1348,10 @@ export default function ChartCanvas({
                           e.stopPropagation();
                           setSelectedShapeId(shape.id);
                           if (shape.locked) return;
-                          setDraggingShapeId({ id: shape.id, startClientX: e.clientX, startClientY: e.clientY, startX: shape.x, startY: shape.y });
+                          const capturedTables = tables
+                            .filter(t => isInsideShape(t.x + tableSize(t).w / 2, t.y + tableSize(t).h / 2, shape))
+                            .map(t => ({ id: t.id, startX: t.x, startY: t.y }));
+                          setDraggingShapeId({ id: shape.id, startClientX: e.clientX, startClientY: e.clientY, startX: shape.x, startY: shape.y, capturedTables });
                           (e.currentTarget as SVGGElement).setPointerCapture(e.pointerId);
                         }}
                       >
@@ -1736,28 +1774,9 @@ export default function ChartCanvas({
                         setGenCount("");
                         return;
                       }
-                      // Returns true if canvas point (cx,cy) is inside the actual shape geometry
-                      const isInsideShape = (cx: number, cy: number): boolean => {
-                        const lx = cx - shape.x;
-                        const ly = cy - shape.y;
-                        const bx = lx / (shape.scaleX ?? 1);
-                        const by = ly / (shape.scaleY ?? 1);
-                        switch (shape.kind) {
-                          case "oval": {
-                            const rw = BASE_W / 2, rh = BASE_H / 2;
-                            return ((bx - rw) / rw) ** 2 + ((by - rh) / rh) ** 2 <= 0.82;
-                          }
-                          case "lshape":
-                            return bx < BASE_W * 0.42 || by > BASE_H * 0.58;
-                          case "ushape":
-                            return bx < BASE_W * 0.27 || bx > BASE_W * 0.73 || by > BASE_H * 0.68;
-                          default:
-                            return bx >= 0 && bx <= BASE_W && by >= 0 && by <= BASE_H;
-                        }
-                      };
                       // Find existing tables inside this shape using geometry check
                       const existingInShape = tables.filter(t =>
-                        isInsideShape(t.x + tableW / 2, t.y + tableH / 2)
+                        isInsideShape(t.x + tableW / 2, t.y + tableH / 2, shape)
                       );
                       // Build all grid candidate cells and skip occupied ones
                       const emptyCells: { cx: number; cy: number }[] = [];
@@ -1765,7 +1784,7 @@ export default function ChartCanvas({
                         for (let col = 0; col < maxCols; col++) {
                           const cx = shape.x + PADDING + col * cellPx + cellPx / 2;
                           const cy = shape.y + PADDING + row * cellPx + cellPx / 2;
-                          if (!isInsideShape(cx, cy)) continue;
+                          if (!isInsideShape(cx, cy, shape)) continue;
                           const occupied = existingInShape.some(t => {
                             const { w: ew } = tableSize(t);
                             const tx = t.x + ew / 2;
@@ -1821,25 +1840,13 @@ export default function ChartCanvas({
                       const maxCols = Math.floor(usableW / cellPx);
                       const maxRows = Math.floor(usableH / cellPx);
                       if (maxCols <= 0 || maxRows <= 0) { setGenResult({ count: 0, maxFit: 0 }); return; }
-                      const isInsideShape = (cx: number, cy: number): boolean => {
-                        const lx = cx - shape.x;
-                        const ly = cy - shape.y;
-                        const bx = lx / (shape.scaleX ?? 1);
-                        const by = ly / (shape.scaleY ?? 1);
-                        switch (shape.kind) {
-                          case "oval": { const rw = BASE_W / 2, rh = BASE_H / 2; return ((bx - rw) / rw) ** 2 + ((by - rh) / rh) ** 2 <= 0.82; }
-                          case "lshape": return bx < BASE_W * 0.42 || by > BASE_H * 0.58;
-                          case "ushape": return bx < BASE_W * 0.27 || bx > BASE_W * 0.73 || by > BASE_H * 0.68;
-                          default: return bx >= 0 && bx <= BASE_W && by >= 0 && by <= BASE_H;
-                        }
-                      };
-                      const existingInShape = tables.filter(t => isInsideShape(t.x + tableW / 2, t.y + tableH / 2));
+                      const existingInShape = tables.filter(t => isInsideShape(t.x + tableW / 2, t.y + tableH / 2, shape));
                       const emptyCells: { cx: number; cy: number }[] = [];
                       for (let row = 0; row < maxRows; row++) {
                         for (let col = 0; col < maxCols; col++) {
                           const cx = shape.x + PADDING + col * cellPx + cellPx / 2;
                           const cy = shape.y + PADDING + row * cellPx + cellPx / 2;
-                          if (!isInsideShape(cx, cy)) continue;
+                          if (!isInsideShape(cx, cy, shape)) continue;
                           const occupied = existingInShape.some(t => {
                             const { w: ew } = tableSize(t);
                             const tx = t.x + ew / 2;
@@ -1871,24 +1878,10 @@ export default function ChartCanvas({
                   </div>
                   {/* Rearrange button — only when tables are inside shape */}
                   {(() => {
-                    const BASE_DIMS: Record<string, [number, number]> = {
-                      rectangle: [800, 600], oval: [800, 600], marquee: [700, 500],
-                      lshape: [800, 600], ushape: [800, 600],
-                    };
-                    const [BASE_W, BASE_H] = BASE_DIMS[shape.kind] ?? [800, 600];
                     const { w: tableW, h: tableH } = tableSize({ shape: "round", capacity: cmToCapacity(genDiamCm) } as any);
-                    const isInsideShapeCheck = (cx: number, cy: number): boolean => {
-                      const lx = cx - shape.x; const ly = cy - shape.y;
-                      const bx = lx / (shape.scaleX ?? 1); const by = ly / (shape.scaleY ?? 1);
-                      switch (shape.kind) {
-                        case "oval": { const rw = BASE_W / 2, rh = BASE_H / 2; return ((bx - rw) / rw) ** 2 + ((by - rh) / rh) ** 2 <= 0.82; }
-                        case "lshape": return bx < BASE_W * 0.42 || by > BASE_H * 0.58;
-                        case "ushape": return bx < BASE_W * 0.27 || bx > BASE_W * 0.73 || by > BASE_H * 0.68;
-                        default: return bx >= 0 && bx <= BASE_W && by >= 0 && by <= BASE_H;
-                      }
-                    };
-                    const tablesInShape = tables.filter(t => isInsideShapeCheck(t.x + tableW / 2, t.y + tableH / 2));
+                    const tablesInShape = tables.filter(t => isInsideShape(t.x + tableW / 2, t.y + tableH / 2, shape));
                     if (tablesInShape.length === 0) return null;
+                    const [BASE_W, BASE_H] = BASE_DIMS_FOR_SHAPE[shape.kind] ?? [800, 600];
                     return (
                       <button
                         onClick={() => {
@@ -1908,7 +1901,7 @@ export default function ChartCanvas({
                             for (let col = 0; col < maxCols; col++) {
                               const cx = shape.x + PADDING + col * cellPx + cellPx / 2;
                               const cy = shape.y + PADDING + row * cellPx + cellPx / 2;
-                              if (!isInsideShapeCheck(cx, cy)) continue;
+                              if (!isInsideShape(cx, cy, shape)) continue;
                               allGridCells.push({ cx, cy });
                             }
                           }
@@ -2003,6 +1996,29 @@ export default function ChartCanvas({
                   🗑 Delete
                 </button>
               </div>
+              {/* Select Tables in Shape */}
+              {(() => {
+                const tablesInShapeForSelect = tables.filter(t =>
+                  isInsideShape(t.x + tableSize(t).w / 2, t.y + tableSize(t).h / 2, shape)
+                );
+                const count = tablesInShapeForSelect.length;
+                return (
+                  <div style={{ padding: "0 14px 12px" }}>
+                    <button
+                      disabled={count === 0}
+                      onClick={() => setShapeHighlightIds(tablesInShapeForSelect.map(t => t.id))}
+                      style={{
+                        width: "100%", padding: "7px 4px", borderRadius: 9, fontSize: 12,
+                        cursor: count === 0 ? "not-allowed" : "pointer",
+                        border: `1px solid ${cs.accent}`, background: count === 0 ? "transparent" : cs.accentBg,
+                        color: count === 0 ? cs.textMuted : cs.accent, fontWeight: 600,
+                        opacity: count === 0 ? 0.5 : 1,
+                      }}>
+                      🪑 Select Tables in Shape {count > 0 ? `(${count})` : "(0 tables)"}
+                    </button>
+                  </div>
+                );
+              })()}
             </div>
           );
         })()}
