@@ -563,21 +563,19 @@ export default function ChartCanvas({
   /* ── Table drag ── */
   const onTablePointerDown = useCallback((e: React.PointerEvent, id: string) => {
     e.stopPropagation();
-    if (isDemo) { showDemoToast(); return; }
     setSelected(id);
     const t = tables.find(t => t.id === id)!;
     setDragging({ id, ox: (e.clientX - offset.x) / scale - t.x, oy: (e.clientY - offset.y) / scale - t.y });
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-  }, [tables, offset, scale, isDemo, showDemoToast]);
+  }, [tables, offset, scale]);
 
   /* ── Right-click context menu ── */
   const onTableContextMenu = useCallback((e: React.MouseEvent, id: string) => {
     e.preventDefault();
-    if (isDemo) { showDemoToast(); return; }
     e.stopPropagation();
     setSelected(id);
     setCtxMenu({ x: e.clientX, y: e.clientY, tableId: id });
-  }, [isDemo, showDemoToast]);
+  }, []);
 
   /* ── Guest drag-and-drop ── */
   const onGuestDragOver = useCallback((e: React.DragEvent, tableId: string) => {
@@ -612,17 +610,15 @@ export default function ChartCanvas({
   }, [tables]);
 
   const addPreset = useCallback((p: typeof PRESET_TABLES[number]) => {
-    if (isDemo) { showDemoToast(); return; }
     const n = tables.filter(t => t.shape === p.shape && t.capacity === p.capacity).length;
     onAddTable(customName.trim() || `${p.label} ${n + 1}`, p.shape, p.capacity);
     setCustomName("");
-  }, [tables, customName, onAddTable, isDemo, showDemoToast]);
+  }, [tables, customName, onAddTable]);
 
   const addCustomTable = useCallback(() => {
-    if (isDemo) { showDemoToast(); return; }
     onAddTable(customName.trim() || `Table ${tables.length + 1}`, customShape, customCap);
     setCustomName("");
-  }, [customName, tables, customShape, customCap, onAddTable, isDemo, showDemoToast]);
+  }, [customName, tables, customShape, customCap, onAddTable]);
 
   return (
     <>
@@ -1094,7 +1090,7 @@ export default function ChartCanvas({
               ))}
             </div>
 
-            <button onClick={() => { if (isDemo) { showDemoToast(); return; } onAutoSeat(); }}
+            <button onClick={() => { onAutoSeat(); }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
               style={{ background: cs.accentBg, border: `1px solid var(--accent)`, color: "var(--accent)" }}>
               ✨ Auto-Seat
